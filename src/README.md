@@ -52,3 +52,23 @@ The modular architecture makes it easy to:
 - Add new output formats by extending `github-client.ts`
 - Modify diff processing in `diff-parser.ts`
 - Add new configuration sources in `config.ts`
+
+### Development
+
+When making changes to the source code:
+
+1. **Build the project**: `npm run build`
+2. **Check types**: `npm run type-check`
+3. **Lint code**: `npm run lint`
+4. **Verify dist is up-to-date**: `npm run check-dist`
+
+**Important**: The `dist/` folder is committed to the repository for GitHub Actions compatibility. Always run `npm run build` after making changes and commit the updated `dist/` files.
+
+### Build Process
+
+The build process:
+
+1. Compiles TypeScript to JavaScript (`tsc`)
+2. Bundles everything into a single file using `ncc`
+3. Generates source maps for debugging
+4. Creates `dist/index.js` which is the entry point for the GitHub Action
