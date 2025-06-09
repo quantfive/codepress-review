@@ -56,7 +56,17 @@ async function run(): Promise<void> {
     const diffFile = resolve("pr.diff");
 
     try {
-      execSync(`git fetch --depth=0 origin ${baseRef}`, { stdio: "inherit" });
+      // Fetch the base branch with sufficient history for diff generation
+      // Try unshallow first, then fall back to regular fetch if it fails
+      try {
+        execSync(`git fetch --unshallow origin ${baseRef}`, {
+          stdio: "inherit",
+        });
+      } catch {
+        // If unshallow fails (e.g., already unshallow), try regular fetch
+        execSync(`git fetch origin ${baseRef}`, { stdio: "inherit" });
+      }
+
       const diffOutput = execSync(`git diff --unified=0 origin/${baseRef}`, {
         encoding: "utf8",
       });

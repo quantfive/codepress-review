@@ -432,7 +432,17 @@ async function run() {
         const baseRef = pull_request.base.ref;
         const diffFile = (0, path_1.resolve)("pr.diff");
         try {
-            (0, child_process_1.execSync)(`git fetch --depth=0 origin ${baseRef}`, { stdio: "inherit" });
+            // Fetch the base branch with sufficient history for diff generation
+            // Try unshallow first, then fall back to regular fetch if it fails
+            try {
+                (0, child_process_1.execSync)(`git fetch --unshallow origin ${baseRef}`, {
+                    stdio: "inherit",
+                });
+            }
+            catch {
+                // If unshallow fails (e.g., already unshallow), try regular fetch
+                (0, child_process_1.execSync)(`git fetch origin ${baseRef}`, { stdio: "inherit" });
+            }
             const diffOutput = (0, child_process_1.execSync)(`git diff --unified=0 origin/${baseRef}`, {
                 encoding: "utf8",
             });
