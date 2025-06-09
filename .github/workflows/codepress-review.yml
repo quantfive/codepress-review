@@ -1,4 +1,4 @@
-name: AI Code Review
+name: CodePress Review
 
 on:
   pull_request:

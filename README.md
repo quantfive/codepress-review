@@ -13,7 +13,7 @@ A turnkey GitHub Action for automatic, inline code review on every Pull Request 
 
 ## Quick Start
 
-Add this workflow to your repository at `.github/workflows/ai-review.yml`:
+Add this workflow to your repository at `.github/workflows/codepress-review.yml`:
 
 ```yaml
 name: CodePress Review
