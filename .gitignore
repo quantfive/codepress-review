@@ -72,6 +72,8 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
+.DS_Store
+
 # dotenv environment variable files
 .env
 .env.development.local
@@ -134,3 +136,35 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Build outputs
+dist/
+lib/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+coverage/
+*.log
+pr.diff
+
+# Action build artifacts
+licenses.txt
