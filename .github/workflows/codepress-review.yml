@@ -11,42 +11,22 @@ permissions:
 jobs:
   ai-review:
     runs-on: ubuntu-latest
-    env:
-      MODEL_PROVIDER: ${{ secrets.MODEL_PROVIDER }}
-      MODEL_NAME: ${{ secrets.MODEL_NAME }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: CodePress Review
+        uses: ./ # When published, this would be: uses: your-username/codepress-review@v1
         with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install --omit=dev
-
-      - name: Get PR diff
-        id: diff
-        run: |
-          git fetch --depth=0 origin ${{ github.event.pull_request.base.ref }}
-          git diff --unified=0 origin/${{ github.event.pull_request.base.ref }} > pr.diff
-
-      - name: Run AI Review
-        run: |
-          npx ts-node scripts/ai-review.ts --diff pr.diff --pr ${{ github.event.pull_request.number }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MODEL_PROVIDER: ${{ env.MODEL_PROVIDER }}
-          MODEL_NAME: ${{ env.MODEL_NAME }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model_provider: "openai"
+          model_name: "gpt-4o"
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          # custom_prompt: "Your custom review criteria here"
 
   lint:
     runs-on: ubuntu-latest

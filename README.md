@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
 
       - name: CodePress Review
-        uses: your-username/ai-code-review@v1
+        uses: your-username/codepress-review@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
@@ -74,8 +74,9 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/ai-code-review@v1
+  uses: your-username/codepress-review@v1
   with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
     model_name: "gpt-4o"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
@@ -85,8 +86,9 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/ai-code-review@v1
+  uses: your-username/codepress-review@v1
   with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
     model_name: "claude-3-sonnet-20240229"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -96,8 +98,9 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/ai-code-review@v1
+  uses: your-username/codepress-review@v1
   with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "gemini"
     model_name: "gemini-1.5-pro"
     gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
@@ -146,20 +149,21 @@ This ensures your custom prompts work seamlessly while maintaining the structure
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/ai-code-review@v1
+  uses: your-username/codepress-review@v1
   with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
     model_name: "gpt-4o"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-            custom_prompt: |
+    custom_prompt: |
       You are a security expert reviewing code for vulnerabilities. Focus on:
       - Authentication and authorization issues
       - Input validation and sanitization
       - SQL injection, XSS, and CSRF vulnerabilities
       - Sensitive data exposure
 
-      Use severity levels: required (critical security issues),
-      optional (security improvements), nit (minor security polish),
+      Use severity levels: required (critical security issues), 
+      optional (security improvements), nit (minor security polish), 
       fyi (security info).
 ```
 
@@ -167,12 +171,13 @@ This ensures your custom prompts work seamlessly while maintaining the structure
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/ai-code-review@v1
+  uses: your-username/codepress-review@v1
   with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
     model_name: "claude-3-sonnet-20240229"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-        custom_prompt: |
+    custom_prompt: |
       You are a performance optimization expert. Review this code for:
       - Inefficient algorithms and data structures
       - Memory leaks and excessive allocations
@@ -186,12 +191,13 @@ This ensures your custom prompts work seamlessly while maintaining the structure
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/ai-code-review@v1
+  uses: your-username/codepress-review@v1
   with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
     model_name: "gpt-4o"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-        custom_prompt: |
+    custom_prompt: |
       You are a patient mentor reviewing code from a junior developer. Your feedback should be:
       - Educational and encouraging
       - Explain the "why" behind suggestions
@@ -242,7 +248,7 @@ And set:
 env:
 GITHUB_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
 
-```
+````
 
 ## Technical Architecture
 
@@ -256,7 +262,28 @@ This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai
 - **Hunk-Based Processing**: Each diff hunk processed individually for focused reviews
 - **Line Resolution**: Handles line number mapping from diff context
 
+## Publishing to GitHub Marketplace
+
+To publish this action to the GitHub Marketplace:
+
+1. **Tag a Release**: Create and push a version tag
+   ```bash
+   git tag -a v1.0.0 -m "Release v1.0.0"
+   git push origin v1.0.0
+   ```
+
+2. **Create Release**: Go to your repository's releases page and create a new release from the tag
+
+3. **Publish to Marketplace**: Check the "Publish this Action to the GitHub Marketplace" box when creating the release
+
+4. **Users Install**: After publishing, users can reference your action as:
+   ```yaml
+   - uses: your-username/codepress-review@v1
+   ```
+
+The action is completely self-contained - users don't need to install dependencies, get diffs manually, or run scripts. Everything is handled automatically by `src/index.ts`.
+
 ---
 
 *See below for full usage and configuration details.*
-```
+````
