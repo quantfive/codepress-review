@@ -1,0 +1,77 @@
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+import { Finding, ModelConfig } from "./types";
+import { getSystemPrompt } from "./system-prompt";
+import { parseXMLResponse, resolveLineNumbers } from "./xml-parser";
+
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 1000;
+
+/**
+ * Creates the appropriate AI model based on configuration.
+ */
+function createModel(config: ModelConfig) {
+  switch (config.provider) {
+    case "openai":
+      return openai(config.modelName);
+    case "anthropic":
+      return anthropic(config.modelName);
+    case "gemini":
+      return google(config.modelName);
+    default:
+      throw new Error(`Unsupported MODEL_PROVIDER: ${config.provider}`);
+  }
+}
+
+/**
+ * Reviews a diff chunk using the AI model.
+ */
+export async function reviewChunk(
+  diffChunk: string,
+  modelConfig: ModelConfig,
+  customPrompt?: string,
+): Promise<Finding[]> {
+  const model = createModel(modelConfig);
+  const systemPrompt = getSystemPrompt({ customPrompt });
+
+  const { text } = await generateText({
+    model,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: `Please review this diff:\n\n${diffChunk}`,
+      },
+    ],
+    maxTokens: 4096,
+    temperature: 0.2,
+  });
+
+  const findings = parseXMLResponse(text);
+  return resolveLineNumbers(findings, diffChunk);
+}
+
+/**
+ * Executes a function with retry logic.
+ */
+export async function callWithRetry<T>(
+  fn: () => Promise<T>,
+  hunkIdx: number,
+): Promise<T> {
+  let attempt = 0;
+  while (attempt < MAX_RETRIES) {
+    try {
+      return await fn();
+    } catch (e) {
+      attempt++;
+      const wait = RETRY_BASE_MS * Math.pow(2, attempt);
+      console.warn(
+        `[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`,
+      );
+      await new Promise((res) => setTimeout(res, wait));
+    }
+  }
+  throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);
+}
