@@ -168,6 +168,9 @@ export class ReviewService {
         const shouldIgnore = minimatchers.some((matcher) =>
           matcher.match(fileName),
         );
+        console.log("fileName: ", fileName);
+        console.log("minimatchers: ", minimatchers);
+        console.log("shouldIgnore: ", shouldIgnore);
         if (shouldIgnore) {
           console.log(`Skipping review for ignored file: ${fileName}`);
           continue;
