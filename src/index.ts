@@ -1,7 +1,6 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { execSync } from "child_process";
-import { existsSync, statSync } from "fs";
+import { writeFileSync } from "fs";
 import { resolve } from "path";
 
 async function run(): Promise<void> {
@@ -54,45 +53,28 @@ async function run(): Promise<void> {
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
     // Generate diff
-    const baseRef = pull_request.base.ref;
     const diffFile = resolve("pr.diff");
 
     try {
-      // Fetch the base branch with sufficient history for diff generation
-      // Try unshallow first, then fall back to regular fetch if it fails
-      try {
-        execSync(`git fetch --unshallow origin ${baseRef}`, {
-          stdio: "inherit",
-          maxBuffer: 1024 * 1024 * 50, // 50MB buffer
-        });
-      } catch {
-        // If unshallow fails (e.g., already unshallow), try regular fetch
-        execSync(`git fetch origin ${baseRef}`, {
-          stdio: "inherit",
-          maxBuffer: 1024 * 1024 * 50, // 50MB buffer
-        });
-      }
+      core.info("Fetching diff from GitHub API...");
+      const octokit = github.getOctokit(githubToken);
 
-      // Generate diff directly to file to avoid Node.js buffer limitations
-      execSync(`git diff --unified=0 origin/${baseRef} > ${diffFile}`, {
-        shell: "/bin/bash",
-        maxBuffer: 1024 * 1024 * 10, // Smaller buffer since we're not capturing output
+      const diffResponse = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: pull_request.number,
+        mediaType: {
+          format: "diff",
+        },
       });
 
-      // Check if diff file was created and get its size
-      if (!existsSync(diffFile)) {
-        throw new Error("Diff file was not created");
-      }
-      const stats = statSync(diffFile);
-      core.info(`Generated diff file: ${diffFile} (${stats.size} bytes)`);
+      const diffOutput = diffResponse.data as unknown as string;
+      writeFileSync(diffFile, diffOutput);
+      core.info(
+        `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
+      );
     } catch (error) {
-      if (error instanceof Error && error.message.includes("ENOBUFS")) {
-        core.setFailed(
-          `Diff output too large to process. Consider reviewing smaller chunks or adjusting the diff scope.`,
-        );
-      } else {
-        core.setFailed(`Failed to generate diff: ${error}`);
-      }
+      core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
       return;
     }
 
