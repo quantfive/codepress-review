@@ -1,9 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReviewService = void 0;
 const fs_1 = require("fs");
 const path_1 = require("path");
-const minimatch_1 = require("minimatch");
+const ignore_1 = __importDefault(require("ignore"));
 const ai_1 = require("ai");
 const config_1 = require("./config");
 const diff_parser_1 = require("./diff-parser");
@@ -89,7 +92,7 @@ class ReviewService {
                 .split("\n")
                 .filter((line) => line.trim() && !line.startsWith("#"))
             : [];
-        const minimatchers = ignorePatterns.map((pattern) => new minimatch_1.Minimatch(pattern, { dot: true }));
+        const ig = (0, ignore_1.default)().add(ignorePatterns);
         // Get PR information
         const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
         // Fetch existing comments to avoid duplicates
@@ -103,10 +106,7 @@ class ReviewService {
             const chunk = chunks[i];
             const fileName = (0, diff_parser_1.getFileNameFromChunk)(chunk);
             if (fileName) {
-                const shouldIgnore = minimatchers.some((matcher) => matcher.match(fileName));
-                console.log("fileName: ", fileName);
-                console.log("minimatchers: ", minimatchers);
-                console.log("shouldIgnore: ", shouldIgnore);
+                const shouldIgnore = ig.ignores(fileName);
                 if (shouldIgnore) {
                     console.log(`Skipping review for ignored file: ${fileName}`);
                     continue;

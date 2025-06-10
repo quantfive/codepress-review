@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import { Minimatch } from "minimatch";
+import ignore from "ignore";
 import { APICallError } from "ai";
 import { Finding, ReviewConfig } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
@@ -129,9 +129,8 @@ export class ReviewService {
           .filter((line) => line.trim() && !line.startsWith("#"))
       : [];
 
-    const minimatchers = ignorePatterns.map(
-      (pattern) => new Minimatch(pattern, { dot: true }),
-    );
+    const ig = ignore().add(ignorePatterns);
+
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
 
@@ -154,12 +153,7 @@ export class ReviewService {
       const fileName = getFileNameFromChunk(chunk);
 
       if (fileName) {
-        const shouldIgnore = minimatchers.some((matcher) =>
-          matcher.match(fileName),
-        );
-        console.log("fileName: ", fileName);
-        console.log("minimatchers: ", minimatchers);
-        console.log("shouldIgnore: ", shouldIgnore);
+        const shouldIgnore = ig.ignores(fileName);
         if (shouldIgnore) {
           console.log(`Skipping review for ignored file: ${fileName}`);
           continue;
