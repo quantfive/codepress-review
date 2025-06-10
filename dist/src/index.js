@@ -35,7 +35,6 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(require("@actions/core"));
 const github = __importStar(require("@actions/github"));
-const child_process_1 = require("child_process");
 const fs_1 = require("fs");
 const path_1 = require("path");
 async function run() {
@@ -61,6 +60,7 @@ async function run() {
             core.setFailed("gemini_api_key is required when using Gemini provider");
             return;
         }
+        const context = github.context;
         // Set environment variables for the review script
         process.env.GITHUB_TOKEN = githubToken;
         process.env.MODEL_PROVIDER = modelProvider;
@@ -69,7 +69,8 @@ async function run() {
         process.env.ANTHROPIC_API_KEY = anthropicApiKey;
         process.env.GEMINI_API_KEY = geminiApiKey;
         process.env.CUSTOM_PROMPT = customPrompt;
-        const context = github.context;
+        process.env.GITHUB_REPOSITORY =
+            context.repo.owner + "/" + context.repo.repo;
         const { pull_request } = context.payload;
         if (!pull_request) {
             core.setFailed("This action can only be run on pull request events");
@@ -78,28 +79,24 @@ async function run() {
         core.info(`Running CodePress Review for PR #${pull_request.number}`);
         core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
         // Generate diff
-        const baseRef = pull_request.base.ref;
         const diffFile = (0, path_1.resolve)("pr.diff");
         try {
-            // Fetch the base branch with sufficient history for diff generation
-            // Try unshallow first, then fall back to regular fetch if it fails
-            try {
-                (0, child_process_1.execSync)(`git fetch --unshallow origin ${baseRef}`, {
-                    stdio: "inherit",
-                });
-            }
-            catch {
-                // If unshallow fails (e.g., already unshallow), try regular fetch
-                (0, child_process_1.execSync)(`git fetch origin ${baseRef}`, { stdio: "inherit" });
-            }
-            const diffOutput = (0, child_process_1.execSync)(`git diff --unified=0 origin/${baseRef}`, {
-                encoding: "utf8",
+            core.info("Fetching diff from GitHub API...");
+            const octokit = github.getOctokit(githubToken);
+            const diffResponse = await octokit.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pull_request.number,
+                mediaType: {
+                    format: "diff",
+                },
             });
+            const diffOutput = diffResponse.data;
             (0, fs_1.writeFileSync)(diffFile, diffOutput);
             core.info(`Generated diff file: ${diffFile} (${diffOutput.length} bytes)`);
         }
         catch (error) {
-            core.setFailed(`Failed to generate diff: ${error}`);
+            core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
             return;
         }
         // Run the AI review script
