@@ -22,7 +22,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "gemini"
-          model_name: "gemini-2.5-pro"
+          model_name: "gemini-2.5-pro-preview-06-05"
           # openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
