@@ -4,9 +4,9 @@ import ignore from "ignore";
 import { APICallError } from "ai";
 import { Finding, ReviewConfig } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
-import { splitDiff, getFileNameFromChunk } from "./diff-parser";
+import { splitDiff, ProcessableChunk } from "./diff-parser";
 import { reviewChunk, callWithRetry } from "./ai-client";
-import { GitHubClient, formatGitHubComment } from "./github-client";
+import { GitHubClient } from "./github-client";
 
 /**
  * Service class that orchestrates the entire review process.
@@ -25,20 +25,38 @@ export class ReviewService {
    * Processes a single diff chunk and posts comments to GitHub.
    */
   private async processChunk(
-    chunk: string,
+    chunk: ProcessableChunk,
     chunkIndex: number,
     commitId: string,
-    existingComments: Set<string>,
+    existingComments: Map<string, Set<number>>,
   ): Promise<void> {
     console.log(
-      `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(chunk)} bytes`,
+      `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(
+        chunk.content,
+      )} bytes`,
     );
+
+    // Skip chunk if it's already been commented on
+    const fileComments = existingComments.get(chunk.fileName);
+    if (fileComments) {
+      const { newStart, newLines } = chunk.hunk;
+      for (let i = 0; i < newLines; i++) {
+        if (fileComments.has(newStart + i)) {
+          console.log(
+            `[Hunk ${
+              chunkIndex + 1
+            }] Skipping chunk for ${chunk.fileName} as it has existing comments.`,
+          );
+          return;
+        }
+      }
+    }
 
     let findings: Finding[] = [];
     try {
       const modelConfig = getModelConfig();
       findings = await callWithRetry(
-        () => reviewChunk(chunk, modelConfig, this.config.customPrompt),
+        () => reviewChunk(chunk.content, modelConfig, this.config.customPrompt),
         chunkIndex + 1,
       );
     } catch (error: any) {
@@ -72,8 +90,7 @@ export class ReviewService {
       }
 
       // Create a unique signature for the finding based on its content.
-      const body = formatGitHubComment(finding);
-      const signature = `${finding.path}:${finding.line}:${body}`;
+      const signature = `${finding.path}:${finding.line}:${finding.message}`;
       if (seenSignatures.has(signature)) {
         return false;
       }
@@ -83,17 +100,6 @@ export class ReviewService {
 
     // Post findings as comments
     const commentPromises = uniqueFindings.map(async (finding) => {
-      const body = formatGitHubComment(finding);
-      const commentIdentifier = `${finding.path}:${body}`;
-      if (existingComments.has(commentIdentifier)) {
-        console.log(
-          `[Hunk ${
-            chunkIndex + 1
-          }] Skipping duplicate comment on ${finding.path}:${finding.line}`,
-        );
-        return;
-      }
-
       try {
         await this.githubClient.createReviewComment(
           this.config.pr,
@@ -141,26 +147,30 @@ export class ReviewService {
     const botComments = existingCommentsData.filter(
       (comment) => comment.user?.login === "github-actions[bot]",
     );
-    const existingComments = new Set(
-      botComments.map((comment) => `${comment.path}:${comment.body}`),
-    );
+
+    const existingComments = new Map<string, Set<number>>();
+    for (const comment of botComments) {
+      if (!comment.path || !comment.line) continue;
+      if (!existingComments.has(comment.path)) {
+        existingComments.set(comment.path, new Set());
+      }
+      existingComments.get(comment.path)!.add(comment.line);
+    }
 
     // Process chunks in parallel with a concurrency limit
     const concurrencyLimit = 15;
     const promises = [];
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      const fileName = getFileNameFromChunk(chunk);
+      const { fileName } = chunk;
 
-      if (fileName) {
-        const shouldIgnore = ig.ignores(fileName);
-        console.log("fileName: ", fileName);
-        console.log("shouldIgnore: ", shouldIgnore);
+      const shouldIgnore = ig.ignores(fileName);
+      console.log("fileName: ", fileName);
+      console.log("shouldIgnore: ", shouldIgnore);
 
-        if (shouldIgnore) {
-          console.log(`Skipping review for ignored file: ${fileName}`);
-          continue;
-        }
+      if (shouldIgnore) {
+        console.log(`Skipping review for ignored file: ${fileName}`);
+        continue;
       }
 
       promises.push(this.processChunk(chunk, i, commitId, existingComments));

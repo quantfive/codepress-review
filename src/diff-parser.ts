@@ -1,13 +1,36 @@
 import { FileLineMap } from "./types";
+import { parsePatch } from "diff";
+
+export interface ProcessableChunk {
+  fileName: string;
+  content: string;
+  hunk: any;
+}
 
 /**
- * Splits a diff into chunks for each file.
+ * Splits a diff text into processable chunks.
+ * @param diffText The raw diff text.
+ * @returns An array of processable chunks.
  */
-export function splitDiff(diff: string): string[] {
-  // Split by the file indicator, keeping the delimiter
-  const chunks = diff.split(/(?=diff --git a\/)/);
-  // The first element is often empty, so filter it out
-  return chunks.filter((chunk) => chunk.trim().length > 0);
+export function splitDiff(diffText: string): ProcessableChunk[] {
+  const files = parsePatch(diffText);
+  return files.flatMap((file) => {
+    if (!file.hunks || !file.newFileName) {
+      return [];
+    }
+    return file.hunks.map((hunk) => {
+      const header = `--- ${file.oldFileName}\n+++ ${file.newFileName}\n`;
+      const hunkContent = hunk.lines.join("\n");
+      const fileName = file.newFileName.startsWith("b/")
+        ? file.newFileName.slice(2)
+        : file.newFileName;
+      return {
+        fileName,
+        content: `${header}@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@\n${hunkContent}`,
+        hunk,
+      };
+    });
+  });
 }
 
 /**
