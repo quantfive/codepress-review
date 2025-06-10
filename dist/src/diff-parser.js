@@ -4,41 +4,12 @@ exports.splitDiff = splitDiff;
 exports.buildFileLineMap = buildFileLineMap;
 exports.getFileNameFromChunk = getFileNameFromChunk;
 /**
- * Splits a diff into individual hunks for focused review.
- * Each hunk becomes its own chunk with the necessary file headers.
- * This ensures each review is focused on a specific change rather than arbitrary size limits.
+ * Splits a diff into chunks for each file.
  */
 function splitDiff(diff) {
-    // Split on hunk headers to create individual chunks per hunk
-    const hunks = diff.split(/(^@@ .+ @@.*$)/m).filter(Boolean);
-    const chunks = [];
-    let currentChunk = "";
-    let fileHeader = "";
-    for (let i = 0; i < hunks.length; i++) {
-        const part = hunks[i];
-        // Check if this is a file header (--- or +++ lines)
-        if (part.match(/^(---|\+\+\+) /m)) {
-            fileHeader += part;
-            continue;
-        }
-        // If this is a hunk header (@@), start a new chunk
-        if (part.startsWith("@@")) {
-            // Save previous chunk if it exists
-            if (currentChunk.trim()) {
-                chunks.push(currentChunk);
-            }
-            // Start new chunk with file header and hunk header
-            currentChunk = fileHeader + part;
-        }
-        else {
-            // Add hunk content to current chunk
-            currentChunk += part;
-        }
-    }
-    // Add the final chunk
-    if (currentChunk.trim()) {
-        chunks.push(currentChunk);
-    }
+    // Split by the file indicator, keeping the delimiter
+    const chunks = diff.split(/(?=diff --git a\/)/);
+    // The first element is often empty, so filter it out
     return chunks.filter((chunk) => chunk.trim().length > 0);
 }
 /**
@@ -82,13 +53,7 @@ function buildFileLineMap(diffChunk) {
  * @returns The file path or null if not found.
  */
 function getFileNameFromChunk(chunk) {
-    const lines = chunk.split("\n");
-    for (const line of lines) {
-        const fileMatch = line.match(/^\+\+\+ b\/(.+)$/);
-        if (fileMatch) {
-            return fileMatch[1];
-        }
-    }
-    return null;
+    const fileMatch = chunk.match(/^diff --git a\/(.+?) b\//);
+    return fileMatch ? fileMatch[1] : null;
 }
 //# sourceMappingURL=diff-parser.js.map
