@@ -6,7 +6,7 @@ import { Finding, ReviewConfig } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
 import { splitDiff, getFileNameFromChunk } from "./diff-parser";
 import { reviewChunk, callWithRetry } from "./ai-client";
-import { GitHubClient } from "./github-client";
+import { GitHubClient, formatGitHubComment } from "./github-client";
 
 /**
  * Service class that orchestrates the entire review process.
@@ -42,8 +42,6 @@ export class ReviewService {
         chunkIndex + 1,
       );
     } catch (error: any) {
-      // The `callWithRetry` function now throws an error if it's a non-retryable
-      // context length error, so we just catch it here and log that we are skipping.
       if (APICallError.isInstance(error)) {
         console.error(
           `[Hunk ${
@@ -65,35 +63,52 @@ export class ReviewService {
       return;
     }
 
-    // Post findings as comments
-    const commentPromises = findings
-      .filter((finding) => finding.line !== null && finding.line > 0)
-      .map(async (finding) => {
-        const commentIdentifier = `${finding.path}:${finding.line}`;
-        if (existingComments.has(commentIdentifier)) {
-          console.log(
-            `[Hunk ${chunkIndex + 1}] Skipping duplicate comment on ${finding.path}:${finding.line}`,
-          );
-          return;
-        }
+    // De-duplicate findings that are identical to avoid spamming,
+    // but allow for multiple different comments on the same line.
+    const seenSignatures = new Set<string>();
+    const uniqueFindings = findings.filter((finding) => {
+      if (finding.line === null || finding.line <= 0) {
+        return false; // Don't process findings without a line number
+      }
 
-        try {
-          await this.githubClient.createReviewComment(
-            this.config.pr,
-            commitId,
-            finding,
-          );
-          console.log(
-            `[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`,
-          );
-        } catch (e) {
-          console.error(
-            `[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${
-              finding.line
-            }: ${e}`,
-          );
-        }
-      });
+      // Create a unique signature for the finding based on its content.
+      const body = formatGitHubComment(finding);
+      const signature = `${finding.path}:${finding.line}:${body}`;
+      if (seenSignatures.has(signature)) {
+        return false;
+      }
+      seenSignatures.add(signature);
+      return true;
+    });
+
+    // Post findings as comments
+    const commentPromises = uniqueFindings.map(async (finding) => {
+      const body = formatGitHubComment(finding);
+      const commentIdentifier = `${finding.path}:${body}`;
+      if (existingComments.has(commentIdentifier)) {
+        console.log(
+          `[Hunk ${
+            chunkIndex + 1
+          }] Skipping duplicate comment on ${finding.path}:${finding.line}`,
+        );
+        return;
+      }
+
+      try {
+        await this.githubClient.createReviewComment(
+          this.config.pr,
+          commitId,
+          finding,
+        );
+        console.log(
+          `[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:$${finding.line}`,
+        );
+      } catch (e) {
+        console.error(
+          `[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:$${finding.line}: ${e}`,
+        );
+      }
+    });
 
     await Promise.all(commentPromises);
   }
@@ -105,6 +120,7 @@ export class ReviewService {
     // Read and split the diff
     const diffText = readFileSync(resolve(this.config.diff), "utf8");
     const chunks = splitDiff(diffText);
+    console.log("Chunks from splitDiff:", JSON.stringify(chunks, null, 2));
 
     // Load ignore patterns
     const ignoreFile = ".codepressignore";
@@ -119,7 +135,9 @@ export class ReviewService {
     );
 
     console.log(
-      `Total diff size: ${diffText.length} bytes, split into ${chunks.length} hunk(s).`,
+      `Total diff size: ${diffText.length} bytes, split into ${
+        chunks.length
+      } hunk(s).`,
     );
     console.log(
       `Provider: ${this.config.provider}, Model: ${this.config.modelName}`,
@@ -132,8 +150,11 @@ export class ReviewService {
     const existingCommentsData = await this.githubClient.getExistingComments(
       this.config.pr,
     );
+    const botComments = existingCommentsData.filter(
+      (comment) => comment.user?.login === "github-actions[bot]",
+    );
     const existingComments = new Set(
-      existingCommentsData.map((comment) => `${comment.path}:${comment.line}`),
+      botComments.map((comment) => `${comment.path}:${comment.body}`),
     );
 
     // Process chunks in parallel with a concurrency limit
