@@ -120,7 +120,6 @@ export class ReviewService {
     // Read and split the diff
     const diffText = readFileSync(resolve(this.config.diff), "utf8");
     const chunks = splitDiff(diffText);
-    console.log("Chunks from splitDiff:", JSON.stringify(chunks, null, 2));
 
     // Load ignore patterns
     const ignoreFile = ".codepressignore";
@@ -133,16 +132,6 @@ export class ReviewService {
     const minimatchers = ignorePatterns.map(
       (pattern) => new Minimatch(pattern),
     );
-
-    console.log(
-      `Total diff size: ${diffText.length} bytes, split into ${
-        chunks.length
-      } hunk(s).`,
-    );
-    console.log(
-      `Provider: ${this.config.provider}, Model: ${this.config.modelName}`,
-    );
-
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
 
