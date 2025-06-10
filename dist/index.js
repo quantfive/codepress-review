@@ -520,8 +520,6 @@ class ReviewService {
             findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk, modelConfig, this.config.customPrompt), chunkIndex + 1);
         }
         catch (error) {
-            // The `callWithRetry` function now throws an error if it's a non-retryable
-            // context length error, so we just catch it here and log that we are skipping.
             if (ai_1.APICallError.isInstance(error)) {
                 console.error(`[Hunk ${chunkIndex + 1}] Skipping due to non-retryable API error: ${error.message}`);
             }
@@ -534,21 +532,36 @@ class ReviewService {
             console.error(`[Hunk ${chunkIndex + 1}] Provider did not return valid findings.`);
             return;
         }
+        // De-duplicate findings that are identical to avoid spamming,
+        // but allow for multiple different comments on the same line.
+        const seenSignatures = new Set();
+        const uniqueFindings = findings.filter((finding) => {
+            if (finding.line === null || finding.line <= 0) {
+                return false; // Don't process findings without a line number
+            }
+            // Create a unique signature for the finding based on its content.
+            const body = (0, github_client_1.formatGitHubComment)(finding);
+            const signature = `${finding.path}:${finding.line}:${body}`;
+            if (seenSignatures.has(signature)) {
+                return false;
+            }
+            seenSignatures.add(signature);
+            return true;
+        });
         // Post findings as comments
-        const commentPromises = findings
-            .filter((finding) => finding.line !== null && finding.line > 0)
-            .map(async (finding) => {
-            const commentIdentifier = `${finding.path}:${finding.line}`;
+        const commentPromises = uniqueFindings.map(async (finding) => {
+            const body = (0, github_client_1.formatGitHubComment)(finding);
+            const commentIdentifier = `${finding.path}:${body}`;
             if (existingComments.has(commentIdentifier)) {
                 console.log(`[Hunk ${chunkIndex + 1}] Skipping duplicate comment on ${finding.path}:${finding.line}`);
                 return;
             }
             try {
                 await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
-                console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);
+                console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:$${finding.line}`);
             }
             catch (e) {
-                console.error(`[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${finding.line}: ${e}`);
+                console.error(`[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:$${finding.line}: ${e}`);
             }
         });
         await Promise.all(commentPromises);
@@ -560,6 +573,7 @@ class ReviewService {
         // Read and split the diff
         const diffText = (0, fs_1.readFileSync)((0, path_1.resolve)(this.config.diff), "utf8");
         const chunks = (0, diff_parser_1.splitDiff)(diffText);
+        console.log("Chunks from splitDiff:", JSON.stringify(chunks, null, 2));
         // Load ignore patterns
         const ignoreFile = ".codepressignore";
         const ignorePatterns = (0, fs_1.existsSync)(ignoreFile)
@@ -574,7 +588,8 @@ class ReviewService {
         const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
         // Fetch existing comments to avoid duplicates
         const existingCommentsData = await this.githubClient.getExistingComments(this.config.pr);
-        const existingComments = new Set(existingCommentsData.map((comment) => `${comment.path}:${comment.line}`));
+        const botComments = existingCommentsData.filter((comment) => comment.user?.login === "github-actions[bot]");
+        const existingComments = new Set(botComments.map((comment) => `${comment.path}:${comment.body}`));
         // Process chunks in parallel with a concurrency limit
         const concurrencyLimit = 15;
         const promises = [];
