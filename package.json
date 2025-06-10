@@ -9,7 +9,9 @@
     "review": "ts-node src/ai-review.ts",
     "lint": "eslint src/**/*.ts --max-warnings=0",
     "type-check": "tsc --noEmit",
-    "test": "npm run build && npm run package"
+    "test": "npm run build && npm run package",
+    "prepare": "husky",
+    "check-dist": "npm run build && git diff --exit-code dist/"
   },
   "keywords": [],
   "author": "",
@@ -30,6 +32,7 @@
     "@typescript-eslint/parser": "^8.33.1",
     "@vercel/ncc": "^0.38.1",
     "eslint": "^9.28.0",
+    "husky": "^9.1.7",
     "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.4",

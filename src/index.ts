@@ -1,6 +1,5 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { execSync } from "child_process";
 import { writeFileSync } from "fs";
 import { resolve } from "path";
 
@@ -31,6 +30,8 @@ async function run(): Promise<void> {
       return;
     }
 
+    const context = github.context;
+
     // Set environment variables for the review script
     process.env.GITHUB_TOKEN = githubToken;
     process.env.MODEL_PROVIDER = modelProvider;
@@ -39,8 +40,8 @@ async function run(): Promise<void> {
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     process.env.GEMINI_API_KEY = geminiApiKey;
     process.env.CUSTOM_PROMPT = customPrompt;
-
-    const context = github.context;
+    process.env.GITHUB_REPOSITORY =
+      context.repo.owner + "/" + context.repo.repo;
     const { pull_request } = context.payload;
 
     if (!pull_request) {
@@ -52,20 +53,28 @@ async function run(): Promise<void> {
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
     // Generate diff
-    const baseRef = pull_request.base.ref;
     const diffFile = resolve("pr.diff");
 
     try {
-      execSync(`git fetch --depth=0 origin ${baseRef}`, { stdio: "inherit" });
-      const diffOutput = execSync(`git diff --unified=0 origin/${baseRef}`, {
-        encoding: "utf8",
+      core.info("Fetching diff from GitHub API...");
+      const octokit = github.getOctokit(githubToken);
+
+      const diffResponse = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: pull_request.number,
+        mediaType: {
+          format: "diff",
+        },
       });
+
+      const diffOutput = diffResponse.data as unknown as string;
       writeFileSync(diffFile, diffOutput);
       core.info(
         `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
       );
     } catch (error) {
-      core.setFailed(`Failed to generate diff: ${error}`);
+      core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
       return;
     }
 
