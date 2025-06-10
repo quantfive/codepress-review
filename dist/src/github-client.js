@@ -48,6 +48,17 @@ class GitHubClient {
         };
     }
     /**
+     * Fetches existing review comments on a PR.
+     */
+    async getExistingComments(prNumber) {
+        const comments = await this.octokit.paginate(this.octokit.pulls.listReviewComments, {
+            owner: this.config.owner,
+            repo: this.config.repo,
+            pull_number: prNumber,
+        });
+        return comments;
+    }
+    /**
      * Creates a review comment on a PR.
      */
     async createReviewComment(prNumber, commitId, finding) {

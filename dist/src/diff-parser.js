@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.splitDiff = splitDiff;
 exports.buildFileLineMap = buildFileLineMap;
+exports.getFileNameFromChunk = getFileNameFromChunk;
 /**
  * Splits a diff into individual hunks for focused review.
  * Each hunk becomes its own chunk with the necessary file headers.
@@ -74,5 +75,20 @@ function buildFileLineMap(diffChunk) {
         }
     }
     return fileLineMap;
+}
+/**
+ * Extracts the file path from a diff chunk.
+ * @param chunk A single diff chunk.
+ * @returns The file path or null if not found.
+ */
+function getFileNameFromChunk(chunk) {
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+        const fileMatch = line.match(/^\+\+\+ b\/(.+)$/);
+        if (fileMatch) {
+            return fileMatch[1];
+        }
+    }
+    return null;
 }
 //# sourceMappingURL=diff-parser.js.map

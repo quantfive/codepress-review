@@ -627,6 +627,84 @@ export declare class GitHubClient {
         };
     }>;
     /**
+     * Fetches existing review comments on a PR.
+     */
+    getExistingComments(prNumber: number): Promise<{
+        url: string;
+        pull_request_review_id: number | null;
+        id: number;
+        node_id: string;
+        diff_hunk: string;
+        path: string;
+        position?: number;
+        original_position?: number;
+        commit_id: string;
+        original_commit_id: string;
+        in_reply_to_id?: number;
+        user: {
+            name?: string | null;
+            email?: string | null;
+            login: string;
+            id: number;
+            node_id: string;
+            avatar_url: string;
+            gravatar_id: string | null;
+            url: string;
+            html_url: string;
+            followers_url: string;
+            following_url: string;
+            gists_url: string;
+            starred_url: string;
+            subscriptions_url: string;
+            organizations_url: string;
+            repos_url: string;
+            events_url: string;
+            received_events_url: string;
+            type: string;
+            site_admin: boolean;
+            starred_at?: string;
+            user_view_type?: string;
+        };
+        body: string;
+        created_at: string;
+        updated_at: string;
+        html_url: string;
+        pull_request_url: string;
+        author_association: "COLLABORATOR" | "CONTRIBUTOR" | "FIRST_TIMER" | "FIRST_TIME_CONTRIBUTOR" | "MANNEQUIN" | "MEMBER" | "NONE" | "OWNER";
+        _links: {
+            self: {
+                href: string;
+            };
+            html: {
+                href: string;
+            };
+            pull_request: {
+                href: string;
+            };
+        };
+        start_line?: number | null;
+        original_start_line?: number | null;
+        start_side?: "LEFT" | "RIGHT" | null;
+        line?: number;
+        original_line?: number;
+        side?: "LEFT" | "RIGHT";
+        subject_type?: "line" | "file";
+        reactions?: {
+            url: string;
+            total_count: number;
+            "+1": number;
+            "-1": number;
+            laugh: number;
+            confused: number;
+            heart: number;
+            hooray: number;
+            eyes: number;
+            rocket: number;
+        };
+        body_html?: string;
+        body_text?: string;
+    }[]>;
+    /**
      * Creates a review comment on a PR.
      */
     createReviewComment(prNumber: number, commitId: string, finding: Finding): Promise<void>;
