@@ -618,6 +618,8 @@ class ReviewService {
             const fileName = (0, diff_parser_1.getFileNameFromChunk)(chunk);
             if (fileName) {
                 const shouldIgnore = minimatchers.some((matcher) => matcher.match(fileName));
+                console.log(`fileName: ${fileName}`);
+                console.log(`shouldIgnore: ${shouldIgnore}`);
                 if (shouldIgnore) {
                     console.log(`Skipping review for ignored file: ${fileName}`);
                     continue;
