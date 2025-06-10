@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { execSync } from "child_process";
-import { writeFileSync } from "fs";
+import { existsSync, statSync } from "fs";
 import { resolve } from "path";
 
 async function run(): Promise<void> {
@@ -31,6 +31,8 @@ async function run(): Promise<void> {
       return;
     }
 
+    const context = github.context;
+
     // Set environment variables for the review script
     process.env.GITHUB_TOKEN = githubToken;
     process.env.MODEL_PROVIDER = modelProvider;
@@ -39,8 +41,8 @@ async function run(): Promise<void> {
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     process.env.GEMINI_API_KEY = geminiApiKey;
     process.env.CUSTOM_PROMPT = customPrompt;
-
-    const context = github.context;
+    process.env.GITHUB_REPOSITORY =
+      context.repo.owner + "/" + context.repo.repo;
     const { pull_request } = context.payload;
 
     if (!pull_request) {
@@ -71,14 +73,18 @@ async function run(): Promise<void> {
         });
       }
 
-      const diffOutput = execSync(`git diff --unified=0 origin/${baseRef}`, {
-        encoding: "utf8",
-        maxBuffer: 1024 * 1024 * 100, // 100MB buffer for diff output
+      // Generate diff directly to file to avoid Node.js buffer limitations
+      execSync(`git diff --unified=0 origin/${baseRef} > ${diffFile}`, {
+        shell: "/bin/bash",
+        maxBuffer: 1024 * 1024 * 10, // Smaller buffer since we're not capturing output
       });
-      writeFileSync(diffFile, diffOutput);
-      core.info(
-        `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
-      );
+
+      // Check if diff file was created and get its size
+      if (!existsSync(diffFile)) {
+        throw new Error("Diff file was not created");
+      }
+      const stats = statSync(diffFile);
+      core.info(`Generated diff file: ${diffFile} (${stats.size} bytes)`);
     } catch (error) {
       if (error instanceof Error && error.message.includes("ENOBUFS")) {
         core.setFailed(
