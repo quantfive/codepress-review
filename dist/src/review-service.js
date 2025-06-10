@@ -109,7 +109,7 @@ class ReviewService {
             if (!existingComments.has(comment.path)) {
                 existingComments.set(comment.path, new Set());
             }
-            existingComments.get(comment.path).add(comment.line);
+            existingComments.get(comment.path)?.add(comment.line);
         }
         // Process chunks in parallel with a concurrency limit
         const concurrencyLimit = 15;
