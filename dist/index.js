@@ -70,14 +70,21 @@ async function callWithRetry(fn, hunkIdx) {
         try {
             return await fn();
         }
-        catch (e) {
+        catch (error) {
+            if (ai_1.APICallError.isInstance(error) && !error.isRetryable) {
+                throw error; // Re-throw to be caught by the service and not retried
+            }
             attempt++;
+            if (attempt >= MAX_RETRIES) {
+                throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries: ${error}`);
+            }
             const wait = RETRY_BASE_MS * Math.pow(2, attempt);
-            console.warn(`[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`);
+            console.warn(`[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${error}. Retrying in ${wait}ms...`);
             await (0, promises_1.setTimeout)(wait);
         }
     }
-    throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);
+    // This part should not be reachable, but it makes TypeScript happy.
+    throw new Error(`[Hunk ${hunkIdx}] Exited retry loop unexpectedly.`);
 }
 //# sourceMappingURL=ai-client.js.map
 
@@ -523,6 +530,7 @@ exports.ReviewService = void 0;
 const fs_1 = __nccwpck_require__(9896);
 const path_1 = __nccwpck_require__(6928);
 const minimatch_1 = __nccwpck_require__(2119);
+const ai_1 = __nccwpck_require__(7645);
 const config_1 = __nccwpck_require__(6634);
 const diff_parser_1 = __nccwpck_require__(7335);
 const ai_client_1 = __nccwpck_require__(4316);
@@ -546,8 +554,15 @@ class ReviewService {
             const modelConfig = (0, config_1.getModelConfig)();
             findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk, modelConfig, this.config.customPrompt), chunkIndex + 1);
         }
-        catch (e) {
-            console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${e}`);
+        catch (error) {
+            // The `callWithRetry` function now throws an error if it's a non-retryable
+            // context length error, so we just catch it here and log that we are skipping.
+            if (ai_1.APICallError.isInstance(error)) {
+                console.error(`[Hunk ${chunkIndex + 1}] Skipping due to non-retryable API error: ${error.message}`);
+            }
+            else {
+                console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`);
+            }
             return;
         }
         if (!Array.isArray(findings)) {

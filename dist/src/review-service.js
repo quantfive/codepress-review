@@ -4,6 +4,7 @@ exports.ReviewService = void 0;
 const fs_1 = require("fs");
 const path_1 = require("path");
 const minimatch_1 = require("minimatch");
+const ai_1 = require("ai");
 const config_1 = require("./config");
 const diff_parser_1 = require("./diff-parser");
 const ai_client_1 = require("./ai-client");
@@ -27,8 +28,15 @@ class ReviewService {
             const modelConfig = (0, config_1.getModelConfig)();
             findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk, modelConfig, this.config.customPrompt), chunkIndex + 1);
         }
-        catch (e) {
-            console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${e}`);
+        catch (error) {
+            // The `callWithRetry` function now throws an error if it's a non-retryable
+            // context length error, so we just catch it here and log that we are skipping.
+            if (ai_1.APICallError.isInstance(error)) {
+                console.error(`[Hunk ${chunkIndex + 1}] Skipping due to non-retryable API error: ${error.message}`);
+            }
+            else {
+                console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`);
+            }
             return;
         }
         if (!Array.isArray(findings)) {
