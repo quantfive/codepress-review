@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { Minimatch } from "minimatch";
+import { APICallError } from "ai";
 import { Finding, ReviewConfig } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
 import { splitDiff, getFileNameFromChunk } from "./diff-parser";
@@ -40,10 +41,20 @@ export class ReviewService {
         () => reviewChunk(chunk, modelConfig, this.config.customPrompt),
         chunkIndex + 1,
       );
-    } catch (e) {
-      console.error(
-        `[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${e}`,
-      );
+    } catch (error: any) {
+      // The `callWithRetry` function now throws an error if it's a non-retryable
+      // context length error, so we just catch it here and log that we are skipping.
+      if (APICallError.isInstance(error)) {
+        console.error(
+          `[Hunk ${
+            chunkIndex + 1
+          }] Skipping due to non-retryable API error: ${error.message}`,
+        );
+      } else {
+        console.error(
+          `[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`,
+        );
+      }
       return;
     }
 
