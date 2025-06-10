@@ -61,21 +61,32 @@ async function run(): Promise<void> {
       try {
         execSync(`git fetch --unshallow origin ${baseRef}`, {
           stdio: "inherit",
+          maxBuffer: 1024 * 1024 * 50, // 50MB buffer
         });
       } catch {
         // If unshallow fails (e.g., already unshallow), try regular fetch
-        execSync(`git fetch origin ${baseRef}`, { stdio: "inherit" });
+        execSync(`git fetch origin ${baseRef}`, {
+          stdio: "inherit",
+          maxBuffer: 1024 * 1024 * 50, // 50MB buffer
+        });
       }
 
       const diffOutput = execSync(`git diff --unified=0 origin/${baseRef}`, {
         encoding: "utf8",
+        maxBuffer: 1024 * 1024 * 100, // 100MB buffer for diff output
       });
       writeFileSync(diffFile, diffOutput);
       core.info(
         `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
       );
     } catch (error) {
-      core.setFailed(`Failed to generate diff: ${error}`);
+      if (error instanceof Error && error.message.includes("ENOBUFS")) {
+        core.setFailed(
+          `Diff output too large to process. Consider reviewing smaller chunks or adjusting the diff scope.`,
+        );
+      } else {
+        core.setFailed(`Failed to generate diff: ${error}`);
+      }
       return;
     }
 
