@@ -1,4 +1,4 @@
-import { Finding, FileLineMap } from "./types";
+import { Finding } from "./types";
 import { buildFileLineMap } from "./diff-parser";
 
 /**
@@ -46,6 +46,7 @@ export function parseXMLResponse(xmlText: string): Finding[] {
     });
   }
 
+  console.log("Parsed Findings (before line resolution):", findings);
   return findings;
 }
 
@@ -59,18 +60,24 @@ export function resolveLineNumbers(
   const fileLineMap = buildFileLineMap(diffChunk);
 
   // Update findings with resolved line numbers
-  return findings.map((finding) => {
+  const resolvedFindings = findings.map((finding) => {
+    if (!finding.code) {
+      return finding; // Cannot resolve without code
+    }
+
     const fileMap = fileLineMap[finding.path];
     if (fileMap) {
       // Try to find a matching line in the file map
       for (const [lineContent, lineNum] of Object.entries(fileMap)) {
-        // This is a simple heuristic - in practice, you might need more sophisticated matching
-        if (lineContent.includes(finding.message.substring(0, 20))) {
-          finding.line = lineNum;
-          break;
+        // Use the 'code' from the finding to match the line content from the diff
+        if (lineContent.includes(finding.code)) {
+          return { ...finding, line: lineNum };
         }
       }
     }
     return finding;
   });
+
+  console.log("Resolved Findings:", resolvedFindings);
+  return resolvedFindings;
 }

@@ -53,24 +53,26 @@ export class ReviewService {
     }
 
     // Post findings as comments
-    const commentPromises = findings.map(async (finding) => {
-      try {
-        await this.githubClient.createReviewComment(
-          this.config.pr,
-          commitId,
-          finding,
-        );
-        console.log(
-          `[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`,
-        );
-      } catch (e) {
-        console.error(
-          `[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${
-            finding.line
-          }: ${e}`,
-        );
-      }
-    });
+    const commentPromises = findings
+      .filter((finding) => finding.line !== null && finding.line > 0)
+      .map(async (finding) => {
+        try {
+          await this.githubClient.createReviewComment(
+            this.config.pr,
+            commitId,
+            finding,
+          );
+          console.log(
+            `[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`,
+          );
+        } catch (e) {
+          console.error(
+            `[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${
+              finding.line
+            }: ${e}`,
+          );
+        }
+      });
 
     await Promise.all(commentPromises);
   }
@@ -93,9 +95,15 @@ export class ReviewService {
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
 
-    // Process each chunk
+    // Process chunks in parallel with a concurrency limit
+    const concurrencyLimit = 15;
+    const promises = [];
     for (let i = 0; i < chunks.length; i++) {
-      await this.processChunk(chunks[i], i, commitId);
+      promises.push(this.processChunk(chunks[i], i, commitId));
+      if (promises.length >= concurrencyLimit || i === chunks.length - 1) {
+        await Promise.all(promises);
+        promises.length = 0; // Clear the array
+      }
     }
   }
 }

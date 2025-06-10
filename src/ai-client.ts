@@ -56,6 +56,8 @@ export async function reviewChunk(
     temperature: 0.2,
   });
 
+  console.log("LLM Raw Response:", text);
+
   const findings = parseXMLResponse(text);
   return resolveLineNumbers(findings, diffChunk);
 }
