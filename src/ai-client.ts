@@ -1,10 +1,11 @@
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { Finding, ModelConfig } from "./types";
 import { getSystemPrompt } from "./system-prompt";
 import { parseXMLResponse, resolveLineNumbers } from "./xml-parser";
+import { setTimeout } from "node:timers/promises";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
@@ -14,12 +15,18 @@ const RETRY_BASE_MS = 1000;
  */
 function createModel(config: ModelConfig) {
   switch (config.provider) {
-    case "openai":
+    case "openai": {
+      const openai = createOpenAI({ apiKey: config.apiKey });
       return openai(config.modelName);
-    case "anthropic":
+    }
+    case "anthropic": {
+      const anthropic = createAnthropic({ apiKey: config.apiKey });
       return anthropic(config.modelName);
-    case "gemini":
+    }
+    case "gemini": {
+      const google = createGoogleGenerativeAI({ apiKey: config.apiKey });
       return google(config.modelName);
+    }
     default:
       throw new Error(`Unsupported MODEL_PROVIDER: ${config.provider}`);
   }
@@ -70,7 +77,7 @@ export async function callWithRetry<T>(
       console.warn(
         `[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`,
       );
-      await new Promise((res) => setTimeout(res, wait));
+      await setTimeout(wait);
     }
   }
   throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);

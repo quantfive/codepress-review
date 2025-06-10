@@ -53,7 +53,7 @@ export class ReviewService {
     }
 
     // Post findings as comments
-    const commentPromises = findings.map(async (finding, idx) => {
+    const commentPromises = findings.map(async (finding) => {
       try {
         await this.githubClient.createReviewComment(
           this.config.pr,
