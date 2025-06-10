@@ -1,6 +1,7 @@
 export interface Finding {
   path: string;
   line: number | null;
+  lineToMatch?: string;
   message: string;
   severity?: string;
   suggestion?: string;

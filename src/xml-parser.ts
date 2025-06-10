@@ -35,10 +35,24 @@ export function parseXMLResponse(xmlText: string): Finding[] {
     const severity = severityMatch ? severityMatch[1].trim() : undefined;
     const suggestion = suggestionMatch ? suggestionMatch[1].trim() : undefined;
     const code = codeMatch ? codeMatch[1].trim() : undefined;
+    let lineToMatch: string | undefined;
+
+    // The line content is used for matching, we need to strip the diff marker.
+    let lineContent = lineMatch[1];
+    if (
+      lineContent.startsWith("+") ||
+      lineContent.startsWith("-") ||
+      lineContent.startsWith(" ")
+    ) {
+      lineToMatch = lineContent.substring(1);
+    } else {
+      lineToMatch = lineContent;
+    }
 
     findings.push({
       path: filePath,
       line: null, // Will be resolved later
+      lineToMatch: lineToMatch,
       message: message,
       severity: severity,
       suggestion: suggestion,
@@ -61,16 +75,16 @@ export function resolveLineNumbers(
 
   // Update findings with resolved line numbers
   const resolvedFindings = findings.map((finding) => {
-    if (!finding.code) {
-      return finding; // Cannot resolve without code
+    if (!finding.lineToMatch) {
+      return finding; // Cannot resolve without line content to match
     }
 
     const fileMap = fileLineMap[finding.path];
     if (fileMap) {
       // Try to find a matching line in the file map
       for (const [lineContent, lineNum] of Object.entries(fileMap)) {
-        // Use the 'code' from the finding to match the line content from the diff
-        if (lineContent.includes(finding.code)) {
+        // Use the 'lineToMatch' from the finding to match the line content from the diff
+        if (lineContent.includes(finding.lineToMatch)) {
           return { ...finding, line: lineNum };
         }
       }

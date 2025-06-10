@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+set -e
+
+echo "Running pre-push hook..."
+npm run build
+git add dist
+
+# If there are staged changes in dist, commit them.
+# `git diff --staged --quiet` exits with 1 if there are changes.
+if ! git diff --staged --quiet dist; then
+  echo "Staged changes found in dist/. Committing..."
+  git commit -m "build: update dist"
+else
+  echo "No changes in dist/ to commit."
+fi 
