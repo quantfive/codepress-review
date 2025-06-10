@@ -101,11 +101,11 @@ export class ReviewService {
           finding,
         );
         console.log(
-          `[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:$${finding.line}`,
+          `[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`,
         );
       } catch (e) {
         console.error(
-          `[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:$${finding.line}: ${e}`,
+          `[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${finding.line}: ${e}`,
         );
       }
     });

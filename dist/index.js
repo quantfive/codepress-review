@@ -561,10 +561,10 @@ class ReviewService {
             }
             try {
                 await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
-                console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:$${finding.line}`);
+                console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);
             }
             catch (e) {
-                console.error(`[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:$${finding.line}: ${e}`);
+                console.error(`[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${finding.line}: ${e}`);
             }
         });
         await Promise.all(commentPromises);
