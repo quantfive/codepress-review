@@ -1,8 +1,9 @@
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import { Minimatch } from "minimatch";
 import { Finding, ReviewConfig } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
-import { splitDiff } from "./diff-parser";
+import { splitDiff, getFileNameFromChunk } from "./diff-parser";
 import { reviewChunk, callWithRetry } from "./ai-client";
 import { GitHubClient } from "./github-client";
 
@@ -26,6 +27,7 @@ export class ReviewService {
     chunk: string,
     chunkIndex: number,
     commitId: string,
+    existingComments: Set<string>,
   ): Promise<void> {
     console.log(
       `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(chunk)} bytes`,
@@ -56,6 +58,14 @@ export class ReviewService {
     const commentPromises = findings
       .filter((finding) => finding.line !== null && finding.line > 0)
       .map(async (finding) => {
+        const commentIdentifier = `${finding.path}:${finding.line}`;
+        if (existingComments.has(commentIdentifier)) {
+          console.log(
+            `[Hunk ${chunkIndex + 1}] Skipping duplicate comment on ${finding.path}:${finding.line}`,
+          );
+          return;
+        }
+
         try {
           await this.githubClient.createReviewComment(
             this.config.pr,
@@ -85,6 +95,18 @@ export class ReviewService {
     const diffText = readFileSync(resolve(this.config.diff), "utf8");
     const chunks = splitDiff(diffText);
 
+    // Load ignore patterns
+    const ignoreFile = ".codepressignore";
+    const ignorePatterns = existsSync(ignoreFile)
+      ? readFileSync(ignoreFile, "utf8")
+          .split("\n")
+          .filter((line) => line.trim() && !line.startsWith("#"))
+      : [];
+
+    const minimatchers = ignorePatterns.map(
+      (pattern) => new Minimatch(pattern),
+    );
+
     console.log(
       `Total diff size: ${diffText.length} bytes, split into ${chunks.length} hunk(s).`,
     );
@@ -95,11 +117,32 @@ export class ReviewService {
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
 
+    // Fetch existing comments to avoid duplicates
+    const existingCommentsData = await this.githubClient.getExistingComments(
+      this.config.pr,
+    );
+    const existingComments = new Set(
+      existingCommentsData.map((comment) => `${comment.path}:${comment.line}`),
+    );
+
     // Process chunks in parallel with a concurrency limit
     const concurrencyLimit = 15;
     const promises = [];
     for (let i = 0; i < chunks.length; i++) {
-      promises.push(this.processChunk(chunks[i], i, commitId));
+      const chunk = chunks[i];
+      const fileName = getFileNameFromChunk(chunk);
+
+      if (fileName) {
+        const shouldIgnore = minimatchers.some((matcher) =>
+          matcher.match(fileName),
+        );
+        if (shouldIgnore) {
+          console.log(`Skipping review for ignored file: ${fileName}`);
+          continue;
+        }
+      }
+
+      promises.push(this.processChunk(chunk, i, commitId, existingComments));
       if (promises.length >= concurrencyLimit || i === chunks.length - 1) {
         await Promise.all(promises);
         promises.length = 0; // Clear the array

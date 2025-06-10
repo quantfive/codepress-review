@@ -83,3 +83,19 @@ export function buildFileLineMap(diffChunk: string): FileLineMap {
 
   return fileLineMap;
 }
+
+/**
+ * Extracts the file path from a diff chunk.
+ * @param chunk A single diff chunk.
+ * @returns The file path or null if not found.
+ */
+export function getFileNameFromChunk(chunk: string): string | null {
+  const lines = chunk.split("\n");
+  for (const line of lines) {
+    const fileMatch = line.match(/^\+\+\+ b\/(.+)$/);
+    if (fileMatch) {
+      return fileMatch[1];
+    }
+  }
+  return null;
+}
