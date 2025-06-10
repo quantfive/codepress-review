@@ -63,13 +63,20 @@ async function callWithRetry(fn, hunkIdx) {
         try {
             return await fn();
         }
-        catch (e) {
+        catch (error) {
+            if (ai_1.APICallError.isInstance(error) && !error.isRetryable) {
+                throw error; // Re-throw to be caught by the service and not retried
+            }
             attempt++;
+            if (attempt >= MAX_RETRIES) {
+                throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries: ${error}`);
+            }
             const wait = RETRY_BASE_MS * Math.pow(2, attempt);
-            console.warn(`[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`);
+            console.warn(`[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${error}. Retrying in ${wait}ms...`);
             await (0, promises_1.setTimeout)(wait);
         }
     }
-    throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);
+    // This part should not be reachable, but it makes TypeScript happy.
+    throw new Error(`[Hunk ${hunkIdx}] Exited retry loop unexpectedly.`);
 }
 //# sourceMappingURL=ai-client.js.map

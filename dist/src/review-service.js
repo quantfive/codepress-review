@@ -1,9 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReviewService = void 0;
 const fs_1 = require("fs");
 const path_1 = require("path");
-const minimatch_1 = require("minimatch");
+const ignore_1 = __importDefault(require("ignore"));
+const ai_1 = require("ai");
 const config_1 = require("./config");
 const diff_parser_1 = require("./diff-parser");
 const ai_client_1 = require("./ai-client");
@@ -27,19 +31,39 @@ class ReviewService {
             const modelConfig = (0, config_1.getModelConfig)();
             findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk, modelConfig, this.config.customPrompt), chunkIndex + 1);
         }
-        catch (e) {
-            console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${e}`);
+        catch (error) {
+            if (ai_1.APICallError.isInstance(error)) {
+                console.error(`[Hunk ${chunkIndex + 1}] Skipping due to non-retryable API error: ${error.message}`);
+            }
+            else {
+                console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`);
+            }
             return;
         }
         if (!Array.isArray(findings)) {
             console.error(`[Hunk ${chunkIndex + 1}] Provider did not return valid findings.`);
             return;
         }
+        // De-duplicate findings that are identical to avoid spamming,
+        // but allow for multiple different comments on the same line.
+        const seenSignatures = new Set();
+        const uniqueFindings = findings.filter((finding) => {
+            if (finding.line === null || finding.line <= 0) {
+                return false; // Don't process findings without a line number
+            }
+            // Create a unique signature for the finding based on its content.
+            const body = (0, github_client_1.formatGitHubComment)(finding);
+            const signature = `${finding.path}:${finding.line}:${body}`;
+            if (seenSignatures.has(signature)) {
+                return false;
+            }
+            seenSignatures.add(signature);
+            return true;
+        });
         // Post findings as comments
-        const commentPromises = findings
-            .filter((finding) => finding.line !== null && finding.line > 0)
-            .map(async (finding) => {
-            const commentIdentifier = `${finding.path}:${finding.line}`;
+        const commentPromises = uniqueFindings.map(async (finding) => {
+            const body = (0, github_client_1.formatGitHubComment)(finding);
+            const commentIdentifier = `${finding.path}:${body}`;
             if (existingComments.has(commentIdentifier)) {
                 console.log(`[Hunk ${chunkIndex + 1}] Skipping duplicate comment on ${finding.path}:${finding.line}`);
                 return;
@@ -68,14 +92,13 @@ class ReviewService {
                 .split("\n")
                 .filter((line) => line.trim() && !line.startsWith("#"))
             : [];
-        const minimatchers = ignorePatterns.map((pattern) => new minimatch_1.Minimatch(pattern));
-        console.log(`Total diff size: ${diffText.length} bytes, split into ${chunks.length} hunk(s).`);
-        console.log(`Provider: ${this.config.provider}, Model: ${this.config.modelName}`);
+        const ig = (0, ignore_1.default)().add(ignorePatterns);
         // Get PR information
         const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
         // Fetch existing comments to avoid duplicates
         const existingCommentsData = await this.githubClient.getExistingComments(this.config.pr);
-        const existingComments = new Set(existingCommentsData.map((comment) => `${comment.path}:${comment.line}`));
+        const botComments = existingCommentsData.filter((comment) => comment.user?.login === "github-actions[bot]");
+        const existingComments = new Set(botComments.map((comment) => `${comment.path}:${comment.body}`));
         // Process chunks in parallel with a concurrency limit
         const concurrencyLimit = 15;
         const promises = [];
@@ -83,7 +106,9 @@ class ReviewService {
             const chunk = chunks[i];
             const fileName = (0, diff_parser_1.getFileNameFromChunk)(chunk);
             if (fileName) {
-                const shouldIgnore = minimatchers.some((matcher) => matcher.match(fileName));
+                const shouldIgnore = ig.ignores(fileName);
+                console.log("fileName: ", fileName);
+                console.log("shouldIgnore: ", shouldIgnore);
                 if (shouldIgnore) {
                     console.log(`Skipping review for ignored file: ${fileName}`);
                     continue;

@@ -29,6 +29,9 @@ importers:
       ai:
         specifier: ^4.3.16
         version: 4.3.16(react@19.1.0)(zod@3.25.56)
+      ignore:
+        specifier: ^7.0.5
+        version: 7.0.5
     devDependencies:
       '@eslint/js':
         specifier: ^9.28.0

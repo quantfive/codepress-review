@@ -1,8 +1,6 @@
 import { FileLineMap } from "./types";
 /**
- * Splits a diff into individual hunks for focused review.
- * Each hunk becomes its own chunk with the necessary file headers.
- * This ensures each review is focused on a specific change rather than arbitrary size limits.
+ * Splits a diff into chunks for each file.
  */
 export declare function splitDiff(diff: string): string[];
 /**

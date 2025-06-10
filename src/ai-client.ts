@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { generateText, APICallError } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -73,14 +73,24 @@ export async function callWithRetry<T>(
   while (attempt < MAX_RETRIES) {
     try {
       return await fn();
-    } catch (e) {
+    } catch (error: any) {
+      if (APICallError.isInstance(error) && !error.isRetryable) {
+        throw error; // Re-throw to be caught by the service and not retried
+      }
+
       attempt++;
+      if (attempt >= MAX_RETRIES) {
+        throw new Error(
+          `[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries: ${error}`,
+        );
+      }
       const wait = RETRY_BASE_MS * Math.pow(2, attempt);
       console.warn(
-        `[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`,
+        `[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${error}. Retrying in ${wait}ms...`,
       );
       await setTimeout(wait);
     }
   }
-  throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);
+  // This part should not be reachable, but it makes TypeScript happy.
+  throw new Error(`[Hunk ${hunkIdx}] Exited retry loop unexpectedly.`);
 }

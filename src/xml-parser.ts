@@ -60,7 +60,6 @@ export function parseXMLResponse(xmlText: string): Finding[] {
     });
   }
 
-  console.log("Parsed Findings (before line resolution):", findings);
   return findings;
 }
 
@@ -92,6 +91,5 @@ export function resolveLineNumbers(
     return finding;
   });
 
-  console.log("Resolved Findings:", resolvedFindings);
   return resolvedFindings;
 }
