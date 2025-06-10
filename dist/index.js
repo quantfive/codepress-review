@@ -580,7 +580,7 @@ class ReviewService {
                 .split("\n")
                 .filter((line) => line.trim() && !line.startsWith("#"))
             : [];
-        const minimatchers = ignorePatterns.map((pattern) => new minimatch_1.Minimatch(pattern));
+        const minimatchers = ignorePatterns.map((pattern) => new minimatch_1.Minimatch(pattern, { dot: true }));
         // Get PR information
         const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
         // Fetch existing comments to avoid duplicates

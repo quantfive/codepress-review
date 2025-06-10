@@ -130,7 +130,7 @@ export class ReviewService {
       : [];
 
     const minimatchers = ignorePatterns.map(
-      (pattern) => new Minimatch(pattern),
+      (pattern) => new Minimatch(pattern, { dot: true }),
     );
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
