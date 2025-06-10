@@ -50,6 +50,7 @@ async function reviewChunk(diffChunk, modelConfig, customPrompt) {
         maxTokens: 4096,
         temperature: 0.2,
     });
+    console.log("LLM Raw Response:", text);
     const findings = (0, xml_parser_1.parseXMLResponse)(text);
     return (0, xml_parser_1.resolveLineNumbers)(findings, diffChunk);
 }

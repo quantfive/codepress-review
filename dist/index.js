@@ -57,6 +57,7 @@ async function reviewChunk(diffChunk, modelConfig, customPrompt) {
         maxTokens: 4096,
         temperature: 0.2,
     });
+    console.log("LLM Raw Response:", text);
     const findings = (0, xml_parser_1.parseXMLResponse)(text);
     return (0, xml_parser_1.resolveLineNumbers)(findings, diffChunk);
 }
@@ -526,7 +527,9 @@ class ReviewService {
             return;
         }
         // Post findings as comments
-        const commentPromises = findings.map(async (finding) => {
+        const commentPromises = findings
+            .filter((finding) => finding.line !== null && finding.line > 0)
+            .map(async (finding) => {
             try {
                 await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
                 console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);
@@ -548,9 +551,15 @@ class ReviewService {
         console.log(`Provider: ${this.config.provider}, Model: ${this.config.modelName}`);
         // Get PR information
         const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
-        // Process each chunk
+        // Process chunks in parallel with a concurrency limit
+        const concurrencyLimit = 15;
+        const promises = [];
         for (let i = 0; i < chunks.length; i++) {
-            await this.processChunk(chunks[i], i, commitId);
+            promises.push(this.processChunk(chunks[i], i, commitId));
+            if (promises.length >= concurrencyLimit || i === chunks.length - 1) {
+                await Promise.all(promises);
+                promises.length = 0; // Clear the array
+            }
         }
     }
 }
@@ -726,6 +735,7 @@ function parseXMLResponse(xmlText) {
             code: code,
         });
     }
+    console.log("Parsed Findings (before line resolution):", findings);
     return findings;
 }
 /**
@@ -734,20 +744,24 @@ function parseXMLResponse(xmlText) {
 function resolveLineNumbers(findings, diffChunk) {
     const fileLineMap = (0, diff_parser_1.buildFileLineMap)(diffChunk);
     // Update findings with resolved line numbers
-    return findings.map((finding) => {
+    const resolvedFindings = findings.map((finding) => {
+        if (!finding.code) {
+            return finding; // Cannot resolve without code
+        }
         const fileMap = fileLineMap[finding.path];
         if (fileMap) {
             // Try to find a matching line in the file map
             for (const [lineContent, lineNum] of Object.entries(fileMap)) {
-                // This is a simple heuristic - in practice, you might need more sophisticated matching
-                if (lineContent.includes(finding.message.substring(0, 20))) {
-                    finding.line = lineNum;
-                    break;
+                // Use the 'code' from the finding to match the line content from the diff
+                if (lineContent.includes(finding.code)) {
+                    return { ...finding, line: lineNum };
                 }
             }
         }
         return finding;
     });
+    console.log("Resolved Findings:", resolvedFindings);
+    return resolvedFindings;
 }
 //# sourceMappingURL=xml-parser.js.map
 
