@@ -35,7 +35,7 @@ class ReviewService {
             return;
         }
         // Post findings as comments
-        const commentPromises = findings.map(async (finding, idx) => {
+        const commentPromises = findings.map(async (finding) => {
             try {
                 await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
                 console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);

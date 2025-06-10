@@ -8,6 +8,7 @@ const anthropic_1 = require("@ai-sdk/anthropic");
 const google_1 = require("@ai-sdk/google");
 const system_prompt_1 = require("./system-prompt");
 const xml_parser_1 = require("./xml-parser");
+const promises_1 = require("node:timers/promises");
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 /**
@@ -15,12 +16,18 @@ const RETRY_BASE_MS = 1000;
  */
 function createModel(config) {
     switch (config.provider) {
-        case "openai":
-            return (0, openai_1.openai)(config.modelName);
-        case "anthropic":
-            return (0, anthropic_1.anthropic)(config.modelName);
-        case "gemini":
-            return (0, google_1.google)(config.modelName);
+        case "openai": {
+            const openai = (0, openai_1.createOpenAI)({ apiKey: config.apiKey });
+            return openai(config.modelName);
+        }
+        case "anthropic": {
+            const anthropic = (0, anthropic_1.createAnthropic)({ apiKey: config.apiKey });
+            return anthropic(config.modelName);
+        }
+        case "gemini": {
+            const google = (0, google_1.createGoogleGenerativeAI)({ apiKey: config.apiKey });
+            return google(config.modelName);
+        }
         default:
             throw new Error(`Unsupported MODEL_PROVIDER: ${config.provider}`);
     }
@@ -59,7 +66,7 @@ async function callWithRetry(fn, hunkIdx) {
             attempt++;
             const wait = RETRY_BASE_MS * Math.pow(2, attempt);
             console.warn(`[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`);
-            await new Promise((res) => setTimeout(res, wait));
+            await (0, promises_1.setTimeout)(wait);
         }
     }
     throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);

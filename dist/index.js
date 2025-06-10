@@ -15,6 +15,7 @@ const anthropic_1 = __nccwpck_require__(6688);
 const google_1 = __nccwpck_require__(9455);
 const system_prompt_1 = __nccwpck_require__(9408);
 const xml_parser_1 = __nccwpck_require__(9967);
+const promises_1 = __nccwpck_require__(8500);
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 /**
@@ -22,12 +23,18 @@ const RETRY_BASE_MS = 1000;
  */
 function createModel(config) {
     switch (config.provider) {
-        case "openai":
-            return (0, openai_1.openai)(config.modelName);
-        case "anthropic":
-            return (0, anthropic_1.anthropic)(config.modelName);
-        case "gemini":
-            return (0, google_1.google)(config.modelName);
+        case "openai": {
+            const openai = (0, openai_1.createOpenAI)({ apiKey: config.apiKey });
+            return openai(config.modelName);
+        }
+        case "anthropic": {
+            const anthropic = (0, anthropic_1.createAnthropic)({ apiKey: config.apiKey });
+            return anthropic(config.modelName);
+        }
+        case "gemini": {
+            const google = (0, google_1.createGoogleGenerativeAI)({ apiKey: config.apiKey });
+            return google(config.modelName);
+        }
         default:
             throw new Error(`Unsupported MODEL_PROVIDER: ${config.provider}`);
     }
@@ -66,7 +73,7 @@ async function callWithRetry(fn, hunkIdx) {
             attempt++;
             const wait = RETRY_BASE_MS * Math.pow(2, attempt);
             console.warn(`[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${e}. Retrying in ${wait}ms...`);
-            await new Promise((res) => setTimeout(res, wait));
+            await (0, promises_1.setTimeout)(wait);
         }
     }
     throw new Error(`[Hunk ${hunkIdx}] Failed after ${MAX_RETRIES} retries.`);
@@ -519,7 +526,7 @@ class ReviewService {
             return;
         }
         // Post findings as comments
-        const commentPromises = findings.map(async (finding, idx) => {
+        const commentPromises = findings.map(async (finding) => {
             try {
                 await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
                 console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);
@@ -49944,6 +49951,14 @@ module.exports = require("node:events");
 
 "use strict";
 module.exports = require("node:stream");
+
+/***/ }),
+
+/***/ 8500:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:timers/promises");
 
 /***/ }),
 
