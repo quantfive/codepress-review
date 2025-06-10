@@ -795,7 +795,6 @@ function parseXMLResponse(xmlText) {
             code: code,
         });
     }
-    console.log("Parsed Findings (before line resolution):", findings);
     return findings;
 }
 /**
@@ -820,7 +819,6 @@ function resolveLineNumbers(findings, diffChunk) {
         }
         return finding;
     });
-    console.log("Resolved Findings:", resolvedFindings);
     return resolvedFindings;
 }
 //# sourceMappingURL=xml-parser.js.map
