@@ -834,7 +834,7 @@ exports.getSummarySystemPrompt = getSummarySystemPrompt;
 //  AI CODE-REVIEW – GLOBAL-DIFF SUMMARISER SYSTEM PROMPT
 // ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
-<!--  SYSTEM PROMPT : AI CODE-REVIEW – GLOBAL-DIFF SUMMARISER  -->
+<!--  SYSTEM PROMPT : AI CODE-REVIEW - GLOBAL-DIFF SUMMARISER  -->
 <systemPrompt>
 
   <!--  1. PURPOSE & GOVERNING PRINCIPLE  -->
@@ -858,9 +858,10 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
 
   <hunkChecklist>
     For every processable hunk, provide:
-    <overview>1 – 2 sentences describing the local change in the context of the PR.</overview>
+    <overview>1 - 2 sentences describing the local change in the context of the PR.</overview>
     <risks>Zero or more risk bullets, re-using the same tag prefixes.</risks>
     <tests>Optional bullet list of concrete tests that should cover this hunk.</tests>
+    <notes>Pay attention to file structure. Make sure it's appropriately placed, as well as placed in the right files.</notes>
   </hunkChecklist>
 
   <!--  3. OUTPUT FORMAT (STRICT)  -->
