@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
 
       - name: CodePress Review
-        uses: your-username/codepress-review@v1
+        uses: @quantfive/codepress-review@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
@@ -75,7 +75,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -87,7 +87,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
@@ -99,7 +99,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "gemini"
@@ -171,7 +171,7 @@ Both custom prompts work seamlessly while maintaining the structured output form
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -184,8 +184,8 @@ Both custom prompts work seamlessly while maintaining the structured output form
       - SQL injection, XSS, and CSRF vulnerabilities
       - Sensitive data exposure
 
-      Use severity levels: required (critical security issues), 
-      optional (security improvements), nit (minor security polish), 
+      Use severity levels: required (critical security issues),
+      optional (security improvements), nit (minor security polish),
       fyi (security info).
 ```
 
@@ -193,7 +193,7 @@ Both custom prompts work seamlessly while maintaining the structured output form
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
@@ -213,7 +213,7 @@ Both custom prompts work seamlessly while maintaining the structured output form
 
 ````yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -234,7 +234,7 @@ You can use both prompts together for comprehensive customization:
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@v1
+  uses: @quantfive/codepress-review@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -328,7 +328,7 @@ To publish this action to the GitHub Marketplace:
 
 4. **Users Install**: After publishing, users can reference your action as:
    ```yaml
-   - uses: your-username/codepress-review@v1
+   - uses: @quantfive/codepress-review@v1
    ```
 
 The action is completely self-contained - users don't need to install dependencies, get diffs manually, or run scripts. Everything is handled automatically by `src/index.ts`.

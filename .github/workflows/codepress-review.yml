@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
 
       - name: CodePress Review
-        uses: ./ # When published, this would be: uses: your-username/codepress-review@v1
+        uses: ./ # When published, this would be: uses: @quantfive/codepress-review@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
