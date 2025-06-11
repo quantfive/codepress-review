@@ -708,6 +708,9 @@ class ReviewService {
                     }
                     summaryContext += `\n`;
                 }
+                else {
+                    console.log(`[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`);
+                }
             }
             findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk.content, modelConfig, this.config.customPrompt, summaryContext), chunkIndex + 1);
         }
@@ -877,7 +880,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
       </keyRisks>
     </global>
 
-    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order. -->
+    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
     <hunks>
       <hunk index="0">
         <file>src/components/SEOHead.tsx</file>

@@ -87,6 +87,10 @@ export class ReviewService {
           }
 
           summaryContext += `\n`;
+        } else {
+          console.log(
+            `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
+          );
         }
       }
 

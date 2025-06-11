@@ -50,7 +50,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
       </keyRisks>
     </global>
 
-    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order. -->
+    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
     <hunks>
       <hunk index="0">
         <file>src/components/SEOHead.tsx</file>

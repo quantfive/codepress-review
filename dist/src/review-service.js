@@ -64,6 +64,9 @@ class ReviewService {
                     }
                     summaryContext += `\n`;
                 }
+                else {
+                    console.log(`[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`);
+                }
             }
             findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk.content, modelConfig, this.config.customPrompt, summaryContext), chunkIndex + 1);
         }
