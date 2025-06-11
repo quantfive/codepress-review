@@ -3,8 +3,8 @@ description: "Automatic code review using AI models (OpenAI, Anthropic, Google, 
 author: "@quantfive"
 
 branding:
-  icon: "eye"
-  color: "blue"
+  icon: "git-pull-request"
+  color: "green"
 
 inputs:
   github_token:
@@ -20,7 +20,7 @@ inputs:
   model_name:
     description: "AI model name (e.g., gpt-4o, claude-3-sonnet-20240229, gemini-1.5-pro)"
     required: true
-    default: "gpt-4o"
+    default: "o4-mini"
 
   openai_api_key:
     description: "OpenAI API key (required if using OpenAI)"
@@ -36,6 +36,11 @@ inputs:
 
   custom_prompt:
     description: "Custom review prompt to override the default."
+    required: false
+    default: ""
+
+  custom_summarize_prompt:
+    description: "Custom summarize prompt to override the default."
     required: false
     default: ""
 
