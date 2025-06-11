@@ -15,6 +15,7 @@ export interface ReviewConfig {
     customPrompt?: string;
     githubToken: string;
     githubRepository: string;
+    customSummarizePrompt?: string;
 }
 export interface ModelConfig {
     provider: "openai" | "anthropic" | "gemini";
@@ -34,5 +35,24 @@ export interface FileLineMap {
     [filePath: string]: {
         [lineContent: string]: number;
     };
+}
+export type PRType = "feature" | "bugfix" | "refactor" | "docs" | "test" | "chore" | "dependency-bump" | "mixed";
+export type RiskTag = "SEC" | "PERF" | "ARCH" | "TEST" | "STYLE" | "DEP";
+export interface RiskItem {
+    tag: RiskTag;
+    description: string;
+}
+export interface HunkSummary {
+    index: number;
+    file: string;
+    overview: string;
+    risks: RiskItem[];
+    tests: string[];
+}
+export interface DiffSummary {
+    prType: PRType;
+    summaryPoints: string[];
+    keyRisks: RiskItem[];
+    hunks: HunkSummary[];
 }
 //# sourceMappingURL=types.d.ts.map

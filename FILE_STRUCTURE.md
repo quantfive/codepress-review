@@ -31,12 +31,14 @@ src/
 ### Core Source Files
 
 1. **`src/index.ts`**
+
    - GitHub Action entry point
    - Input validation and environment setup
    - Git diff generation
    - Delegates to ai-review.ts for processing
 
 2. **`src/ai-review.ts`**
+
    - Main review engine implementation
    - Hunk-based diff processing
    - LLM integration via Vercel AI SDK
@@ -79,23 +81,27 @@ dist/
 ## Configuration Files
 
 ### `action.yml`
+
 - GitHub Action definition
 - Input parameters (model_provider, model_name, API keys, etc.)
 - Output specifications
 - Runtime environment configuration
 
 ### `package.json`
+
 - Project metadata and dependencies
 - NPM scripts (build, lint, type-check, test, review)
 - Dependencies: Vercel AI SDK, GitHub API, TypeScript tooling
 
 ### `tsconfig.json`
+
 - TypeScript compiler settings
 - Target ES2020 with CommonJS modules
 - Strict typing configuration
 - Declaration file generation
 
 ### `eslint.config.js`
+
 - ESLint configuration for TypeScript
 - Code quality and style enforcement
 - Must have 0 warnings policy
@@ -104,18 +110,19 @@ dist/
 
 ```typescript
 interface Finding {
-  path: string;        // File path
-  line: number;        // Line number
-  message: string;     // Review message
-  severity: string;    // Severity level (required, optional, nit, fyi)
+  path: string; // File path
+  line: number; // Line number
+  message: string; // Review message
+  severity: string; // Severity level (required, optional, nit, fyi)
   suggestion?: string; // Optional code suggestion
-  code?: string;       // Optional code snippet
+  code?: string; // Optional code snippet
 }
 ```
 
 ## Architecture Overview
 
 ### Technology Stack
+
 - **Runtime**: Node.js 20+
 - **Language**: TypeScript (strict mode)
 - **AI Integration**: Vercel AI SDK (`ai` package)
@@ -123,11 +130,13 @@ interface Finding {
 - **API Integration**: GitHub REST API via `@actions/github`
 
 ### Supported LLM Providers
+
 - **OpenAI**: GPT-4o and other OpenAI models
 - **Anthropic**: Claude 3 Sonnet and other Claude models
 - **Google**: Gemini Pro and other Google AI models
 
 ### Key Features
+
 - **Hunk-based processing**: Splits diffs into focused chunks
 - **Structured XML output**: Enforces consistent response format
 - **Line number resolution**: Maps findings to actual GitHub lines
@@ -136,11 +145,13 @@ interface Finding {
 - **Multi-provider support**: Unified interface across AI providers
 
 ### Environment Variables
+
 - `GITHUB_TOKEN`: GitHub API authentication
 - `MODEL_PROVIDER`: AI provider selection
 - `MODEL_NAME`: Specific model identification
 - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`: Provider API keys
 - `CUSTOM_PROMPT`: Optional custom review instructions
+- `CUSTOM_SUMMARIZE_PROMPT`: Optional custom summarize review instructions
 - `GITHUB_REPOSITORY`: Repository identification
 
 ## Build Process

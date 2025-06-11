@@ -1,6 +1,6 @@
 import { ReviewService } from "../src/review-service";
 import { GitHubClient } from "../src/github-client";
-import { callWithRetry } from "../src/ai-client";
+import { callWithRetry, summarizeDiff } from "../src/ai-client";
 import { Finding } from "../src/types";
 
 jest.mock("@octokit/rest", () => ({
@@ -28,7 +28,11 @@ jest.mock("../src/config", () => ({
 }));
 
 jest.mock("../src/github-client");
-jest.mock("../src/ai-client");
+jest.mock("../src/ai-client", () => ({
+  callWithRetry: jest.fn(),
+  reviewChunk: jest.fn(),
+  summarizeDiff: jest.fn(),
+}));
 
 describe("ReviewService", () => {
   let reviewService: ReviewService;
@@ -38,6 +42,15 @@ describe("ReviewService", () => {
     // Suppress console.log and console.error
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Mock summarizeDiff to return a valid DiffSummary
+    (summarizeDiff as jest.Mock).mockResolvedValue({
+      prType: "feature",
+      summaryPoints: ["Test summary point"],
+      keyRisks: [],
+      hunks: [],
+    });
 
     reviewService = new ReviewService({
       pr: 1,
@@ -69,8 +82,6 @@ describe("ReviewService", () => {
 
   it("should skip a chunk if it has existing comments", async () => {
     // Arrange
-    const existingComments = new Map<string, Set<number>>();
-    existingComments.set("file1.txt", new Set([2]));
     mockGithubClient.getExistingComments.mockResolvedValue([
       {
         path: "file1.txt",
@@ -79,6 +90,21 @@ describe("ReviewService", () => {
         user: { login: "github-actions[bot]" },
       },
     ] as any);
+
+    // Mock callWithRetry to only return diff summary
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        // This is the summarizeDiff call
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Test summary point"],
+          keyRisks: [],
+          hunks: [],
+        });
+      }
+      // If hunkIdx is not 0, this shouldn't be called for this test
+      throw new Error("Unexpected call to callWithRetry for reviewChunk");
+    });
 
     const mockChunks = [
       {
@@ -99,7 +125,12 @@ describe("ReviewService", () => {
     await (reviewService as any).execute();
 
     // Assert
-    expect(callWithRetry).not.toHaveBeenCalled();
+    // callWithRetry should be called once for summarizeDiff, but not for reviewChunk
+    expect(callWithRetry).toHaveBeenCalledTimes(1);
+    expect(callWithRetry).toHaveBeenCalledWith(
+      expect.any(Function),
+      0, // This is the summary step
+    );
   });
 
   it("should process a chunk without existing comments", async () => {
@@ -113,7 +144,22 @@ describe("ReviewService", () => {
         severity: "optional",
       },
     ];
-    (callWithRetry as jest.Mock).mockResolvedValue(mockFindings);
+
+    // Mock callWithRetry to return different values based on the hunk index
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        // This is the summarizeDiff call
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Test summary point"],
+          keyRisks: [],
+          hunks: [],
+        });
+      } else {
+        // This is the reviewChunk call
+        return Promise.resolve(mockFindings);
+      }
+    });
 
     const mockChunks = [
       {
@@ -134,7 +180,9 @@ describe("ReviewService", () => {
     await (reviewService as any).execute();
 
     // Assert
-    expect(callWithRetry).toHaveBeenCalled();
+    // callWithRetry should be called at least twice: once for summarizeDiff (hunkIdx=0) and once for reviewChunk (hunkIdx=1)
+    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 0); // summarizeDiff
+    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 1); // reviewChunk
     expect(mockGithubClient.createReviewComment).toHaveBeenCalledWith(
       1,
       "mock-commit-id",

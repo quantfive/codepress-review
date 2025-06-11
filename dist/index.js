@@ -9,11 +9,13 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.reviewChunk = reviewChunk;
 exports.callWithRetry = callWithRetry;
+exports.summarizeDiff = summarizeDiff;
 const ai_1 = __nccwpck_require__(7645);
 const openai_1 = __nccwpck_require__(2656);
 const anthropic_1 = __nccwpck_require__(6688);
 const google_1 = __nccwpck_require__(9455);
 const system_prompt_1 = __nccwpck_require__(9408);
+const summary_agent_system_prompt_1 = __nccwpck_require__(9497);
 const xml_parser_1 = __nccwpck_require__(9967);
 const promises_1 = __nccwpck_require__(8500);
 const MAX_RETRIES = 3;
@@ -42,16 +44,22 @@ function createModel(config) {
 /**
  * Reviews a diff chunk using the AI model.
  */
-async function reviewChunk(diffChunk, modelConfig, customPrompt) {
+async function reviewChunk(diffChunk, modelConfig, customPrompt, summaryContext) {
     const model = createModel(modelConfig);
     const systemPrompt = (0, system_prompt_1.getSystemPrompt)({ customPrompt });
+    let userContent = `Please review this diff:\n\n${diffChunk}`;
+    if (summaryContext) {
+        userContent =
+            `Context from overall diff analysis:\n${summaryContext}\n\n` +
+                userContent;
+    }
     const { text } = await (0, ai_1.generateText)({
         model,
         system: systemPrompt,
         messages: [
             {
                 role: "user",
-                content: `Please review this diff:\n\n${diffChunk}`,
+                content: userContent,
             },
         ],
         maxTokens: 4096,
@@ -85,6 +93,134 @@ async function callWithRetry(fn, hunkIdx) {
     }
     // This part should not be reachable, but it makes TypeScript happy.
     throw new Error(`[Hunk ${hunkIdx}] Exited retry loop unexpectedly.`);
+}
+/**
+ * Summarizes the entire diff and provides notes for each chunk.
+ */
+async function summarizeDiff(chunks, modelConfig, customPrompt) {
+    const model = createModel(modelConfig);
+    // Create a condensed view of all chunks for the summary
+    const diffOverview = chunks
+        .map((chunk, index) => {
+        return `=== CHUNK ${index}: ${chunk.fileName} ===\n${chunk.content}\n`;
+    })
+        .join("\n");
+    const systemPrompt = (0, summary_agent_system_prompt_1.getSummarySystemPrompt)({ customPrompt });
+    const { text } = await (0, ai_1.generateText)({
+        model,
+        system: systemPrompt,
+        messages: [
+            {
+                role: "user",
+                content: diffOverview,
+            },
+        ],
+    });
+    console.log("Diff Summary Raw Response:", text);
+    // Parse the XML response
+    return parseSummaryResponse(text);
+}
+/**
+ * Parses the XML summary response into a structured format.
+ */
+function parseSummaryResponse(text) {
+    try {
+        // Extract PR type
+        const prTypeMatch = text.match(/<prType>(.*?)<\/prType>/s);
+        const prType = prTypeMatch ? prTypeMatch[1].trim() : "unknown";
+        // Extract overview items
+        const overviewMatch = text.match(/<overview>(.*?)<\/overview>/s);
+        const summaryPoints = [];
+        if (overviewMatch) {
+            const itemMatches = overviewMatch[1].match(/<item>(.*?)<\/item>/gs);
+            if (itemMatches) {
+                summaryPoints.push(...itemMatches.map((match) => match.replace(/<\/?item>/g, "").trim()));
+            }
+        }
+        // Extract key risks
+        const keyRisksMatch = text.match(/<keyRisks>(.*?)<\/keyRisks>/s);
+        const keyRisks = [];
+        if (keyRisksMatch) {
+            const riskMatches = keyRisksMatch[1].match(/<item[^>]*>(.*?)<\/item>/gs);
+            if (riskMatches) {
+                riskMatches.forEach((match) => {
+                    const tagMatch = match.match(/tag="([^"]+)"/);
+                    const contentMatch = match.match(/<item[^>]*>(.*?)<\/item>/s);
+                    if (tagMatch && contentMatch) {
+                        keyRisks.push({
+                            tag: tagMatch[1],
+                            description: contentMatch[1].trim(),
+                        });
+                    }
+                });
+            }
+        }
+        // Extract hunks
+        const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
+        const hunks = [];
+        if (hunksMatch) {
+            const hunkMatches = hunksMatch[1].match(/<hunk[^>]*>.*?<\/hunk>/gs);
+            if (hunkMatches) {
+                hunkMatches.forEach((hunkMatch) => {
+                    const indexMatch = hunkMatch.match(/index="(\d+)"/);
+                    const fileMatch = hunkMatch.match(/<file>(.*?)<\/file>/s);
+                    const overviewMatch = hunkMatch.match(/<overview>(.*?)<\/overview>/s);
+                    if (indexMatch && fileMatch && overviewMatch) {
+                        const index = parseInt(indexMatch[1]);
+                        // Extract risks for this hunk
+                        const risks = [];
+                        const risksMatch = hunkMatch.match(/<risks>(.*?)<\/risks>/s);
+                        if (risksMatch) {
+                            const riskItemMatches = risksMatch[1].match(/<item[^>]*>(.*?)<\/item>/gs);
+                            if (riskItemMatches) {
+                                riskItemMatches.forEach((riskItem) => {
+                                    const tagMatch = riskItem.match(/tag="([^"]+)"/);
+                                    const contentMatch = riskItem.match(/<item[^>]*>(.*?)<\/item>/s);
+                                    if (tagMatch && contentMatch) {
+                                        risks.push({
+                                            tag: tagMatch[1],
+                                            description: contentMatch[1].trim(),
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                        // Extract tests for this hunk
+                        const tests = [];
+                        const testsMatch = hunkMatch.match(/<tests>(.*?)<\/tests>/s);
+                        if (testsMatch) {
+                            const testItemMatches = testsMatch[1].match(/<item>(.*?)<\/item>/gs);
+                            if (testItemMatches) {
+                                tests.push(...testItemMatches.map((match) => match.replace(/<\/?item>/g, "").trim()));
+                            }
+                        }
+                        hunks.push({
+                            index,
+                            file: fileMatch[1].trim(),
+                            overview: overviewMatch[1].trim(),
+                            risks,
+                            tests,
+                        });
+                    }
+                });
+            }
+        }
+        return {
+            prType: prType,
+            summaryPoints,
+            keyRisks,
+            hunks,
+        };
+    }
+    catch (error) {
+        console.error("Failed to parse summary response:", error);
+        return {
+            prType: "mixed",
+            summaryPoints: ["Failed to parse summary"],
+            keyRisks: [],
+            hunks: [],
+        };
+    }
 }
 //# sourceMappingURL=ai-client.js.map
 
@@ -195,6 +331,7 @@ function getReviewConfig() {
         customPrompt: process.env.CUSTOM_PROMPT,
         githubToken,
         githubRepository: process.env.GITHUB_REPOSITORY,
+        customSummarizePrompt: process.env.CUSTOM_SUMMARIZE_PROMPT,
     };
 }
 //# sourceMappingURL=config.js.map
@@ -422,6 +559,7 @@ async function run() {
         const anthropicApiKey = core.getInput("anthropic_api_key");
         const geminiApiKey = core.getInput("gemini_api_key");
         const customPrompt = core.getInput("custom_prompt");
+        const customSummarizePrompt = core.getInput("custom_summarize_prompt");
         // Validate required API key based on provider
         if (modelProvider === "openai" && !openaiApiKey) {
             core.setFailed("openai_api_key is required when using OpenAI provider");
@@ -444,6 +582,7 @@ async function run() {
         process.env.ANTHROPIC_API_KEY = anthropicApiKey;
         process.env.GEMINI_API_KEY = geminiApiKey;
         process.env.CUSTOM_PROMPT = customPrompt;
+        process.env.CUSTOM_SUMMARIZE_PROMPT = customSummarizePrompt;
         process.env.GITHUB_REPOSITORY =
             context.repo.owner + "/" + context.repo.repo;
         const { pull_request } = context.payload;
@@ -548,7 +687,36 @@ class ReviewService {
         let findings = [];
         try {
             const modelConfig = (0, config_1.getModelConfig)();
-            findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk.content, modelConfig, this.config.customPrompt), chunkIndex + 1);
+            // Build summary context for this chunk
+            let summaryContext = "";
+            if (this.diffSummary) {
+                const { prType, summaryPoints, keyRisks, hunks } = this.diffSummary;
+                const contextLines = [];
+                contextLines.push(`PR TYPE: ${prType}`, "");
+                if (summaryPoints.length > 0) {
+                    contextLines.push("OVERVIEW:", ...summaryPoints.map((item) => `- ${item}`), "");
+                }
+                if (keyRisks.length > 0) {
+                    contextLines.push("KEY RISKS TO WATCH FOR:", ...keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`), "");
+                }
+                // Find specific notes for this chunk
+                const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
+                if (hunkSummary) {
+                    contextLines.push("SPECIFIC NOTES FOR THIS CHUNK:", `Overview: ${hunkSummary.overview}`);
+                    if (hunkSummary.risks.length > 0) {
+                        contextLines.push(`Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}`);
+                    }
+                    if (hunkSummary.tests.length > 0) {
+                        contextLines.push(`Suggested Tests: ${hunkSummary.tests.join(", ")}`);
+                    }
+                    contextLines.push("");
+                }
+                else {
+                    console.log(`[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`);
+                }
+                summaryContext = contextLines.join("\n");
+            }
+            findings = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.reviewChunk)(chunk.content, modelConfig, this.config.customPrompt, summaryContext), chunkIndex + 1);
         }
         catch (error) {
             if (ai_1.APICallError.isInstance(error)) {
@@ -605,6 +773,26 @@ class ReviewService {
                 .filter((line) => line.trim() && !line.startsWith("#"))
             : [];
         const ig = (0, ignore_1.default)().add(ignorePatterns);
+        // Filter chunks by ignore patterns before summarization, preserving original indices
+        const filteredChunks = chunks
+            .map((chunk, index) => ({ chunk, originalIndex: index }))
+            .filter(({ chunk }) => !ig.ignores(chunk.fileName));
+        // First pass: Summarize the entire diff
+        if (filteredChunks.length > 0) {
+            console.log("Performing initial diff summarization...");
+            try {
+                const modelConfig = (0, config_1.getModelConfig)();
+                this.diffSummary = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.summarizeDiff)(filteredChunks.map(({ chunk }) => chunk), modelConfig, this.config.customSummarizePrompt), 0);
+                console.log("Diff summary completed.");
+                console.log("PR Type:", this.diffSummary.prType);
+                console.log("Summary Points:", this.diffSummary.summaryPoints);
+                console.log("Key Risks:", this.diffSummary.keyRisks.map((risk) => `[${risk.tag}] ${risk.description}`));
+            }
+            catch (error) {
+                console.warn("Failed to generate diff summary, proceeding without context:", error.message);
+                this.diffSummary = undefined;
+            }
+        }
         // Get PR information
         const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
         // Fetch existing comments to avoid duplicates
@@ -622,18 +810,13 @@ class ReviewService {
         // Process chunks in parallel with a concurrency limit
         const concurrencyLimit = 15;
         const promises = [];
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
+        for (let i = 0; i < filteredChunks.length; i++) {
+            const { chunk, originalIndex } = filteredChunks[i];
             const { fileName } = chunk;
-            const shouldIgnore = ig.ignores(fileName);
-            console.log("fileName: ", fileName);
-            console.log("shouldIgnore: ", shouldIgnore);
-            if (shouldIgnore) {
-                console.log(`Skipping review for ignored file: ${fileName}`);
-                continue;
-            }
-            promises.push(this.processChunk(chunk, i, commitId, existingComments));
-            if (promises.length >= concurrencyLimit || i === chunks.length - 1) {
+            console.log("Processing fileName: ", fileName);
+            promises.push(this.processChunk(chunk, originalIndex, commitId, existingComments));
+            if (promises.length >= concurrencyLimit ||
+                i === filteredChunks.length - 1) {
                 await Promise.all(promises);
                 promises.length = 0; // Clear the array
             }
@@ -642,6 +825,97 @@ class ReviewService {
 }
 exports.ReviewService = ReviewService;
 //# sourceMappingURL=review-service.js.map
+
+/***/ }),
+
+/***/ 9497:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.getSummarySystemPrompt = getSummarySystemPrompt;
+// ─────────────────────────────────────────────────────────────────────────────
+//  AI CODE-REVIEW – GLOBAL-DIFF SUMMARISER SYSTEM PROMPT
+// ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
+<!--  SYSTEM PROMPT : AI CODE-REVIEW - GLOBAL-DIFF SUMMARISER  -->
+<systemPrompt>
+
+  <!--  1. PURPOSE & GOVERNING PRINCIPLE  -->
+  <purpose>
+    You are an automated <strong>summariser</strong>.  
+    You receive the <em>entire</em> unified diff of a pull request **once**.  
+    Your single objective is to distil:
+      • PR-level context (what, why, key risks)  
+      • Concise, machine-readable notes for <em>every</em> diff hunk  
+    so that downstream per-hunk reviewers gain global awareness without
+    re-processing the whole diff.
+  </purpose>
+
+  <!--  2. WHAT TO EXTRACT  -->
+  <globalChecklist>
+    <prType>Classify the PR: feature | bugfix | refactor | docs | test | chore | dependency-bump | mixed.</prType>
+    <overview>≤ 5 bullets (≤ 60 words total) explaining what the PR does.</overview>
+    <keyRisks>Up to 10 bullets of potential issues, each prefixed with
+      [SEC], [PERF], [ARCH], [TEST], [STYLE], [SEO], or [DEP].</keyRisks>
+  </globalChecklist>
+
+  <hunkChecklist>
+    For every processable hunk, provide:
+    <overview>1 - 2 sentences describing the local change in the context of the PR.</overview>
+    <risks>Zero or more risk bullets, re-using the same tag prefixes.</risks>
+    <tests>Optional bullet list of concrete tests that should cover this hunk.</tests>
+    <notes>Pay attention to file structure. Make sure it's appropriately placed, as well as placed in the right files. IMPORTANT: Remember that hunks show partial file context - imports, dependencies, and related code may exist outside the visible diff lines.</notes>
+  </hunkChecklist>
+
+  <!--  3. OUTPUT FORMAT (STRICT)  -->
+  <responseFormat>
+    <!-- ✦ Emit exactly ONE <global> block. -->
+    <global>
+      <prType>feature</prType>
+      <overview>
+        <item>Adds StripeWebhookService to handle provider-specific webhooks…</item>
+        <!-- repeat 1-5 items -->
+      </overview>
+      <keyRisks>
+        <item tag="SEC">New /webhook endpoint lacks HMAC verification.</item>
+        <!-- repeat 0-10 items -->
+      </keyRisks>
+    </global>
+
+    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
+    <hunks>
+      <hunk index="0">
+        <file>src/components/SEOHead.tsx</file>
+        <overview>Makes <code>description</code> prop optional to support legacy pages.</overview>
+        <risks>
+          <item tag="SEO">Missing descriptions may hurt search ranking.</item>
+        </risks>
+        <tests>
+          <item>Render page without description and verify meta tags default correctly.</item>
+        </tests>
+      </hunk>
+
+      <!-- repeat <hunk> … </hunk> blocks as needed -->
+    </hunks>
+  </responseFormat>
+
+  <!--  4. CONSTRAINTS  -->
+  <constraints>
+    <noOtherText>No additional top-level nodes, comments, or prose outside the specified XML.</noOtherText>
+    <tokenBudget>Total response ≤ 950 tokens.</tokenBudget>
+    <ordering>Maintain the original hunk order.</ordering>
+  </constraints>
+
+</systemPrompt>
+`;
+// Helper to allow optional override just like in your existing getSystemPrompt
+function getSummarySystemPrompt({ customPrompt, }) {
+    // Return the full prompt (which already includes <systemPrompt> tags)
+    return customPrompt ?? DEFAULT_SUMMARY_SYSTEM_PROMPT;
+}
+//# sourceMappingURL=summary-agent-system-prompt.js.map
 
 /***/ }),
 
@@ -672,6 +946,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <consistency>Stay consistent with existing code unless that code violates a higher rule (e.g., style guide).</consistency>
     <documentation>Update READMEs, reference docs, build/test/release instructions affected by the change.</documentation>
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
+    <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. Do NOT suggest missing imports or dependencies unless you can clearly see they are absent from the provided context.</partialContext>
     <goodThings>Call out notable positives to reinforce good practices.</goodThings>
   </coverageChecklist>
 
@@ -680,6 +955,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <step1>Read the CL description. Does the change make sense? If fundamentally misguided, politely reject and suggest direction.</step1>
     <step2>Inspect the most critical files first to uncover high-impact design issues early.</step2>
     <step3>Review remaining files logically (often tool order). Optionally read tests first.</step3>
+    <step4>BEFORE flagging missing imports/types/dependencies: Remember you only see diff hunks, not full files. The missing code likely exists outside your view.</step4>
   </workflow>
 
   <!--  4. COMMENT STYLE & SEVERITY LABELS  -->

@@ -26,7 +26,11 @@ jest.mock("../src/config", () => ({
     }),
 }));
 jest.mock("../src/github-client");
-jest.mock("../src/ai-client");
+jest.mock("../src/ai-client", () => ({
+    callWithRetry: jest.fn(),
+    reviewChunk: jest.fn(),
+    summarizeDiff: jest.fn(),
+}));
 describe("ReviewService", () => {
     let reviewService;
     let mockGithubClient;
@@ -34,6 +38,14 @@ describe("ReviewService", () => {
         // Suppress console.log and console.error
         jest.spyOn(console, "log").mockImplementation(() => { });
         jest.spyOn(console, "error").mockImplementation(() => { });
+        jest.spyOn(console, "warn").mockImplementation(() => { });
+        // Mock summarizeDiff to return a valid DiffSummary
+        ai_client_1.summarizeDiff.mockResolvedValue({
+            prType: "feature",
+            summaryPoints: ["Test summary point"],
+            keyRisks: [],
+            hunks: [],
+        });
         reviewService = new review_service_1.ReviewService({
             pr: 1,
             diff: "mock-diff-path",
@@ -60,8 +72,6 @@ describe("ReviewService", () => {
     });
     it("should skip a chunk if it has existing comments", async () => {
         // Arrange
-        const existingComments = new Map();
-        existingComments.set("file1.txt", new Set([2]));
         mockGithubClient.getExistingComments.mockResolvedValue([
             {
                 path: "file1.txt",
@@ -70,6 +80,20 @@ describe("ReviewService", () => {
                 user: { login: "github-actions[bot]" },
             },
         ]);
+        // Mock callWithRetry to only return diff summary
+        ai_client_1.callWithRetry.mockImplementation((fn, hunkIdx) => {
+            if (hunkIdx === 0) {
+                // This is the summarizeDiff call
+                return Promise.resolve({
+                    prType: "feature",
+                    summaryPoints: ["Test summary point"],
+                    keyRisks: [],
+                    hunks: [],
+                });
+            }
+            // If hunkIdx is not 0, this shouldn't be called for this test
+            throw new Error("Unexpected call to callWithRetry for reviewChunk");
+        });
         const mockChunks = [
             {
                 fileName: "file1.txt",
@@ -86,7 +110,9 @@ describe("ReviewService", () => {
         // Act
         await reviewService.execute();
         // Assert
-        expect(ai_client_1.callWithRetry).not.toHaveBeenCalled();
+        // callWithRetry should be called once for summarizeDiff, but not for reviewChunk
+        expect(ai_client_1.callWithRetry).toHaveBeenCalledTimes(1);
+        expect(ai_client_1.callWithRetry).toHaveBeenCalledWith(expect.any(Function), 0);
     });
     it("should process a chunk without existing comments", async () => {
         // Arrange
@@ -99,7 +125,22 @@ describe("ReviewService", () => {
                 severity: "optional",
             },
         ];
-        ai_client_1.callWithRetry.mockResolvedValue(mockFindings);
+        // Mock callWithRetry to return different values based on the hunk index
+        ai_client_1.callWithRetry.mockImplementation((fn, hunkIdx) => {
+            if (hunkIdx === 0) {
+                // This is the summarizeDiff call
+                return Promise.resolve({
+                    prType: "feature",
+                    summaryPoints: ["Test summary point"],
+                    keyRisks: [],
+                    hunks: [],
+                });
+            }
+            else {
+                // This is the reviewChunk call
+                return Promise.resolve(mockFindings);
+            }
+        });
         const mockChunks = [
             {
                 fileName: "file1.txt",
@@ -116,7 +157,9 @@ describe("ReviewService", () => {
         // Act
         await reviewService.execute();
         // Assert
-        expect(ai_client_1.callWithRetry).toHaveBeenCalled();
+        // callWithRetry should be called at least twice: once for summarizeDiff (hunkIdx=0) and once for reviewChunk (hunkIdx=1)
+        expect(ai_client_1.callWithRetry).toHaveBeenCalledWith(expect.any(Function), 0); // summarizeDiff
+        expect(ai_client_1.callWithRetry).toHaveBeenCalledWith(expect.any(Function), 1); // reviewChunk
         expect(mockGithubClient.createReviewComment).toHaveBeenCalledWith(1, "mock-commit-id", mockFindings[0]);
     });
 });

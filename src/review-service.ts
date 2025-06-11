@@ -2,10 +2,10 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import ignore from "ignore";
 import { APICallError } from "ai";
-import { Finding, ReviewConfig } from "./types";
+import { Finding, ReviewConfig, DiffSummary } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
 import { splitDiff, ProcessableChunk } from "./diff-parser";
-import { reviewChunk, callWithRetry } from "./ai-client";
+import { reviewChunk, callWithRetry, summarizeDiff } from "./ai-client";
 import { GitHubClient } from "./github-client";
 
 /**
@@ -14,6 +14,7 @@ import { GitHubClient } from "./github-client";
 export class ReviewService {
   private config: ReviewConfig;
   private githubClient: GitHubClient;
+  private diffSummary?: DiffSummary;
 
   constructor(config: ReviewConfig) {
     this.config = config;
@@ -55,8 +56,69 @@ export class ReviewService {
     let findings: Finding[] = [];
     try {
       const modelConfig = getModelConfig();
+
+      // Build summary context for this chunk
+      let summaryContext = "";
+      if (this.diffSummary) {
+        const { prType, summaryPoints, keyRisks, hunks } = this.diffSummary;
+        const contextLines: string[] = [];
+
+        contextLines.push(`PR TYPE: ${prType}`, "");
+
+        if (summaryPoints.length > 0) {
+          contextLines.push(
+            "OVERVIEW:",
+            ...summaryPoints.map((item: string) => `- ${item}`),
+            "",
+          );
+        }
+
+        if (keyRisks.length > 0) {
+          contextLines.push(
+            "KEY RISKS TO WATCH FOR:",
+            ...keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`),
+            "",
+          );
+        }
+
+        // Find specific notes for this chunk
+        const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
+        if (hunkSummary) {
+          contextLines.push(
+            "SPECIFIC NOTES FOR THIS CHUNK:",
+            `Overview: ${hunkSummary.overview}`,
+          );
+
+          if (hunkSummary.risks.length > 0) {
+            contextLines.push(
+              `Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}`,
+            );
+          }
+
+          if (hunkSummary.tests.length > 0) {
+            contextLines.push(
+              `Suggested Tests: ${hunkSummary.tests.join(", ")}`,
+            );
+          }
+
+          contextLines.push("");
+        } else {
+          console.log(
+            `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
+          );
+        }
+
+        summaryContext = contextLines.join("\n");
+      }
+
       findings = await callWithRetry(
-        () => reviewChunk(chunk.content, modelConfig, this.config.customPrompt),
+        () =>
+          reviewChunk(
+            chunk.content,
+            modelConfig,
+            this.config.customPrompt,
+            summaryContext,
+          ),
         chunkIndex + 1,
       );
     } catch (error: any) {
@@ -137,6 +199,43 @@ export class ReviewService {
 
     const ig = ignore().add(ignorePatterns);
 
+    // Filter chunks by ignore patterns before summarization, preserving original indices
+    const filteredChunks = chunks
+      .map((chunk, index) => ({ chunk, originalIndex: index }))
+      .filter(({ chunk }) => !ig.ignores(chunk.fileName));
+
+    // First pass: Summarize the entire diff
+    if (filteredChunks.length > 0) {
+      console.log("Performing initial diff summarization...");
+      try {
+        const modelConfig = getModelConfig();
+        this.diffSummary = await callWithRetry(
+          () =>
+            summarizeDiff(
+              filteredChunks.map(({ chunk }) => chunk),
+              modelConfig,
+              this.config.customSummarizePrompt,
+            ),
+          0, // Use 0 as a special index for the summary step
+        );
+        console.log("Diff summary completed.");
+        console.log("PR Type:", this.diffSummary.prType);
+        console.log("Summary Points:", this.diffSummary.summaryPoints);
+        console.log(
+          "Key Risks:",
+          this.diffSummary.keyRisks.map(
+            (risk) => `[${risk.tag}] ${risk.description}`,
+          ),
+        );
+      } catch (error: any) {
+        console.warn(
+          "Failed to generate diff summary, proceeding without context:",
+          error.message,
+        );
+        this.diffSummary = undefined;
+      }
+    }
+
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
 
@@ -160,21 +259,19 @@ export class ReviewService {
     // Process chunks in parallel with a concurrency limit
     const concurrencyLimit = 15;
     const promises = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
+    for (let i = 0; i < filteredChunks.length; i++) {
+      const { chunk, originalIndex } = filteredChunks[i];
       const { fileName } = chunk;
 
-      const shouldIgnore = ig.ignores(fileName);
-      console.log("fileName: ", fileName);
-      console.log("shouldIgnore: ", shouldIgnore);
+      console.log("Processing fileName: ", fileName);
 
-      if (shouldIgnore) {
-        console.log(`Skipping review for ignored file: ${fileName}`);
-        continue;
-      }
-
-      promises.push(this.processChunk(chunk, i, commitId, existingComments));
-      if (promises.length >= concurrencyLimit || i === chunks.length - 1) {
+      promises.push(
+        this.processChunk(chunk, originalIndex, commitId, existingComments),
+      );
+      if (
+        promises.length >= concurrencyLimit ||
+        i === filteredChunks.length - 1
+      ) {
         await Promise.all(promises);
         promises.length = 0; // Clear the array
       }

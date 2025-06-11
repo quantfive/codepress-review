@@ -5,6 +5,7 @@ import { ReviewConfig } from "./types";
 export declare class ReviewService {
     private config;
     private githubClient;
+    private diffSummary?;
     constructor(config: ReviewConfig);
     /**
      * Processes a single diff chunk and posts comments to GitHub.
