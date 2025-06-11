@@ -108,8 +108,6 @@ async function summarizeDiff(chunks, modelConfig) {
                 content: diffOverview,
             },
         ],
-        maxTokens: 4096,
-        temperature: 0.1,
     });
     console.log("Diff Summary Raw Response:", text);
     // Parse the XML response
