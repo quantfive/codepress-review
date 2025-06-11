@@ -35,4 +35,21 @@ export interface FileLineMap {
         [lineContent: string]: number;
     };
 }
+export interface RiskItem {
+    tag: string;
+    description: string;
+}
+export interface HunkSummary {
+    index: number;
+    file: string;
+    overview: string;
+    risks: RiskItem[];
+    tests: string[];
+}
+export interface DiffSummary {
+    prType: string;
+    overview: string[];
+    keyRisks: RiskItem[];
+    hunks: HunkSummary[];
+}
 //# sourceMappingURL=types.d.ts.map

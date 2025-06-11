@@ -2,10 +2,10 @@ import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import ignore from "ignore";
 import { APICallError } from "ai";
-import { Finding, ReviewConfig } from "./types";
+import { Finding, ReviewConfig, DiffSummary } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
 import { splitDiff, ProcessableChunk } from "./diff-parser";
-import { reviewChunk, callWithRetry } from "./ai-client";
+import { reviewChunk, callWithRetry, summarizeDiff } from "./ai-client";
 import { GitHubClient } from "./github-client";
 
 /**
@@ -14,6 +14,7 @@ import { GitHubClient } from "./github-client";
 export class ReviewService {
   private config: ReviewConfig;
   private githubClient: GitHubClient;
+  private diffSummary?: DiffSummary;
 
   constructor(config: ReviewConfig) {
     this.config = config;
@@ -55,8 +56,48 @@ export class ReviewService {
     let findings: Finding[] = [];
     try {
       const modelConfig = getModelConfig();
+
+      // Build summary context for this chunk
+      let summaryContext = "";
+      if (this.diffSummary) {
+        const { prType, overview, keyRisks, hunks } = this.diffSummary;
+
+        summaryContext = `PR TYPE: ${prType}\n\n`;
+
+        if (overview.length > 0) {
+          summaryContext += `OVERVIEW:\n${overview.map((item) => `- ${item}`).join("\n")}\n\n`;
+        }
+
+        if (keyRisks.length > 0) {
+          summaryContext += `KEY RISKS TO WATCH FOR:\n${keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`).join("\n")}\n\n`;
+        }
+
+        // Find specific notes for this chunk
+        const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
+        if (hunkSummary) {
+          summaryContext += `SPECIFIC NOTES FOR THIS CHUNK:\n`;
+          summaryContext += `Overview: ${hunkSummary.overview}\n`;
+
+          if (hunkSummary.risks.length > 0) {
+            summaryContext += `Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}\n`;
+          }
+
+          if (hunkSummary.tests.length > 0) {
+            summaryContext += `Suggested Tests: ${hunkSummary.tests.join(", ")}\n`;
+          }
+
+          summaryContext += `\n`;
+        }
+      }
+
       findings = await callWithRetry(
-        () => reviewChunk(chunk.content, modelConfig, this.config.customPrompt),
+        () =>
+          reviewChunk(
+            chunk.content,
+            modelConfig,
+            this.config.customPrompt,
+            summaryContext,
+          ),
         chunkIndex + 1,
       );
     } catch (error: any) {
@@ -137,6 +178,38 @@ export class ReviewService {
 
     const ig = ignore().add(ignorePatterns);
 
+    // Filter chunks by ignore patterns before summarization
+    const filteredChunks = chunks.filter(
+      (chunk) => !ig.ignores(chunk.fileName),
+    );
+
+    // First pass: Summarize the entire diff
+    if (filteredChunks.length > 0) {
+      console.log("Performing initial diff summarization...");
+      try {
+        const modelConfig = getModelConfig();
+        this.diffSummary = await callWithRetry(
+          () => summarizeDiff(filteredChunks, modelConfig),
+          0, // Use 0 as a special index for the summary step
+        );
+        console.log("Diff summary completed.");
+        console.log("PR Type:", this.diffSummary.prType);
+        console.log("Overview:", this.diffSummary.overview);
+        console.log(
+          "Key Risks:",
+          this.diffSummary.keyRisks.map(
+            (risk) => `[${risk.tag}] ${risk.description}`,
+          ),
+        );
+      } catch (error: any) {
+        console.warn(
+          "Failed to generate diff summary, proceeding without context:",
+          error.message,
+        );
+        this.diffSummary = undefined;
+      }
+    }
+
     // Get PR information
     const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
 
@@ -160,21 +233,27 @@ export class ReviewService {
     // Process chunks in parallel with a concurrency limit
     const concurrencyLimit = 15;
     const promises = [];
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
+    for (let i = 0; i < filteredChunks.length; i++) {
+      const chunk = filteredChunks[i];
       const { fileName } = chunk;
 
-      const shouldIgnore = ig.ignores(fileName);
-      console.log("fileName: ", fileName);
-      console.log("shouldIgnore: ", shouldIgnore);
+      console.log("Processing fileName: ", fileName);
 
-      if (shouldIgnore) {
-        console.log(`Skipping review for ignored file: ${fileName}`);
-        continue;
-      }
+      // Find the original chunk index for proper referencing in summary notes
+      const originalChunkIndex = chunks.indexOf(chunk);
 
-      promises.push(this.processChunk(chunk, i, commitId, existingComments));
-      if (promises.length >= concurrencyLimit || i === chunks.length - 1) {
+      promises.push(
+        this.processChunk(
+          chunk,
+          originalChunkIndex,
+          commitId,
+          existingComments,
+        ),
+      );
+      if (
+        promises.length >= concurrencyLimit ||
+        i === filteredChunks.length - 1
+      ) {
         await Promise.all(promises);
         promises.length = 0; // Clear the array
       }
