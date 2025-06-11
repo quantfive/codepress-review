@@ -44,6 +44,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
       - name: Lint
-        run: npx eslint scripts/ai-review.ts lib/providers/*.ts --max-warnings=0
+        run: pnpm run lint
       - name: Type Check
         run: npx tsc --noEmit
