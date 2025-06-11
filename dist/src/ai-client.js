@@ -123,11 +123,11 @@ function parseSummaryResponse(text) {
         const prType = prTypeMatch ? prTypeMatch[1].trim() : "unknown";
         // Extract overview items
         const overviewMatch = text.match(/<overview>(.*?)<\/overview>/s);
-        const overview = [];
+        const summaryPoints = [];
         if (overviewMatch) {
             const itemMatches = overviewMatch[1].match(/<item>(.*?)<\/item>/gs);
             if (itemMatches) {
-                overview.push(...itemMatches.map((match) => match.replace(/<\/?item>/g, "").trim()));
+                summaryPoints.push(...itemMatches.map((match) => match.replace(/<\/?item>/g, "").trim()));
             }
         }
         // Extract key risks
@@ -199,8 +199,8 @@ function parseSummaryResponse(text) {
             }
         }
         return {
-            prType,
-            overview,
+            prType: prType,
+            summaryPoints,
             keyRisks,
             hunks,
         };
@@ -208,8 +208,8 @@ function parseSummaryResponse(text) {
     catch (error) {
         console.error("Failed to parse summary response:", error);
         return {
-            prType: "unknown",
-            overview: ["Failed to parse summary"],
+            prType: "mixed",
+            summaryPoints: ["Failed to parse summary"],
             keyRisks: [],
             hunks: [],
         };

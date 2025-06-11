@@ -60,38 +60,55 @@ export class ReviewService {
       // Build summary context for this chunk
       let summaryContext = "";
       if (this.diffSummary) {
-        const { prType, overview, keyRisks, hunks } = this.diffSummary;
+        const { prType, summaryPoints, keyRisks, hunks } = this.diffSummary;
+        const contextLines: string[] = [];
 
-        summaryContext = `PR TYPE: ${prType}\n\n`;
+        contextLines.push(`PR TYPE: ${prType}`, "");
 
-        if (overview.length > 0) {
-          summaryContext += `OVERVIEW:\n${overview.map((item) => `- ${item}`).join("\n")}\n\n`;
+        if (summaryPoints.length > 0) {
+          contextLines.push(
+            "OVERVIEW:",
+            ...summaryPoints.map((item: string) => `- ${item}`),
+            "",
+          );
         }
 
         if (keyRisks.length > 0) {
-          summaryContext += `KEY RISKS TO WATCH FOR:\n${keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`).join("\n")}\n\n`;
+          contextLines.push(
+            "KEY RISKS TO WATCH FOR:",
+            ...keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`),
+            "",
+          );
         }
 
         // Find specific notes for this chunk
         const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
         if (hunkSummary) {
-          summaryContext += `SPECIFIC NOTES FOR THIS CHUNK:\n`;
-          summaryContext += `Overview: ${hunkSummary.overview}\n`;
+          contextLines.push(
+            "SPECIFIC NOTES FOR THIS CHUNK:",
+            `Overview: ${hunkSummary.overview}`,
+          );
 
           if (hunkSummary.risks.length > 0) {
-            summaryContext += `Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}\n`;
+            contextLines.push(
+              `Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}`,
+            );
           }
 
           if (hunkSummary.tests.length > 0) {
-            summaryContext += `Suggested Tests: ${hunkSummary.tests.join(", ")}\n`;
+            contextLines.push(
+              `Suggested Tests: ${hunkSummary.tests.join(", ")}`,
+            );
           }
 
-          summaryContext += `\n`;
+          contextLines.push("");
         } else {
           console.log(
             `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
           );
         }
+
+        summaryContext = contextLines.join("\n");
       }
 
       findings = await callWithRetry(
@@ -182,10 +199,10 @@ export class ReviewService {
 
     const ig = ignore().add(ignorePatterns);
 
-    // Filter chunks by ignore patterns before summarization
-    const filteredChunks = chunks.filter(
-      (chunk) => !ig.ignores(chunk.fileName),
-    );
+    // Filter chunks by ignore patterns before summarization, preserving original indices
+    const filteredChunks = chunks
+      .map((chunk, index) => ({ chunk, originalIndex: index }))
+      .filter(({ chunk }) => !ig.ignores(chunk.fileName));
 
     // First pass: Summarize the entire diff
     if (filteredChunks.length > 0) {
@@ -195,7 +212,7 @@ export class ReviewService {
         this.diffSummary = await callWithRetry(
           () =>
             summarizeDiff(
-              filteredChunks,
+              filteredChunks.map(({ chunk }) => chunk),
               modelConfig,
               this.config.customSummarizePrompt,
             ),
@@ -203,7 +220,7 @@ export class ReviewService {
         );
         console.log("Diff summary completed.");
         console.log("PR Type:", this.diffSummary.prType);
-        console.log("Overview:", this.diffSummary.overview);
+        console.log("Summary Points:", this.diffSummary.summaryPoints);
         console.log(
           "Key Risks:",
           this.diffSummary.keyRisks.map(
@@ -243,21 +260,13 @@ export class ReviewService {
     const concurrencyLimit = 15;
     const promises = [];
     for (let i = 0; i < filteredChunks.length; i++) {
-      const chunk = filteredChunks[i];
+      const { chunk, originalIndex } = filteredChunks[i];
       const { fileName } = chunk;
 
       console.log("Processing fileName: ", fileName);
 
-      // Find the original chunk index for proper referencing in summary notes
-      const originalChunkIndex = chunks.indexOf(chunk);
-
       promises.push(
-        this.processChunk(
-          chunk,
-          originalChunkIndex,
-          commitId,
-          existingComments,
-        ),
+        this.processChunk(chunk, originalIndex, commitId, existingComments),
       );
       if (
         promises.length >= concurrencyLimit ||

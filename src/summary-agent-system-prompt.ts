@@ -21,7 +21,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
     <prType>Classify the PR: feature | bugfix | refactor | docs | test | chore | dependency-bump | mixed.</prType>
     <overview>≤ 5 bullets (≤ 60 words total) explaining what the PR does.</overview>
     <keyRisks>Up to 10 bullets of potential issues, each prefixed with
-      [SEC], [PERF], [ARCH], [TEST], [STYLE], or [DEP].</keyRisks>
+      [SEC], [PERF], [ARCH], [TEST], [STYLE], [SEO], or [DEP].</keyRisks>
   </globalChecklist>
 
   <hunkChecklist>

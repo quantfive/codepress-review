@@ -8,6 +8,8 @@ import {
   DiffSummary,
   RiskItem,
   HunkSummary,
+  PRType,
+  RiskTag,
 } from "./types";
 import { getSystemPrompt } from "./system-prompt";
 import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
@@ -159,11 +161,11 @@ function parseSummaryResponse(text: string): DiffSummary {
 
     // Extract overview items
     const overviewMatch = text.match(/<overview>(.*?)<\/overview>/s);
-    const overview: string[] = [];
+    const summaryPoints: string[] = [];
     if (overviewMatch) {
       const itemMatches = overviewMatch[1].match(/<item>(.*?)<\/item>/gs);
       if (itemMatches) {
-        overview.push(
+        summaryPoints.push(
           ...itemMatches.map((match) => match.replace(/<\/?item>/g, "").trim()),
         );
       }
@@ -180,7 +182,7 @@ function parseSummaryResponse(text: string): DiffSummary {
           const contentMatch = match.match(/<item[^>]*>(.*?)<\/item>/s);
           if (tagMatch && contentMatch) {
             keyRisks.push({
-              tag: tagMatch[1],
+              tag: tagMatch[1] as RiskTag,
               description: contentMatch[1].trim(),
             });
           }
@@ -217,7 +219,7 @@ function parseSummaryResponse(text: string): DiffSummary {
                   );
                   if (tagMatch && contentMatch) {
                     risks.push({
-                      tag: tagMatch[1],
+                      tag: tagMatch[1] as RiskTag,
                       description: contentMatch[1].trim(),
                     });
                   }
@@ -253,16 +255,16 @@ function parseSummaryResponse(text: string): DiffSummary {
     }
 
     return {
-      prType,
-      overview,
+      prType: prType as PRType,
+      summaryPoints,
       keyRisks,
       hunks,
     };
   } catch (error) {
     console.error("Failed to parse summary response:", error);
     return {
-      prType: "unknown",
-      overview: ["Failed to parse summary"],
+      prType: "mixed" as PRType,
+      summaryPoints: ["Failed to parse summary"],
       keyRisks: [],
       hunks: [],
     };

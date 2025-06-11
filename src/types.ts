@@ -42,8 +42,20 @@ export interface FileLineMap {
   };
 }
 
+export type PRType =
+  | "feature"
+  | "bugfix"
+  | "refactor"
+  | "docs"
+  | "test"
+  | "chore"
+  | "dependency-bump"
+  | "mixed";
+
+export type RiskTag = "SEC" | "PERF" | "ARCH" | "TEST" | "STYLE" | "DEP";
+
 export interface RiskItem {
-  tag: string;
+  tag: RiskTag;
   description: string;
 }
 
@@ -56,8 +68,8 @@ export interface HunkSummary {
 }
 
 export interface DiffSummary {
-  prType: string;
-  overview: string[];
+  prType: PRType;
+  summaryPoints: string[];
   keyRisks: RiskItem[];
   hunks: HunkSummary[];
 }
