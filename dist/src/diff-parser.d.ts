@@ -1,8 +1,15 @@
 import { FileLineMap } from "./types";
+export interface ProcessableChunk {
+    fileName: string;
+    content: string;
+    hunk: any;
+}
 /**
- * Splits a diff into chunks for each file.
+ * Splits a diff text into processable chunks.
+ * @param diffText The raw diff text.
+ * @returns An array of processable chunks.
  */
-export declare function splitDiff(diff: string): string[];
+export declare function splitDiff(diffText: string): ProcessableChunk[];
 /**
  * Builds a mapping of file paths to line numbers from a diff chunk.
  */
