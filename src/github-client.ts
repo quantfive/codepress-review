@@ -5,9 +5,7 @@ import { Finding, GitHubConfig } from "./types";
  * Formats a finding into a GitHub comment with appropriate styling.
  */
 export function formatGitHubComment(finding: Finding): string {
-  let comment = "## 🚀 CodePress Review\n\n";
-
-  comment += finding.message;
+  let comment = finding.message;
 
   if (finding.severity) {
     const severityEmoji =
@@ -17,7 +15,7 @@ export function formatGitHubComment(finding: Finding): string {
         nit: "🔵",
         fyi: "ℹ️",
       }[finding.severity] || "📝";
-    comment = `## 🚀 CodePress Review\n\n${severityEmoji} **${finding.severity.toUpperCase()}**: ${finding.message}`;
+    comment = `${severityEmoji} **${finding.severity.toUpperCase()}**: ${comment}`;
   }
 
   if (finding.suggestion) {
@@ -29,7 +27,7 @@ export function formatGitHubComment(finding: Finding): string {
   }
 
   // Add subtle footer attribution
-  comment += `\n\n---\n<sub>Powered by [CodePress](https://github.com/quantfive/codepress-review)</sub>`;
+  comment += `\n\n---\n❇️ Powered by [CodePress](https://github.com/quantfive/codepress-review)`;
 
   return comment;
 }
