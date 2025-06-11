@@ -434,7 +434,8 @@ const rest_1 = __nccwpck_require__(9586);
  * Formats a finding into a GitHub comment with appropriate styling.
  */
 function formatGitHubComment(finding) {
-    let comment = finding.message;
+    let comment = "## 🚀 CodePress Review\n\n";
+    comment += finding.message;
     if (finding.severity) {
         const severityEmoji = {
             required: "🔴",
@@ -442,7 +443,7 @@ function formatGitHubComment(finding) {
             nit: "🔵",
             fyi: "ℹ️",
         }[finding.severity] || "📝";
-        comment = `${severityEmoji} **${finding.severity.toUpperCase()}**: ${comment}`;
+        comment = `## 🚀 CodePress Review\n\n${severityEmoji} **${finding.severity.toUpperCase()}**: ${finding.message}`;
     }
     if (finding.suggestion) {
         comment += `\n\n**Suggestion:**\n\`\`\`\n${finding.suggestion}\n\`\`\``;
@@ -450,6 +451,8 @@ function formatGitHubComment(finding) {
     if (finding.code) {
         comment += `\n\n**Example:**\n${finding.code}`;
     }
+    // Add subtle footer attribution
+    comment += `\n\n---\n<sub>Powered by [CodePress](https://github.com/quantfive/codepress-review)</sub>`;
     return comment;
 }
 /**
