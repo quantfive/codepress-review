@@ -911,10 +911,8 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
 `;
 // Helper to allow optional override just like in your existing getSystemPrompt
 function getSummarySystemPrompt({ customPrompt, }) {
-    return `<!--  SYSTEM PROMPT : AI CODE-REVIEW – GLOBAL-DIFF SUMMARISER  -->
-<systemPrompt>
-  ${customPrompt ?? DEFAULT_SUMMARY_SYSTEM_PROMPT}
-</systemPrompt>`;
+    // Return the full prompt (which already includes <systemPrompt> tags)
+    return customPrompt ?? DEFAULT_SUMMARY_SYSTEM_PROMPT;
 }
 //# sourceMappingURL=summary-agent-system-prompt.js.map
 

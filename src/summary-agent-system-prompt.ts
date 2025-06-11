@@ -80,8 +80,6 @@ export function getSummarySystemPrompt({
 }: {
   customPrompt?: string;
 }): string {
-  return `<!--  SYSTEM PROMPT : AI CODE-REVIEW – GLOBAL-DIFF SUMMARISER  -->
-<systemPrompt>
-  ${customPrompt ?? DEFAULT_SUMMARY_SYSTEM_PROMPT}
-</systemPrompt>`;
+  // Return the full prompt (which already includes <systemPrompt> tags)
+  return customPrompt ?? DEFAULT_SUMMARY_SYSTEM_PROMPT;
 }
