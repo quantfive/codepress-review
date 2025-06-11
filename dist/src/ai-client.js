@@ -90,7 +90,7 @@ async function callWithRetry(fn, hunkIdx) {
 /**
  * Summarizes the entire diff and provides notes for each chunk.
  */
-async function summarizeDiff(chunks, modelConfig) {
+async function summarizeDiff(chunks, modelConfig, customPrompt) {
     const model = createModel(modelConfig);
     // Create a condensed view of all chunks for the summary
     const diffOverview = chunks
@@ -98,7 +98,7 @@ async function summarizeDiff(chunks, modelConfig) {
         return `=== CHUNK ${index}: ${chunk.fileName} ===\n${chunk.content}\n`;
     })
         .join("\n");
-    const systemPrompt = (0, summary_agent_system_prompt_1.getSummarySystemPrompt)({});
+    const systemPrompt = (0, summary_agent_system_prompt_1.getSummarySystemPrompt)({ customPrompt });
     const { text } = await (0, ai_1.generateText)({
         model,
         system: systemPrompt,

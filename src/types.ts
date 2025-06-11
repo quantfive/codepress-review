@@ -16,6 +16,7 @@ export interface ReviewConfig {
   customPrompt?: string;
   githubToken: string;
   githubRepository: string;
+  customSummarizePrompt?: string;
 }
 
 export interface ModelConfig {

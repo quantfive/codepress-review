@@ -47,6 +47,7 @@ async function run() {
         const anthropicApiKey = core.getInput("anthropic_api_key");
         const geminiApiKey = core.getInput("gemini_api_key");
         const customPrompt = core.getInput("custom_prompt");
+        const customSummarizePrompt = core.getInput("custom_summarize_prompt");
         // Validate required API key based on provider
         if (modelProvider === "openai" && !openaiApiKey) {
             core.setFailed("openai_api_key is required when using OpenAI provider");
@@ -69,6 +70,7 @@ async function run() {
         process.env.ANTHROPIC_API_KEY = anthropicApiKey;
         process.env.GEMINI_API_KEY = geminiApiKey;
         process.env.CUSTOM_PROMPT = customPrompt;
+        process.env.CUSTOM_SUMMARIZE_PROMPT = customSummarizePrompt;
         process.env.GITHUB_REPOSITORY =
             context.repo.owner + "/" + context.repo.repo;
         const { pull_request } = context.payload;

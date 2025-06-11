@@ -97,7 +97,7 @@ async function callWithRetry(fn, hunkIdx) {
 /**
  * Summarizes the entire diff and provides notes for each chunk.
  */
-async function summarizeDiff(chunks, modelConfig) {
+async function summarizeDiff(chunks, modelConfig, customPrompt) {
     const model = createModel(modelConfig);
     // Create a condensed view of all chunks for the summary
     const diffOverview = chunks
@@ -105,7 +105,7 @@ async function summarizeDiff(chunks, modelConfig) {
         return `=== CHUNK ${index}: ${chunk.fileName} ===\n${chunk.content}\n`;
     })
         .join("\n");
-    const systemPrompt = (0, summary_agent_system_prompt_1.getSummarySystemPrompt)({});
+    const systemPrompt = (0, summary_agent_system_prompt_1.getSummarySystemPrompt)({ customPrompt });
     const { text } = await (0, ai_1.generateText)({
         model,
         system: systemPrompt,
@@ -331,6 +331,7 @@ function getReviewConfig() {
         customPrompt: process.env.CUSTOM_PROMPT,
         githubToken,
         githubRepository: process.env.GITHUB_REPOSITORY,
+        customSummarizePrompt: process.env.CUSTOM_SUMMARIZE_PROMPT,
     };
 }
 //# sourceMappingURL=config.js.map
@@ -558,6 +559,7 @@ async function run() {
         const anthropicApiKey = core.getInput("anthropic_api_key");
         const geminiApiKey = core.getInput("gemini_api_key");
         const customPrompt = core.getInput("custom_prompt");
+        const customSummarizePrompt = core.getInput("custom_summarize_prompt");
         // Validate required API key based on provider
         if (modelProvider === "openai" && !openaiApiKey) {
             core.setFailed("openai_api_key is required when using OpenAI provider");
@@ -580,6 +582,7 @@ async function run() {
         process.env.ANTHROPIC_API_KEY = anthropicApiKey;
         process.env.GEMINI_API_KEY = geminiApiKey;
         process.env.CUSTOM_PROMPT = customPrompt;
+        process.env.CUSTOM_SUMMARIZE_PROMPT = customSummarizePrompt;
         process.env.GITHUB_REPOSITORY =
             context.repo.owner + "/" + context.repo.repo;
         const { pull_request } = context.payload;
@@ -776,7 +779,7 @@ class ReviewService {
             console.log("Performing initial diff summarization...");
             try {
                 const modelConfig = (0, config_1.getModelConfig)();
-                this.diffSummary = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.summarizeDiff)(filteredChunks, modelConfig), 0);
+                this.diffSummary = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.summarizeDiff)(filteredChunks, modelConfig, this.config.customSummarizePrompt), 0);
                 console.log("Diff summary completed.");
                 console.log("PR Type:", this.diffSummary.prType);
                 console.log("Overview:", this.diffSummary.overview);
@@ -862,7 +865,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
     <overview>1 - 2 sentences describing the local change in the context of the PR.</overview>
     <risks>Zero or more risk bullets, re-using the same tag prefixes.</risks>
     <tests>Optional bullet list of concrete tests that should cover this hunk.</tests>
-    <notes>Pay attention to file structure. Make sure it's appropriately placed, as well as placed in the right files.</notes>
+    <notes>Pay attention to file structure. Make sure it's appropriately placed, as well as placed in the right files. IMPORTANT: Remember that hunks show partial file context - imports, dependencies, and related code may exist outside the visible diff lines.</notes>
   </hunkChecklist>
 
   <!--  3. OUTPUT FORMAT (STRICT)  -->
@@ -944,6 +947,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <consistency>Stay consistent with existing code unless that code violates a higher rule (e.g., style guide).</consistency>
     <documentation>Update READMEs, reference docs, build/test/release instructions affected by the change.</documentation>
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
+    <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. Do NOT suggest missing imports or dependencies unless you can clearly see they are absent from the provided context.</partialContext>
     <goodThings>Call out notable positives to reinforce good practices.</goodThings>
   </coverageChecklist>
 
@@ -952,6 +956,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <step1>Read the CL description. Does the change make sense? If fundamentally misguided, politely reject and suggest direction.</step1>
     <step2>Inspect the most critical files first to uncover high-impact design issues early.</step2>
     <step3>Review remaining files logically (often tool order). Optionally read tests first.</step3>
+    <step4>BEFORE flagging missing imports/types/dependencies: Remember you only see diff hunks, not full files. The missing code likely exists outside your view.</step4>
   </workflow>
 
   <!--  4. COMMENT STYLE & SEVERITY LABELS  -->

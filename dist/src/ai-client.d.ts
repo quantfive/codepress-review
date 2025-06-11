@@ -11,5 +11,5 @@ export declare function callWithRetry<T>(fn: () => Promise<T>, hunkIdx: number):
 /**
  * Summarizes the entire diff and provides notes for each chunk.
  */
-export declare function summarizeDiff(chunks: ProcessableChunk[], modelConfig: ModelConfig): Promise<DiffSummary>;
+export declare function summarizeDiff(chunks: ProcessableChunk[], modelConfig: ModelConfig, customPrompt?: string): Promise<DiffSummary>;
 //# sourceMappingURL=ai-client.d.ts.map

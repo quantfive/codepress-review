@@ -193,7 +193,12 @@ export class ReviewService {
       try {
         const modelConfig = getModelConfig();
         this.diffSummary = await callWithRetry(
-          () => summarizeDiff(filteredChunks, modelConfig),
+          () =>
+            summarizeDiff(
+              filteredChunks,
+              modelConfig,
+              this.config.customSummarizePrompt,
+            ),
           0, // Use 0 as a special index for the summary step
         );
         console.log("Diff summary completed.");

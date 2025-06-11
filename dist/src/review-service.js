@@ -132,7 +132,7 @@ class ReviewService {
             console.log("Performing initial diff summarization...");
             try {
                 const modelConfig = (0, config_1.getModelConfig)();
-                this.diffSummary = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.summarizeDiff)(filteredChunks, modelConfig), 0);
+                this.diffSummary = await (0, ai_client_1.callWithRetry)(() => (0, ai_client_1.summarizeDiff)(filteredChunks, modelConfig, this.config.customSummarizePrompt), 0);
                 console.log("Diff summary completed.");
                 console.log("PR Type:", this.diffSummary.prType);
                 console.log("Overview:", this.diffSummary.overview);

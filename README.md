@@ -58,15 +58,16 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ### Input Parameters
 
-| Input               | Required | Default               | Description                                  |
-| ------------------- | -------- | --------------------- | -------------------------------------------- |
-| `github_token`      | ✅       | `${{ github.token }}` | GitHub token for API access                  |
-| `model_provider`    | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
-| `model_name`        | ✅       | `gpt-4o`              | Model name (see examples below)              |
-| `openai_api_key`    | ⚠️       |                       | Required if using OpenAI                     |
-| `anthropic_api_key` | ⚠️       |                       | Required if using Anthropic                  |
-| `gemini_api_key`    | ⚠️       |                       | Required if using Google                     |
-| `custom_prompt`     | ❌       | `''`                  | Custom review prompt                         |
+| Input                     | Required | Default               | Description                                  |
+| ------------------------- | -------- | --------------------- | -------------------------------------------- |
+| `github_token`            | ✅       | `${{ github.token }}` | GitHub token for API access                  |
+| `model_provider`          | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
+| `model_name`              | ✅       | `gpt-4o`              | Model name (see examples below)              |
+| `openai_api_key`          | ⚠️       |                       | Required if using OpenAI                     |
+| `anthropic_api_key`       | ⚠️       |                       | Required if using Anthropic                  |
+| `gemini_api_key`          | ⚠️       |                       | Required if using Google                     |
+| `custom_prompt`           | ❌       | `''`                  | Custom review prompt for individual chunks   |
+| `custom_summarize_prompt` | ❌       | `''`                  | Custom prompt for initial diff summarization |
 
 ## Examples
 
@@ -135,15 +136,36 @@ Example output format:
 </comment>
 ````
 
+## Two-Pass Review System
+
+CodePress Review uses a sophisticated **two-pass review system** for enhanced code analysis:
+
+1. **First Pass - Diff Summarization**: Analyzes the entire diff to identify PR type, key themes, and risks
+2. **Second Pass - Chunk Review**: Reviews each code chunk with context from the first pass
+
+This provides global awareness while maintaining focused, line-level feedback.
+
 ## Custom Prompts
 
-You can customize the review style and focus by providing a custom prompt. When you provide a custom prompt:
+You can customize both phases of the review process:
+
+### `custom_prompt` (Chunk Review)
+
+Customizes the individual chunk review behavior. When you provide a custom prompt:
 
 - **Your prompt replaces**: The review criteria, guidelines, and style sections
 - **System preserves**: The XML response format to ensure consistent output structure
-- **Diff handling**: The diff is automatically passed as a user message to the LLM
+- **Context included**: Each chunk receives global context from the summarization pass
 
-This ensures your custom prompts work seamlessly while maintaining the structured XML output format.
+### `custom_summarize_prompt` (Diff Summarization)
+
+Customizes the initial diff analysis that provides context to chunk reviews. When provided:
+
+- **Your prompt replaces**: The summarization guidelines and focus areas
+- **System preserves**: The structured XML output format for global/hunk analysis
+- **Output used**: Results enhance all subsequent chunk reviews with relevant context
+
+Both custom prompts work seamlessly while maintaining the structured output formats.
 
 ### Security-Focused Review
 
@@ -189,7 +211,7 @@ This ensures your custom prompts work seamlessly while maintaining the structure
 
 ### Beginner-Friendly Review
 
-```yaml
+````yaml
 - name: CodePress Review
   uses: your-username/codepress-review@v1
   with:
@@ -205,16 +227,44 @@ This ensures your custom prompts work seamlessly while maintaining the structure
       - Focus on learning opportunities
 
       Prefer severity levels: optional (learning opportunities), nit (style), fyi (educational notes).
+
+### Combined Custom Prompts
+
+You can use both prompts together for comprehensive customization:
+
+```yaml
+- name: CodePress Review
+  uses: your-username/codepress-review@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    custom_summarize_prompt: |
+      You are analyzing a complete pull request. Focus on:
+      - API design and breaking changes
+      - Cross-service dependencies
+      - Database migration impacts
+      - Performance implications at scale
+
+      Classify the PR type and identify global architectural concerns.
+    custom_prompt: |
+      You are reviewing individual code changes with architectural context.
+      Focus on implementation details that support the overall design.
+      Be specific about how each change impacts the broader system.
+````
+
 ```
 
 ## Suggestion Format Demo
 
 > See below for an example of a multi-line suggestion block.
 
-````
+```
+
 ```suggestion
 // improved code here
-````
+```
 
 ```
 

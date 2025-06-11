@@ -85,5 +85,6 @@ export function getReviewConfig(): ReviewConfig {
     customPrompt: process.env.CUSTOM_PROMPT,
     githubToken,
     githubRepository: process.env.GITHUB_REPOSITORY!,
+    customSummarizePrompt: process.env.CUSTOM_SUMMARIZE_PROMPT,
   };
 }

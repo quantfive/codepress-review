@@ -18,6 +18,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <consistency>Stay consistent with existing code unless that code violates a higher rule (e.g., style guide).</consistency>
     <documentation>Update READMEs, reference docs, build/test/release instructions affected by the change.</documentation>
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
+    <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. Do NOT suggest missing imports or dependencies unless you can clearly see they are absent from the provided context.</partialContext>
     <goodThings>Call out notable positives to reinforce good practices.</goodThings>
   </coverageChecklist>
 
@@ -26,6 +27,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <step1>Read the CL description. Does the change make sense? If fundamentally misguided, politely reject and suggest direction.</step1>
     <step2>Inspect the most critical files first to uncover high-impact design issues early.</step2>
     <step3>Review remaining files logically (often tool order). Optionally read tests first.</step3>
+    <step4>BEFORE flagging missing imports/types/dependencies: Remember you only see diff hunks, not full files. The missing code likely exists outside your view.</step4>
   </workflow>
 
   <!--  4. COMMENT STYLE & SEVERITY LABELS  -->
