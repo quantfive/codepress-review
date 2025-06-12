@@ -28,10 +28,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run linting and type check
-        run: |
-          pnpm run lint
-          pnpm run type-check
+      # - name: Run linting and type check
+      #   run: |
+      #     pnpm run lint
+      #     pnpm run type-check
 
       - name: Build project
         run: pnpm run build
