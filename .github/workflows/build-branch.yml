@@ -36,6 +36,13 @@ jobs:
       - name: Build project
         run: pnpm run build
 
+      - name: Prepare publish directory
+        run: |
+          mkdir publish
+          cp -r dist/ publish/
+          cp action.yml publish/
+          cp README.md publish/
+
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v4
         with:
@@ -43,7 +50,7 @@ jobs:
           # The branch to deploy the build artifacts to
           publish_branch: build
           # The directory to deploy
-          publish_dir: ./dist
+          publish_dir: ./publish
           # This creates a branch with a clean history containing only the build artifacts
           force_orphan: true
           # The commit message for the build branch
