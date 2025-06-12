@@ -91,7 +91,7 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-# dist - We need to commit dist for GitHub Actions
+dist
 
 # Gatsby files
 .cache/
@@ -138,7 +138,7 @@ out
 .pnp.*
 
 # Build outputs
-# dist/ - We need to commit dist for GitHub Actions
+dist/
 lib/
 
 # Environment files
