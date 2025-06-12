@@ -84,7 +84,7 @@ export function getInteractiveSystemPrompt({
     <tool name="fetch_file">
       <description>Return the full contents of <code>path</code>.</description>
       <parameters>
-        { "path": "string – repo-relative file path" }
+        { "path": "string - repo-relative file path" }
       </parameters>
     </tool>
 
@@ -95,8 +95,8 @@ export function getInteractiveSystemPrompt({
       <parameters>
         {
           "path": "string",
-          "start": "integer – 1-based start line",
-          "end": "integer – 1-based end line"
+          "start": "integer - 1-based start line",
+          "end": "integer - 1-based end line"
         }
       </parameters>
     </tool>
