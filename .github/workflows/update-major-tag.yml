@@ -15,7 +15,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
         # This automatically checks out the code at the specific commit of the release tag.
+        # fetch-depth: 0 ensures we have full git history and tag information for reliable tag operations.
 
       - name: Extract major version from tag
         id: extract_major_version
@@ -25,7 +28,7 @@ jobs:
           if ! [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Tag $TAG_NAME does not match the format vX.Y.Z."
             echo "Skipping major tag update."
-            exit 1 # Stop the workflow if the tag is not a valid semver tag
+            exit 0 # Skip without error if the tag is not a valid semver tag
           fi
 
           # Extract the major version (e.g., 'v1' from 'v1.2.3')
