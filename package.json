@@ -3,8 +3,9 @@
   "version": "0.0.1",
   "description": "Turnkey AI code review system for GitHub Pull Requests",
   "main": "dist/index.js",
+  "type": "module",
   "scripts": {
-    "build": "tsc && ncc build dist/src/index.js -o dist --source-map --license licenses.txt",
+    "build": "tsc && ncc build dist/src/index.js -o dist --license licenses.txt",
     "package": "npm run build",
     "review": "ts-node src/ai-review.ts",
     "lint": "eslint src/**/*.ts --max-warnings=0",
