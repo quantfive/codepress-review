@@ -1,6 +1,0 @@
-#!/usr/bin/env sh
-set -e
-
-echo "Running pre-commit hook..."
-npm run build
-echo "Build successful - dist folder will be created on the build branch via GitHub Actions"
