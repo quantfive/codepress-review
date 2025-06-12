@@ -21,9 +21,17 @@ export function splitDiff(diffText: string): ProcessableChunk[] {
     return file.hunks.map((hunk) => {
       const header = `--- ${file.oldFileName}\n+++ ${file.newFileName}\n`;
       const hunkContent = hunk.lines.join("\n");
-      const fileName = file.newFileName.startsWith("b/")
-        ? file.newFileName.slice(2)
-        : file.newFileName;
+
+      // For deleted files, newFileName is /dev/null. Use oldFileName instead.
+      // For new files, oldFileName is /dev/null. Use newFileName.
+      let fileName =
+        file.newFileName !== "/dev/null" ? file.newFileName : file.oldFileName;
+
+      // Remove the "a/" or "b/" prefix
+      if (fileName.startsWith("a/") || fileName.startsWith("b/")) {
+        fileName = fileName.substring(2);
+      }
+
       return {
         fileName,
         content: `${header}@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@\n${hunkContent}`,
