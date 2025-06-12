@@ -8,7 +8,7 @@ export declare class ReviewService {
     private diffSummary?;
     constructor(config: ReviewConfig);
     /**
-     * Processes a single diff chunk and posts comments to GitHub.
+     * Processes a single diff chunk and returns findings instead of posting them immediately.
      */
     private processChunk;
     /**
