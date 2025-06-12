@@ -4,6 +4,7 @@ import { allTools } from "./tools";
 import { getInteractiveSystemPrompt } from "./prompts";
 import { parseXMLResponse, resolveLineNumbers } from "../xml-parser";
 import { createModel } from "../model-factory";
+import { aisdk } from "@openai/agents-extensions";
 
 /**
  * Reviews a diff chunk using the interactive agent.
@@ -18,7 +19,7 @@ export async function reviewChunkWithAgent(
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
-    model,
+    model: aisdk(model),
     name: "InteractiveReviewAgent",
     instructions: getInteractiveSystemPrompt({ customPrompt }),
     tools: allTools,

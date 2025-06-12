@@ -2,7 +2,6 @@ import { ModelConfig } from "./types";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { aisdk } from "@openai/agents-extensions";
 
 const modelMap = new Map<string, any>();
 
@@ -38,8 +37,6 @@ export async function createModel(config: ModelConfig) {
       throw new Error(`Unsupported MODEL_PROVIDER: ${config.provider}`);
   }
 
-  const wrappedModel = aisdk(model);
-
-  modelMap.set(key, wrappedModel);
-  return wrappedModel;
+  modelMap.set(key, model);
+  return model;
 }
