@@ -1,11 +1,13 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import { execSync } from "child_process";
 import ignore from "ignore";
 import { APICallError } from "ai";
 import { Finding, ReviewConfig, DiffSummary } from "./types";
 import { getModelConfig, getGitHubConfig } from "./config";
 import { splitDiff, ProcessableChunk } from "./diff-parser";
-import { reviewChunk, callWithRetry, summarizeDiff } from "./ai-client";
+import { callWithRetry, summarizeDiff } from "./ai-client";
+import { reviewChunkWithAgent } from "./agent";
 import { GitHubClient } from "./github-client";
 
 /**
@@ -15,11 +17,27 @@ export class ReviewService {
   private config: ReviewConfig;
   private githubClient: GitHubClient;
   private diffSummary?: DiffSummary;
+  private repoFilePaths: string[] = [];
 
   constructor(config: ReviewConfig) {
     this.config = config;
     const githubConfig = getGitHubConfig();
     this.githubClient = new GitHubClient(githubConfig);
+  }
+
+  /**
+   * Retrieves all file paths in the repository using git.
+   */
+  private getRepoFilePaths(): string[] {
+    try {
+      // Using git to list all files, respecting .gitignore
+      const files = execSync("git ls-files", { encoding: "utf-8" });
+      return files.split("\n").filter((p) => p);
+    } catch (error) {
+      console.error("Failed to list repository files with git:", error);
+      // Fallback or further error handling can be added here
+      return [];
+    }
   }
 
   /**
@@ -57,7 +75,7 @@ export class ReviewService {
       const modelConfig = getModelConfig();
 
       // Build summary context for this chunk
-      let summaryContext = "";
+      let summaryContext = "No summary available.";
       if (this.diffSummary) {
         const { prType, summaryPoints, keyRisks, hunks } = this.diffSummary;
         const contextLines: string[] = [];
@@ -112,11 +130,12 @@ export class ReviewService {
 
       findings = await callWithRetry(
         () =>
-          reviewChunk(
+          reviewChunkWithAgent(
             chunk.content,
             modelConfig,
-            this.config.customPrompt,
             summaryContext,
+            this.repoFilePaths,
+            this.config.customPrompt,
           ),
         chunkIndex + 1,
       );
@@ -169,6 +188,9 @@ export class ReviewService {
    * Executes the complete review process.
    */
   async execute(): Promise<void> {
+    // Get all files in the repo first
+    this.repoFilePaths = this.getRepoFilePaths();
+
     // Read and split the diff
     const diffText = readFileSync(resolve(this.config.diff), "utf8");
     const chunks = splitDiff(diffText);
