@@ -20,7 +20,7 @@ When this action is published to the GitHub Marketplace, users will reference th
 
 ```yaml
 - name: CodePress Review
-  uses: your-username/codepress-review@build # or @v1 if you tag the build branch
+  uses: quantfive/codepress-review@v1 # or @v1 if you tag the build branch
 ```
 
 ### Local Development:
