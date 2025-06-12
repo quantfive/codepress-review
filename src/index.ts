@@ -92,7 +92,7 @@ async function run(): Promise<void> {
         pull_request.number.toString(),
       ];
 
-      const { main } = await import("./ai-review.js");
+      const { main } = await import("./ai-review");
       await main();
       core.info("CodePress Review completed successfully");
     } catch (error) {
