@@ -1,9 +1,5 @@
 import { generateText, APICallError } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import {
-  Finding,
   ModelConfig,
   DiffSummary,
   RiskItem,
@@ -11,75 +7,13 @@ import {
   PRType,
   RiskTag,
 } from "./types";
-import { getSystemPrompt } from "./system-prompt";
 import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
-import { parseXMLResponse, resolveLineNumbers } from "./xml-parser";
 import { setTimeout } from "node:timers/promises";
 import { ProcessableChunk } from "./diff-parser";
+import { createModel } from "./model-factory";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
-
-/**
- * Creates the appropriate AI model based on configuration.
- */
-function createModel(config: ModelConfig) {
-  switch (config.provider) {
-    case "openai": {
-      const openai = createOpenAI({ apiKey: config.apiKey });
-      return openai(config.modelName);
-    }
-    case "anthropic": {
-      const anthropic = createAnthropic({ apiKey: config.apiKey });
-      return anthropic(config.modelName);
-    }
-    case "gemini": {
-      const google = createGoogleGenerativeAI({ apiKey: config.apiKey });
-      return google(config.modelName);
-    }
-    default:
-      throw new Error(`Unsupported MODEL_PROVIDER: ${config.provider}`);
-  }
-}
-
-/**
- * Reviews a diff chunk using the AI model.
- */
-export async function reviewChunk(
-  diffChunk: string,
-  modelConfig: ModelConfig,
-  customPrompt?: string,
-  summaryContext?: string,
-): Promise<Finding[]> {
-  const model = createModel(modelConfig);
-  const systemPrompt = getSystemPrompt({ customPrompt });
-
-  let userContent = `Please review this diff:\n\n${diffChunk}`;
-
-  if (summaryContext) {
-    userContent =
-      `Context from overall diff analysis:\n${summaryContext}\n\n` +
-      userContent;
-  }
-
-  const { text } = await generateText({
-    model,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userContent,
-      },
-    ],
-    maxTokens: 4096,
-    temperature: 0.2,
-  });
-
-  console.log("LLM Raw Response:", text);
-
-  const findings = parseXMLResponse(text);
-  return resolveLineNumbers(findings, diffChunk);
-}
 
 /**
  * Executes a function with retry logic.
@@ -122,7 +56,7 @@ export async function summarizeDiff(
   modelConfig: ModelConfig,
   customPrompt?: string,
 ): Promise<DiffSummary> {
-  const model = createModel(modelConfig);
+  const model = await createModel(modelConfig);
 
   // Create a condensed view of all chunks for the summary
   const diffOverview = chunks
