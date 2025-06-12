@@ -26,7 +26,6 @@ export async function reviewChunkWithAgent(
   });
 
   const fileList = repoFilePaths.join("\n");
-  console.log("fileList: ", fileList);
   const initialMessage =
     `Here is a list of all files in the repository:\n${fileList}\n\n` +
     `Here is the context from the overall diff analysis:\n${summaryContext}\n\n` +
