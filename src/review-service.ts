@@ -186,7 +186,13 @@ export class ReviewService {
     // Filter chunks by ignore patterns before summarization, preserving original indices
     const filteredChunks = chunks
       .map((chunk, index) => ({ chunk, originalIndex: index }))
-      .filter(({ chunk }) => !ig.ignores(chunk.fileName));
+      .filter(({ chunk }) => {
+        // Exclude special paths like /dev/null from ignore processing
+        if (chunk.fileName === "/dev/null") {
+          return false;
+        }
+        return !ig.ignores(chunk.fileName);
+      });
 
     // First pass: Summarize the entire diff
     if (filteredChunks.length > 0) {
