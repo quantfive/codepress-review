@@ -9,6 +9,7 @@ export declare function formatGitHubComment(finding: Finding): string;
 export declare class GitHubClient {
     private octokit;
     private config;
+    private rateLimitHandler;
     constructor(config: GitHubConfig);
     /**
      * Gets PR information including the head commit SHA.
@@ -706,7 +707,13 @@ export declare class GitHubClient {
     }[]>;
     /**
      * Creates a review comment on a PR.
+     * @deprecated Use createReview for batch commenting instead
      */
     createReviewComment(prNumber: number, commitId: string, finding: Finding): Promise<void>;
+    /**
+     * Creates a pull request review with multiple comments in a single API call.
+     * This is much more efficient than creating individual comments and avoids rate limits.
+     */
+    createReview(prNumber: number, commitId: string, findings: Finding[], reviewSummary?: string): Promise<void>;
 }
 //# sourceMappingURL=github-client.d.ts.map

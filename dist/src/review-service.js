@@ -22,9 +22,9 @@ class ReviewService {
         this.githubClient = new github_client_1.GitHubClient(githubConfig);
     }
     /**
-     * Processes a single diff chunk and posts comments to GitHub.
+     * Processes a single diff chunk and returns findings instead of posting them immediately.
      */
-    async processChunk(chunk, chunkIndex, commitId, existingComments) {
+    async processChunk(chunk, chunkIndex, existingComments) {
         console.log(`[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(chunk.content)} bytes`);
         // Skip chunk if it's already been commented on
         const fileComments = existingComments.get(chunk.fileName);
@@ -33,7 +33,7 @@ class ReviewService {
             for (let i = 0; i < newLines; i++) {
                 if (fileComments.has(newStart + i)) {
                     console.log(`[Hunk ${chunkIndex + 1}] Skipping chunk for ${chunk.fileName} as it has existing comments.`);
-                    return;
+                    return [];
                 }
             }
         }
@@ -78,11 +78,11 @@ class ReviewService {
             else {
                 console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`);
             }
-            return;
+            return [];
         }
         if (!Array.isArray(findings)) {
             console.error(`[Hunk ${chunkIndex + 1}] Provider did not return valid findings.`);
-            return;
+            return [];
         }
         // De-duplicate findings that are identical to avoid spamming,
         // but allow for multiple different comments on the same line.
@@ -99,17 +99,8 @@ class ReviewService {
             seenSignatures.add(signature);
             return true;
         });
-        // Post findings as comments
-        const commentPromises = uniqueFindings.map(async (finding) => {
-            try {
-                await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
-                console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);
-            }
-            catch (e) {
-                console.error(`[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${finding.line}: ${e}`);
-            }
-        });
-        await Promise.all(commentPromises);
+        console.log(`[Hunk ${chunkIndex + 1}] Found ${uniqueFindings.length} findings`);
+        return uniqueFindings;
     }
     /**
      * Executes the complete review process.
@@ -160,19 +151,61 @@ class ReviewService {
             }
             existingComments.get(comment.path)?.add(comment.line);
         }
-        // Process chunks in parallel with a concurrency limit
+        // Process chunks in parallel with a concurrency limit and collect all findings
         const concurrencyLimit = 15;
         const promises = [];
+        const allFindings = [];
         for (let i = 0; i < filteredChunks.length; i++) {
             const { chunk, originalIndex } = filteredChunks[i];
             const { fileName } = chunk;
             console.log("Processing fileName: ", fileName);
-            promises.push(this.processChunk(chunk, originalIndex, commitId, existingComments));
+            promises.push(this.processChunk(chunk, originalIndex, existingComments));
             if (promises.length >= concurrencyLimit ||
                 i === filteredChunks.length - 1) {
-                await Promise.all(promises);
+                const batchResults = await Promise.all(promises);
+                // Flatten and add all findings from this batch
+                for (const findings of batchResults) {
+                    allFindings.push(...findings);
+                }
                 promises.length = 0; // Clear the array
             }
+        }
+        // Create a single review with all findings at the end
+        if (allFindings.length > 0) {
+            console.log(`\n🔍 Creating review with ${allFindings.length} total findings...`);
+            // Generate a summary of findings by severity
+            const severityCounts = allFindings.reduce((acc, finding) => {
+                const severity = finding.severity || "other";
+                acc[severity] = (acc[severity] || 0) + 1;
+                return acc;
+            }, {});
+            const summaryParts = Object.entries(severityCounts)
+                .map(([severity, count]) => `${count} ${severity}`)
+                .join(", ");
+            const reviewSummary = `🔍 **Code Review Summary**\n\nFound ${allFindings.length} item${allFindings.length === 1 ? "" : "s"} that need${allFindings.length === 1 ? "s" : ""} attention: ${summaryParts}.\n\nPlease review the inline comments below for specific details.`;
+            try {
+                await this.githubClient.createReview(this.config.pr, commitId, allFindings, reviewSummary);
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error("Failed to create review:", errorMessage);
+                // Fallback: try to create individual comments
+                console.log("Attempting to create individual comments as fallback...");
+                const commentPromises = allFindings.map(async (finding) => {
+                    try {
+                        await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
+                        console.log(`✅ Commented on ${finding.path}:${finding.line}`);
+                    }
+                    catch (e) {
+                        const eMessage = e instanceof Error ? e.message : String(e);
+                        console.error(`❌ Failed to comment on ${finding.path}:${finding.line}: ${eMessage}`);
+                    }
+                });
+                await Promise.all(commentPromises);
+            }
+        }
+        else {
+            console.log("🎉 No issues found during review!");
         }
     }
 }

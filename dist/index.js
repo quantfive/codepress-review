@@ -453,12 +453,139 @@ function formatGitHubComment(finding) {
     return comment;
 }
 /**
+ * GitHub-compliant rate limit handler following their official documentation
+ */
+class GitHubRateLimitHandler {
+    constructor() {
+        this.secondaryRateLimitRetries = 0;
+        this.maxRetries = 3;
+    }
+    async handleRateLimit(error, retryFn) {
+        if (!this.isRateLimitError(error)) {
+            throw error;
+        }
+        const rateLimitInfo = this.extractRateLimitInfo(error);
+        if (rateLimitInfo.isSecondaryRateLimit) {
+            await this.handleSecondaryRateLimit(retryFn);
+        }
+        else if (rateLimitInfo.isPrimaryRateLimit) {
+            await this.handlePrimaryRateLimit(rateLimitInfo, retryFn);
+        }
+        else {
+            throw error;
+        }
+    }
+    isRateLimitError(error) {
+        return (error &&
+            typeof error === "object" &&
+            "status" in error &&
+            typeof error.status === "number" &&
+            (error.status === 403 ||
+                error.status === 429 ||
+                (error.status === 422 &&
+                    "message" in error &&
+                    typeof error.message === "string" &&
+                    error.message.includes("abuse"))));
+    }
+    extractRateLimitInfo(error) {
+        if (!error || typeof error !== "object") {
+            return { isPrimaryRateLimit: false, isSecondaryRateLimit: false };
+        }
+        const isSecondaryRateLimit = "status" in error &&
+            error.status === 422 &&
+            "message" in error &&
+            typeof error.message === "string" &&
+            error.message.includes("abuse");
+        const isPrimaryRateLimit = "status" in error &&
+            (error.status === 403 || error.status === 429) &&
+            !isSecondaryRateLimit;
+        // Extract rate limit headers if available
+        let retryAfter;
+        let rateLimitReset;
+        let rateLimitRemaining;
+        if ("response" in error &&
+            error.response &&
+            typeof error.response === "object" &&
+            "headers" in error.response) {
+            const headers = error.response.headers;
+            if (headers["retry-after"]) {
+                retryAfter = parseInt(headers["retry-after"], 10);
+            }
+            if (headers["x-ratelimit-reset"]) {
+                rateLimitReset = parseInt(headers["x-ratelimit-reset"], 10);
+            }
+            if (headers["x-ratelimit-remaining"]) {
+                rateLimitRemaining = parseInt(headers["x-ratelimit-remaining"], 10);
+            }
+        }
+        return {
+            isPrimaryRateLimit,
+            isSecondaryRateLimit,
+            retryAfter,
+            rateLimitReset,
+            rateLimitRemaining,
+        };
+    }
+    async handlePrimaryRateLimit(rateLimitInfo, retryFn) {
+        let waitTime;
+        if (rateLimitInfo.retryAfter) {
+            // Use retry-after header if present
+            waitTime = rateLimitInfo.retryAfter * 1000;
+            console.warn(`Primary rate limit hit, waiting ${rateLimitInfo.retryAfter} seconds as specified by retry-after header`);
+        }
+        else if (rateLimitInfo.rateLimitRemaining === 0 &&
+            rateLimitInfo.rateLimitReset) {
+            // Wait until rate limit reset time
+            const resetTime = rateLimitInfo.rateLimitReset * 1000;
+            const currentTime = Date.now();
+            waitTime = Math.max(0, resetTime - currentTime + 1000); // Add 1 second buffer
+            console.warn(`Primary rate limit hit, waiting until reset time: ${new Date(resetTime).toISOString()}`);
+        }
+        else {
+            // Default to 1 minute if no specific guidance
+            waitTime = 60000;
+            console.warn(`Primary rate limit hit, waiting 1 minute (default)`);
+        }
+        await this.delay(waitTime);
+        await retryFn();
+    }
+    async handleSecondaryRateLimit(retryFn) {
+        if (this.secondaryRateLimitRetries >= this.maxRetries) {
+            throw new Error(`Secondary rate limit exceeded after ${this.maxRetries} retries`);
+        }
+        this.secondaryRateLimitRetries++;
+        // GitHub recommends at least 1 minute wait for secondary rate limits with exponential backoff
+        const baseWaitTime = 60000; // 1 minute
+        const waitTime = baseWaitTime * Math.pow(2, this.secondaryRateLimitRetries - 1);
+        console.warn(`Secondary rate limit (abuse detection) hit, attempt ${this.secondaryRateLimitRetries}/${this.maxRetries}, waiting ${waitTime / 1000} seconds`);
+        await this.delay(waitTime);
+        await retryFn();
+        // Reset retry count on success
+        this.secondaryRateLimitRetries = 0;
+    }
+    delay(ms) {
+        return new Promise((resolve) => {
+            const end = Date.now() + ms;
+            const check = () => {
+                if (Date.now() >= end) {
+                    resolve();
+                }
+                else {
+                    process.nextTick(check);
+                }
+            };
+            check();
+        });
+    }
+}
+/**
  * GitHub client for managing PR reviews and comments.
  */
 class GitHubClient {
     constructor(config) {
         this.config = config;
         this.octokit = new rest_1.Octokit({ auth: config.token });
+        this.rateLimitHandler = new GitHubRateLimitHandler();
     }
     /**
      * Gets PR information including the head commit SHA.
@@ -487,18 +614,64 @@ class GitHubClient {
     }
     /**
      * Creates a review comment on a PR.
+     * @deprecated Use createReview for batch commenting instead
      */
     async createReviewComment(prNumber, commitId, finding) {
-        await this.octokit.pulls.createReviewComment({
-            owner: this.config.owner,
-            repo: this.config.repo,
-            pull_number: prNumber,
-            commit_id: commitId,
+        const makeRequest = async () => {
+            await this.octokit.pulls.createReviewComment({
+                owner: this.config.owner,
+                repo: this.config.repo,
+                pull_number: prNumber,
+                commit_id: commitId,
+                path: finding.path,
+                line: finding.line ?? undefined,
+                side: "RIGHT",
+                body: formatGitHubComment(finding),
+            });
+        };
+        try {
+            await makeRequest();
+        }
+        catch (error) {
+            await this.rateLimitHandler.handleRateLimit(error, makeRequest);
+        }
+    }
+    /**
+     * Creates a pull request review with multiple comments in a single API call.
+     * This is much more efficient than creating individual comments and avoids rate limits.
+     */
+    async createReview(prNumber, commitId, findings, reviewSummary) {
+        if (findings.length === 0) {
+            console.log("No findings to submit in review");
+            return;
+        }
+        const comments = findings.map((finding) => ({
             path: finding.path,
             line: finding.line ?? undefined,
             side: "RIGHT",
             body: formatGitHubComment(finding),
-        });
+        }));
+        const body = reviewSummary ||
+            `🔍 **Code Review Summary**\n\nFound ${findings.length} item${findings.length === 1 ? "" : "s"} that ${findings.length === 1 ? "needs" : "need"} attention during review.`;
+        const makeRequest = async () => {
+            await this.octokit.pulls.createReview({
+                owner: this.config.owner,
+                repo: this.config.repo,
+                pull_number: prNumber,
+                commit_id: commitId,
+                body,
+                event: "COMMENT", // This creates a review without approval/rejection
+                comments,
+            });
+        };
+        try {
+            await makeRequest();
+            console.log(`✅ Created review with ${findings.length} comments`);
+        }
+        catch (error) {
+            await this.rateLimitHandler.handleRateLimit(error, makeRequest);
+            console.log(`✅ Created review with ${findings.length} comments (after retry)`);
+        }
     }
 }
 exports.GitHubClient = GitHubClient;
@@ -669,9 +842,9 @@ class ReviewService {
         this.githubClient = new github_client_1.GitHubClient(githubConfig);
     }
     /**
-     * Processes a single diff chunk and posts comments to GitHub.
+     * Processes a single diff chunk and returns findings instead of posting them immediately.
      */
-    async processChunk(chunk, chunkIndex, commitId, existingComments) {
+    async processChunk(chunk, chunkIndex, existingComments) {
         console.log(`[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(chunk.content)} bytes`);
         // Skip chunk if it's already been commented on
         const fileComments = existingComments.get(chunk.fileName);
@@ -680,7 +853,7 @@ class ReviewService {
             for (let i = 0; i < newLines; i++) {
                 if (fileComments.has(newStart + i)) {
                     console.log(`[Hunk ${chunkIndex + 1}] Skipping chunk for ${chunk.fileName} as it has existing comments.`);
-                    return;
+                    return [];
                 }
             }
         }
@@ -725,11 +898,11 @@ class ReviewService {
             else {
                 console.error(`[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`);
             }
-            return;
+            return [];
         }
         if (!Array.isArray(findings)) {
             console.error(`[Hunk ${chunkIndex + 1}] Provider did not return valid findings.`);
-            return;
+            return [];
         }
         // De-duplicate findings that are identical to avoid spamming,
         // but allow for multiple different comments on the same line.
@@ -746,17 +919,8 @@ class ReviewService {
             seenSignatures.add(signature);
             return true;
         });
-        // Post findings as comments
-        const commentPromises = uniqueFindings.map(async (finding) => {
-            try {
-                await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
-                console.log(`[Hunk ${chunkIndex + 1}] Commented on ${finding.path}:${finding.line}`);
-            }
-            catch (e) {
-                console.error(`[Hunk ${chunkIndex + 1}] Failed to comment on ${finding.path}:${finding.line}: ${e}`);
-            }
-        });
-        await Promise.all(commentPromises);
+        console.log(`[Hunk ${chunkIndex + 1}] Found ${uniqueFindings.length} findings`);
+        return uniqueFindings;
     }
     /**
      * Executes the complete review process.
@@ -807,19 +971,61 @@ class ReviewService {
             }
             existingComments.get(comment.path)?.add(comment.line);
         }
-        // Process chunks in parallel with a concurrency limit
+        // Process chunks in parallel with a concurrency limit and collect all findings
         const concurrencyLimit = 15;
         const promises = [];
+        const allFindings = [];
         for (let i = 0; i < filteredChunks.length; i++) {
             const { chunk, originalIndex } = filteredChunks[i];
             const { fileName } = chunk;
             console.log("Processing fileName: ", fileName);
-            promises.push(this.processChunk(chunk, originalIndex, commitId, existingComments));
+            promises.push(this.processChunk(chunk, originalIndex, existingComments));
             if (promises.length >= concurrencyLimit ||
                 i === filteredChunks.length - 1) {
-                await Promise.all(promises);
+                const batchResults = await Promise.all(promises);
+                // Flatten and add all findings from this batch
+                for (const findings of batchResults) {
+                    allFindings.push(...findings);
+                }
                 promises.length = 0; // Clear the array
             }
+        }
+        // Create a single review with all findings at the end
+        if (allFindings.length > 0) {
+            console.log(`\n🔍 Creating review with ${allFindings.length} total findings...`);
+            // Generate a summary of findings by severity
+            const severityCounts = allFindings.reduce((acc, finding) => {
+                const severity = finding.severity || "other";
+                acc[severity] = (acc[severity] || 0) + 1;
+                return acc;
+            }, {});
+            const summaryParts = Object.entries(severityCounts)
+                .map(([severity, count]) => `${count} ${severity}`)
+                .join(", ");
+            const reviewSummary = `🔍 **Code Review Summary**\n\nFound ${allFindings.length} item${allFindings.length === 1 ? "" : "s"} that need${allFindings.length === 1 ? "s" : ""} attention: ${summaryParts}.\n\nPlease review the inline comments below for specific details.`;
+            try {
+                await this.githubClient.createReview(this.config.pr, commitId, allFindings, reviewSummary);
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error("Failed to create review:", errorMessage);
+                // Fallback: try to create individual comments
+                console.log("Attempting to create individual comments as fallback...");
+                const commentPromises = allFindings.map(async (finding) => {
+                    try {
+                        await this.githubClient.createReviewComment(this.config.pr, commitId, finding);
+                        console.log(`✅ Commented on ${finding.path}:${finding.line}`);
+                    }
+                    catch (e) {
+                        const eMessage = e instanceof Error ? e.message : String(e);
+                        console.error(`❌ Failed to comment on ${finding.path}:${finding.line}: ${eMessage}`);
+                    }
+                });
+                await Promise.all(commentPromises);
+            }
+        }
+        else {
+            console.log("🎉 No issues found during review!");
         }
     }
 }
