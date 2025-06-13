@@ -10,6 +10,7 @@ A turnkey GitHub Action for automatic, inline code review on every Pull Request 
 - 📝 **Smart Chunking**: Handles large diffs efficiently
 - 🛡️ **Robust**: Built-in retries, rate limiting, and error handling
 - ⚡ **Zero Setup**: Just add to your workflow file
+- 🎯 **Customizable**: Use custom review guidelines via configuration file
 
 ## Quick Start
 
@@ -58,16 +59,14 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ### Input Parameters
 
-| Input                     | Required | Default               | Description                                  |
-| ------------------------- | -------- | --------------------- | -------------------------------------------- |
-| `github_token`            | ✅       | `${{ github.token }}` | GitHub token for API access                  |
-| `model_provider`          | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
-| `model_name`              | ✅       | `gpt-4o`              | Model name (see examples below)              |
-| `openai_api_key`          | ⚠️       |                       | Required if using OpenAI                     |
-| `anthropic_api_key`       | ⚠️       |                       | Required if using Anthropic                  |
-| `gemini_api_key`          | ⚠️       |                       | Required if using Google                     |
-| `custom_prompt`           | ❌       | `''`                  | Custom review prompt for individual chunks   |
-| `custom_summarize_prompt` | ❌       | `''`                  | Custom prompt for initial diff summarization |
+| Input               | Required | Default               | Description                                  |
+| ------------------- | -------- | --------------------- | -------------------------------------------- |
+| `github_token`      | ✅       | `${{ github.token }}` | GitHub token for API access                  |
+| `model_provider`    | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
+| `model_name`        | ✅       | `gpt-4o`              | Model name (see examples below)              |
+| `openai_api_key`    | ⚠️       |                       | Required if using OpenAI                     |
+| `anthropic_api_key` | ⚠️       |                       | Required if using Anthropic                  |
+| `gemini_api_key`    | ⚠️       |                       | Required if using Google                     |
 
 ## Examples
 
@@ -75,11 +74,11 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: @quantfive/codepress-review@v1
+  uses: quantfive/codepress-review@v2
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "o4-mini"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
@@ -87,11 +86,11 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: @quantfive/codepress-review@v1
+  uses: quantfive/codepress-review@v2
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
-    model_name: "claude-3-sonnet-20240229"
+    model_name: "claude-4-sonnet-20250514"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -99,11 +98,11 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ```yaml
 - name: CodePress Review
-  uses: @quantfive/codepress-review@v1
+  uses: quantfive/codepress-review@v2
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "gemini"
-    model_name: "gemini-1.5-pro"
+    model_name: "gemini-2.5-pro-preview-06-05"
     gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
@@ -145,132 +144,144 @@ CodePress Review uses a sophisticated **two-pass review system** for enhanced co
 
 This provides global awareness while maintaining focused, line-level feedback.
 
-## Custom Prompts
+## Custom Review Guidelines
 
-You can customize both phases of the review process:
+You can customize the review behavior by creating a `custom-codepress-review-prompt.md` file in the root of your repository. If this file exists, CodePress will use your custom guidelines instead of the default ones.
 
-### `custom_prompt` (Chunk Review)
+### Creating Custom Guidelines
 
-Customizes the individual chunk review behavior. When you provide a custom prompt:
+Create a file named `custom-codepress-review-prompt.md` in your repository root:
 
-- **Your prompt replaces**: The review criteria, guidelines, and style sections
-- **System preserves**: The XML response format to ensure consistent output structure
-- **Context included**: Each chunk receives global context from the summarization pass
+```markdown
+# My Custom Review Guidelines
 
-### `custom_summarize_prompt` (Diff Summarization)
+You are a code reviewer focusing on:
 
-Customizes the initial diff analysis that provides context to chunk reviews. When provided:
+- Security vulnerabilities and best practices
+- Performance optimization opportunities
+- Code maintainability and readability
+- Proper error handling
 
-- **Your prompt replaces**: The summarization guidelines and focus areas
-- **System preserves**: The structured XML output format for global/hunk analysis
-- **Output used**: Results enhance all subsequent chunk reviews with relevant context
+Use these severity levels:
 
-Both custom prompts work seamlessly while maintaining the structured output formats.
-
-### Security-Focused Review
-
-```yaml
-- name: CodePress Review
-  uses: @quantfive/codepress-review@v1
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    model_provider: "openai"
-    model_name: "gpt-4o"
-    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-    custom_prompt: |
-      You are a security expert reviewing code for vulnerabilities. Focus on:
-      - Authentication and authorization issues
-      - Input validation and sanitization
-      - SQL injection, XSS, and CSRF vulnerabilities
-      - Sensitive data exposure
-
-      Use severity levels: required (critical security issues),
-      optional (security improvements), nit (minor security polish),
-      fyi (security info).
+- **required**: Critical issues that must be fixed
+- **optional**: Suggestions for improvement
+- **nit**: Minor style or polish issues
+- **fyi**: Informational notes
 ```
 
-### Performance-Focused Review
+### Example Custom Guidelines
 
-```yaml
-- name: CodePress Review
-  uses: @quantfive/codepress-review@v1
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    model_provider: "anthropic"
-    model_name: "claude-3-sonnet-20240229"
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    custom_prompt: |
-      You are a performance optimization expert. Review this code for:
-      - Inefficient algorithms and data structures
-      - Memory leaks and excessive allocations
-      - Database query optimization opportunities
-      - Caching and batching improvements
+#### Security-Focused Review
 
-      Provide concrete performance improvements and metrics when possible.
+```markdown
+# Security-Focused Code Review
+
+You are a security expert reviewing code for vulnerabilities. Focus on:
+
+## Security Priorities
+
+- Authentication and authorization issues
+- Input validation and sanitization
+- SQL injection, XSS, and CSRF vulnerabilities
+- Sensitive data exposure
+- Cryptographic implementations
+- Third-party dependency vulnerabilities
+
+## Severity Guidelines
+
+- **required**: Critical security vulnerabilities that expose the system to attack
+- **optional**: Security improvements that enhance the overall security posture
+- **nit**: Minor security polish (logging, error messages)
+- **fyi**: Security-related information for future consideration
+
+Always explain the potential impact of security issues and provide concrete remediation steps.
 ```
 
-### Beginner-Friendly Review
+#### Performance-Focused Review
 
-````yaml
-- name: CodePress Review
-  uses: @quantfive/codepress-review@v1
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    model_provider: "openai"
-    model_name: "gpt-4o"
-    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-    custom_prompt: |
-      You are a patient mentor reviewing code from a junior developer. Your feedback should be:
-      - Educational and encouraging
-      - Explain the "why" behind suggestions
-      - Include code examples when helpful
-      - Focus on learning opportunities
+```markdown
+# Performance-Focused Code Review
 
-      Prefer severity levels: optional (learning opportunities), nit (style), fyi (educational notes).
+You are a performance optimization expert. Review this code for:
 
-### Combined Custom Prompts
+## Performance Areas
 
-You can use both prompts together for comprehensive customization:
+- Inefficient algorithms and data structures
+- Memory leaks and excessive allocations
+- Database query optimization opportunities
+- Caching and batching improvements
+- Network request optimization
+- Unnecessary computations or iterations
 
-```yaml
-- name: CodePress Review
-  uses: @quantfive/codepress-review@v1
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    model_provider: "openai"
-    model_name: "gpt-4o"
-    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-    custom_summarize_prompt: |
-      You are analyzing a complete pull request. Focus on:
-      - API design and breaking changes
-      - Cross-service dependencies
-      - Database migration impacts
-      - Performance implications at scale
+## Guidelines
 
-      Classify the PR type and identify global architectural concerns.
-    custom_prompt: |
-      You are reviewing individual code changes with architectural context.
-      Focus on implementation details that support the overall design.
-      Be specific about how each change impacts the broader system.
-````
+- Provide concrete performance improvements with estimated impact
+- Suggest specific optimizations with code examples
+- Identify potential bottlenecks and scaling issues
+- Focus on measurable improvements
 
+Use **required** for critical performance issues, **optional** for optimizations.
 ```
 
-## Suggestion Format Demo
+#### Beginner-Friendly Review
 
-> See below for an example of a multi-line suggestion block.
+```markdown
+# Beginner-Friendly Code Review
 
+You are a patient mentor reviewing code from a junior developer. Your feedback should be:
+
+## Mentoring Approach
+
+- Educational and encouraging
+- Explain the "why" behind suggestions
+- Include code examples when helpful
+- Focus on learning opportunities
+- Provide resources for further learning
+
+## Tone Guidelines
+
+- Use positive, constructive language
+- Acknowledge good practices when you see them
+- Offer alternatives rather than just pointing out problems
+- Encourage best practices without being overwhelming
+
+Prefer **optional** for learning opportunities, **nit** for style, **fyi** for educational notes.
 ```
 
-```suggestion
-// improved code here
+### Custom Summarization Guidelines
+
+You can also customize the initial diff summarization by creating a `custom-codepress-summary-prompt.md` file in your repository root. This allows you to tailor how CodePress analyzes and summarizes your pull requests.
+
+#### Creating Custom Summary Guidelines
+
+Create a file named `custom-codepress-summary-prompt.md` in your repository root:
+
+```markdown
+# Custom PR Summary Guidelines
+
+You are analyzing a complete pull request. Focus on:
+
+## Analysis Priorities
+
+- API design and breaking changes
+- Cross-service dependencies
+- Database migration impacts
+- Performance implications at scale
+- Security considerations in architectural changes
+
+## Classification Guidelines
+
+- Classify the PR type accurately: feature | bugfix | refactor | docs | test | chore | dependency-bump | mixed
+- Identify key architectural concerns that reviewers should be aware of
+- Highlight any risks that span multiple files or components
+
+## Output Focus
+
+- Provide concise, actionable insights for individual chunk reviewers
+- Flag cross-cutting concerns that might not be obvious from individual file changes
+- Emphasize testing strategies for complex changes
 ```
-
-```
-
-## Screenshot
-
-![screenshot](screenshot.png)
 
 ## Cost & Performance Caveats
 
@@ -283,22 +294,18 @@ If you want to run this bot on PRs from forks, use `pull_request_target` instead
 
 Update the workflow:
 
-```
-
+```yaml
 on:
-pull_request_target:
-types: [opened, reopened, synchronize]
-
+  pull_request_target:
+    types: [opened, reopened, synchronize]
 ```
 
 And set:
 
-```
-
+```yaml
 env:
-GITHUB_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN }}
-
-````
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ## Technical Architecture
 
@@ -311,29 +318,4 @@ This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai
 - **Severity System**: `required`, `optional`, `nit`, `fyi` with emoji indicators
 - **Hunk-Based Processing**: Each diff hunk processed individually for focused reviews
 - **Line Resolution**: Handles line number mapping from diff context
-
-## Publishing to GitHub Marketplace
-
-To publish this action to the GitHub Marketplace:
-
-1. **Tag a Release**: Create and push a version tag
-   ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0"
-   git push origin v1.0.0
-   ```
-
-2. **Create Release**: Go to your repository's releases page and create a new release from the tag
-
-3. **Publish to Marketplace**: Check the "Publish this Action to the GitHub Marketplace" box when creating the release
-
-4. **Users Install**: After publishing, users can reference your action as:
-   ```yaml
-   - uses: @quantfive/codepress-review@v1
-   ```
-
-The action is completely self-contained - users don't need to install dependencies, get diffs manually, or run scripts. Everything is handled automatically by `src/index.ts`.
-
----
-
-*See below for full usage and configuration details.*
-````
+- **File-Based Customization**: Custom review guidelines from `custom-codepress-review-prompt.md` and summary guidelines from `custom-codepress-summary-prompt.md`

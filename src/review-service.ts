@@ -135,7 +135,6 @@ export class ReviewService {
             modelConfig,
             summaryContext,
             this.repoFilePaths,
-            this.config.customPrompt,
           ),
         chunkIndex + 1,
       );
@@ -220,7 +219,6 @@ export class ReviewService {
             summarizeDiff(
               filteredChunks.map(({ chunk }) => chunk),
               modelConfig,
-              this.config.customSummarizePrompt,
             ),
           0, // Use 0 as a special index for the summary step
         );

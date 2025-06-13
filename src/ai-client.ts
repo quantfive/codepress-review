@@ -54,7 +54,6 @@ export async function callWithRetry<T>(
 export async function summarizeDiff(
   chunks: ProcessableChunk[],
   modelConfig: ModelConfig,
-  customPrompt?: string,
 ): Promise<DiffSummary> {
   const model = await createModel(modelConfig);
 
@@ -65,7 +64,7 @@ export async function summarizeDiff(
     })
     .join("\n");
 
-  const systemPrompt = getSummarySystemPrompt({ customPrompt });
+  const systemPrompt = getSummarySystemPrompt();
 
   const { text } = await generateText({
     model,

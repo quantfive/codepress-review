@@ -1,7 +1,7 @@
 import { Agent, run } from "@openai/agents";
 import { Finding, ModelConfig } from "../types";
 import { allTools } from "./tools";
-import { getInteractiveSystemPrompt } from "./prompts";
+import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { parseXMLResponse, resolveLineNumbers } from "../xml-parser";
 import { createModel } from "../model-factory";
 import { aisdk } from "@openai/agents-extensions";
@@ -14,14 +14,13 @@ export async function reviewChunkWithAgent(
   modelConfig: ModelConfig,
   summaryContext: string,
   repoFilePaths: string[],
-  customPrompt?: string,
 ): Promise<Finding[]> {
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
     model: aisdk(model),
     name: "InteractiveReviewAgent",
-    instructions: getInteractiveSystemPrompt({ customPrompt }),
+    instructions: getInteractiveSystemPrompt(),
     tools: allTools,
   });
 

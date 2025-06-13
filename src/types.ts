@@ -13,10 +13,8 @@ export interface ReviewConfig {
   pr: number;
   provider: string;
   modelName: string;
-  customPrompt?: string;
   githubToken: string;
   githubRepository: string;
-  customSummarizePrompt?: string;
 }
 
 export interface ModelConfig {
