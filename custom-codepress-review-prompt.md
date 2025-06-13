@@ -58,5 +58,4 @@
     <rule>Don't comment about new lines at ends of files</rule>
     <rule>Try not to comment so much about lint issues, we run a linter. Only comment if it's really egregious and breaking the app</rule>
     <rule>Don't feel the need to comment on every file. Only make comments where relevant to the code review process, following the checklist above</rule>
-    <rule>
   </additionalRulesToFollow>
