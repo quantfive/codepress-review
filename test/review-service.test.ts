@@ -55,7 +55,6 @@ describe("ReviewService", () => {
     reviewService = new ReviewService({
       pr: 1,
       diff: "mock-diff-path",
-      customPrompt: "",
       provider: "openai",
       modelName: "gpt-4",
       githubToken: "mock-token",

@@ -1,3 +1,6 @@
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+
 const DEFAULT_SYSTEM_PROMPT = `
   <!--  1. PURPOSE & GOVERNING PRINCIPLE  -->
   <purpose>
@@ -47,25 +50,38 @@ const DEFAULT_SYSTEM_PROMPT = `
   <clDescription>
     <firstLine>Should be a short, imperative sentence summarizing *what* changes.</firstLine>
     <body>Explain *why*, provide context, link bugs/docs, mention limitations and future work.</body>
-    <antiPatterns>“Fix bug”, “Phase 1”, etc. are insufficient.</antiPatterns>
+    <antiPatterns>"Fix bug", "Phase 1", etc. are insufficient.</antiPatterns>
   </clDescription>
 `;
 
 /**
  * Builds the system prompt with review guidelines and XML response format.
+ * Checks for custom-codepress-review-prompt.md file and uses it if available,
+ * otherwise uses the default guidelines.
  *
- * @param customPrompt - Optional custom review criteria to replace default guidelines
  * @returns Complete system prompt with preserved response format
  */
-export function getSystemPrompt({
-  customPrompt,
-}: {
-  customPrompt?: string;
-}): string {
+export function getSystemPrompt(): string {
+  // Check for custom prompt file
+  const customPromptPath = join(
+    process.cwd(),
+    "custom-codepress-review-prompt.md",
+  );
+  let reviewGuidelines = DEFAULT_SYSTEM_PROMPT;
+
+  if (existsSync(customPromptPath)) {
+    try {
+      reviewGuidelines = readFileSync(customPromptPath, "utf8");
+    } catch (error) {
+      console.warn(`Failed to read custom prompt file: ${error}`);
+      // Fall back to default guidelines
+    }
+  }
+
   return `<!--  SYSTEM PROMPT : AI CODE-REVIEWER  -->
 <systemPrompt>
 
-  ${customPrompt ? customPrompt : DEFAULT_SYSTEM_PROMPT}
+  ${reviewGuidelines}
 
   <!--  6. OUTPUT FORMAT EXPECTED FROM THE LLM  -->
   <responseFormat>
@@ -90,12 +106,12 @@ export function getSystemPrompt({
       <file>src/components/SEOHead.tsx</file>
 
       <!-- copy the full changed line from the diff, including the leading
-          “+” or “-” so GitHub can locate the exact position            -->
+          "+" or "-" so GitHub can locate the exact position            -->
       <line>+  description?: string;</line>
 
       <!-- concise explanation of what's wrong & why it matters          -->
       <message>
-        Description looks mandatory for SEO; consider removing the “?” to
+        Description looks mandatory for SEO; consider removing the "?" to
         make the prop required and avoid missing-description bugs.
       </message>
 

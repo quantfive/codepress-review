@@ -177,20 +177,16 @@ describe("AI Client", () => {
       });
     });
 
-    it("should handle custom prompt in summarizeDiff", async () => {
-      const customPrompt = "Focus on security implications";
-
+    it("should handle file-based custom prompt in summarizeDiff", async () => {
       (generateText as jest.Mock).mockResolvedValue({
         text: `<prType>bugfix</prType><overview><item>Security fix</item></overview><keyRisks></keyRisks><hunks></hunks>`,
       });
 
-      await summarizeDiff(mockChunks, mockModelConfig, customPrompt);
+      await summarizeDiff(mockChunks, mockModelConfig);
 
       expect(
         require("../src/summary-agent-system-prompt").getSummarySystemPrompt,
-      ).toHaveBeenCalledWith({
-        customPrompt,
-      });
+      ).toHaveBeenCalledWith();
     });
 
     it("should handle API errors gracefully", async () => {

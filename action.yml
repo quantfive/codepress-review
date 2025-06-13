@@ -34,16 +34,6 @@ inputs:
     description: "Google Gemini API key (required if using Gemini)"
     required: false
 
-  custom_prompt:
-    description: "Custom review prompt to override the default."
-    required: false
-    default: ""
-
-  custom_summarize_prompt:
-    description: "Custom summarize prompt to override the default."
-    required: false
-    default: ""
-
 runs:
   using: "node20"
   main: "dist/index.js"

@@ -1,10 +1,14 @@
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
+# Custom CodePress Summary Prompt Example
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  AI CODE-REVIEW – GLOBAL-DIFF SUMMARISER SYSTEM PROMPT
-// ─────────────────────────────────────────────────────────────────────────────
-const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
+This is an example of how to customize your pull request diff summarization using the file-based approach.
+
+To use this:
+1. Copy this file to `custom-codepress-summary-prompt.md` in your repository root
+2. Modify the content below to match your team's analysis preferences
+3. CodePress will automatically use these guidelines for diff summarization
+
+---
+
 <!--  SYSTEM PROMPT : AI CODE-REVIEW - GLOBAL-DIFF SUMMARISER  -->
 <systemPrompt>
 
@@ -73,33 +77,4 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
     <tokenBudget>Total response ≤ 950 tokens.</tokenBudget>
     <ordering>Maintain the original hunk order.</ordering>
   </constraints>
-
 </systemPrompt>
-`;
-
-/**
- * Builds the summary system prompt with guidelines for diff summarization.
- * Checks for custom-codepress-summary-prompt.md file and uses it if available,
- * otherwise uses the default summary guidelines.
- *
- * @returns Complete summary system prompt
- */
-export function getSummarySystemPrompt(): string {
-  // Check for custom summary prompt file
-  const customPromptPath = join(
-    process.cwd(),
-    "custom-codepress-summary-prompt.md",
-  );
-  let summaryGuidelines = DEFAULT_SUMMARY_SYSTEM_PROMPT;
-
-  if (existsSync(customPromptPath)) {
-    try {
-      summaryGuidelines = readFileSync(customPromptPath, "utf8");
-    } catch (error) {
-      console.warn(`Failed to read custom summary prompt file: ${error}`);
-      // Fall back to default guidelines
-    }
-  }
-
-  return summaryGuidelines;
-}

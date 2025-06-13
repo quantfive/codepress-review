@@ -1,3 +1,6 @@
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
+
 /**
  * System prompt for the interactive code review agent.
  */
@@ -23,6 +26,10 @@ const DEFAULT_REVIEW_GUIDELINES = `
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
     <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. However, you now have TOOLS to fetch additional context when needed.</partialContext>
     <goodThings>Call out notable positives to reinforce good practices.</goodThings>
+    <solution>Think about how you would have solved the problem. If it’s different, why is that? Does your code handle more (edge) cases? Is it shorter/easier/cleaner/faster/safer yet functionally equivalent? Is there some underlying pattern you spotted that isn’t captured by the current code?</solution>
+    <abstractions>Do you see potential for useful abstractions? Partially duplicated code often indicates that a more abstract or general piece of functionality can be extracted and then reused in different contexts.<abstractions>
+    <DRY>Think about libraries or existing product code. When someone re-implements existing functionality, more often than not it’s simply because they don’t know it already exists. Sometimes, code or functionality is duplicated on purpose, e.g., in order to avoid dependencies. In such cases, a code comment can clarify the intent. Is the introduced functionality already provided by an existing library?<DRY>
+    <legibility>Think about your reading experience. Did you grasp the concepts in a reasonable amount of time? Was the flow sane and were variable and methods names easy to follow? Were you able to keep track through multiple files or functions? Were you put off by inconsistent naming?</legibility>
   </coverageChecklist>
 
   <!--  3. REVIEW WORKFLOW - HOW TO NAVIGATE  -->
@@ -56,15 +63,28 @@ const DEFAULT_REVIEW_GUIDELINES = `
 
 /**
  * Builds the interactive system prompt with review guidelines and tool capabilities.
+ * Checks for custom-codepress-review-prompt.md file and uses it if available,
+ * otherwise uses the default guidelines.
  *
- * @param customPrompt - Optional custom review criteria to replace default guidelines
  * @returns Complete system prompt with tools and response format
  */
-export function getInteractiveSystemPrompt({
-  customPrompt,
-}: {
-  customPrompt?: string;
-} = {}): string {
+export function getInteractiveSystemPrompt(): string {
+  // Check for custom prompt file
+  const customPromptPath = join(
+    process.cwd(),
+    "custom-codepress-review-prompt.md",
+  );
+  let reviewGuidelines = DEFAULT_REVIEW_GUIDELINES;
+
+  if (existsSync(customPromptPath)) {
+    try {
+      reviewGuidelines = readFileSync(customPromptPath, "utf8");
+    } catch (error) {
+      console.warn(`Failed to read custom prompt file: ${error}`);
+      // Fall back to default guidelines
+    }
+  }
+
   return `<!-- ╔══════════════════════════════════════════════════════╗
      ║  SYSTEM PROMPT : INTERACTIVE REVIEW-AGENT v2 (TOOLS) ║
      ╚══════════════════════════════════════════════════════╝ -->
@@ -84,7 +104,7 @@ export function getInteractiveSystemPrompt({
     <tool name="fetch_file">
       <description>Return the full contents of <code>path</code>.</description>
       <parameters>
-        { "path": "string – repo-relative file path" }
+        { "path": "string - repo-relative file path" }
       </parameters>
     </tool>
 
@@ -95,8 +115,8 @@ export function getInteractiveSystemPrompt({
       <parameters>
         {
           "path": "string",
-          "start": "integer – 1-based start line",
-          "end": "integer – 1-based end line"
+          "start": "integer - 1-based start line",
+          "end": "integer - 1-based end line"
         }
       </parameters>
     </tool>
@@ -131,7 +151,7 @@ export function getInteractiveSystemPrompt({
   </protocol>
 
   <!-- REVIEW GUIDELINES -->
-  ${customPrompt ? customPrompt : DEFAULT_REVIEW_GUIDELINES}
+  ${reviewGuidelines}
 
   <!-- RESPONSE FORMAT -->
   <responseFormat>
