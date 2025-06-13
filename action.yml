@@ -37,7 +37,7 @@ inputs:
   max_turns:
     description: "Maximum number of turns for the interactive agent"
     required: false
-    default: "20"
+    default: "12"
 
 runs:
   using: "node20"
