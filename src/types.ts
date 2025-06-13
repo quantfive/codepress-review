@@ -15,6 +15,7 @@ export interface ReviewConfig {
   modelName: string;
   githubToken: string;
   githubRepository: string;
+  maxTurns: number;
 }
 
 export interface ModelConfig {

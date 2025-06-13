@@ -12,6 +12,7 @@ async function run(): Promise<void> {
     const openaiApiKey = core.getInput("openai_api_key");
     const anthropicApiKey = core.getInput("anthropic_api_key");
     const geminiApiKey = core.getInput("gemini_api_key");
+    const maxTurns = core.getInput("max_turns");
 
     // Validate required API key based on provider
     if (modelProvider === "openai" && !openaiApiKey) {
@@ -38,6 +39,7 @@ async function run(): Promise<void> {
     process.env.OPENAI_API_KEY = openaiApiKey;
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     process.env.GEMINI_API_KEY = geminiApiKey;
+    process.env.MAX_TURNS = maxTurns;
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
     const { pull_request } = context.payload;

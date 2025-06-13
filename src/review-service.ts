@@ -135,6 +135,7 @@ export class ReviewService {
             modelConfig,
             summaryContext,
             this.repoFilePaths,
+            this.config.maxTurns,
           ),
         chunkIndex + 1,
       );
