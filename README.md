@@ -308,6 +308,54 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## Version Comparison
+
+### v2 (Current) - Interactive Agent Architecture
+
+CodePress Review v2 introduces a sophisticated **interactive agent system** powered by OpenAI's agents framework:
+
+- **🤖 Interactive Tools**: Agent can fetch additional file context, analyze dependencies, and explore code relationships
+- **🔍 Smart Context Gathering**: When reviewing diffs, the agent can request full file contents or specific code snippets for better understanding
+- **📊 Dependency Analysis**: Built-in tools to analyze import/export relationships and project structure
+- **🎯 Context-Aware Reviews**: No more false positives from missing context - the agent sees the full picture
+- **⚡ Adaptive Processing**: Agent determines when additional context is needed and fetches it automatically
+
+**Key Benefits of v2:**
+
+- Eliminates incorrect comments about "missing" code that exists outside diff chunks
+- Provides more accurate reviews by understanding full file context
+- Reduces false positives for unused imports, missing migrations, etc.
+- Offers deeper architectural insights through dependency analysis
+
+### v1 (Legacy) - Static Diff Review
+
+CodePress Review v1 uses a traditional static approach:
+
+- **📝 Diff-Only Analysis**: Reviews only the visible diff chunks without additional context
+- **🚀 Faster Processing**: Single-pass review with no additional API calls
+- **💰 Lower Cost**: Minimal token usage per review
+- **⚠️ Limited Context**: May miss relationships between files or make assumptions about missing code
+
+**When to Use v1:**
+
+- Cost-sensitive environments where minimal token usage is priority
+- Simple codebases where diff context is usually sufficient
+- Legacy workflows that don't require advanced context analysis
+
+### Migration Guide
+
+To use v1 instead of v2, simply change the version in your workflow:
+
+```yaml
+# For v2 (recommended - interactive agent)
+uses: quantfive/codepress-review@v2
+
+# For v1 (legacy - static diff review)
+uses: quantfive/codepress-review@v1
+```
+
+**Note:** v2 is the recommended version for most use cases due to its superior accuracy and context awareness.
+
 ## Technical Architecture
 
 This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai` package) for all LLM providers. The system:
@@ -320,3 +368,4 @@ This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai
 - **Hunk-Based Processing**: Each diff hunk processed individually for focused reviews
 - **Line Resolution**: Handles line number mapping from diff context
 - **File-Based Customization**: Custom review guidelines from `custom-codepress-review-prompt.md` and summary guidelines from `custom-codepress-summary-prompt.md`
+- **Interactive Agent Tools** (v2): `fetch_file`, `fetch_snippet`, and `dep_graph` for enhanced context gathering
