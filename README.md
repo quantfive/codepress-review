@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0
 
       - name: CodePress Review
-        uses: @quantfive/codepress-review@v1
+        uses: quantfive/codepress-review@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
