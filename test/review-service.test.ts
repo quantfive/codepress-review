@@ -59,6 +59,7 @@ describe("ReviewService", () => {
       modelName: "gpt-4",
       githubToken: "mock-token",
       githubRepository: "mock-owner/mock-repo",
+      maxTurns: 20,
     });
 
     // Mock the dependencies

@@ -34,6 +34,11 @@ inputs:
     description: "Google Gemini API key (required if using Gemini)"
     required: false
 
+  max_turns:
+    description: "Maximum number of turns for the interactive agent"
+    required: false
+    default: "20"
+
 runs:
   using: "node20"
   main: "dist/index.js"

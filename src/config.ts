@@ -77,6 +77,15 @@ export function getReviewConfig(): ReviewConfig {
   const { provider, modelName } = getModelConfig();
   const { token: githubToken } = getGitHubConfig();
 
+  // Parse maxTurns from environment variable with robust error handling
+  let maxTurns = 20; // Default value
+  if (process.env.MAX_TURNS) {
+    const parsed = parseInt(process.env.MAX_TURNS, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      maxTurns = parsed;
+    }
+  }
+
   return {
     diff,
     pr,
@@ -84,5 +93,6 @@ export function getReviewConfig(): ReviewConfig {
     modelName,
     githubToken,
     githubRepository: process.env.GITHUB_REPOSITORY!,
+    maxTurns,
   };
 }

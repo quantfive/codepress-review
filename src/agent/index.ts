@@ -14,6 +14,7 @@ export async function reviewChunkWithAgent(
   modelConfig: ModelConfig,
   summaryContext: string,
   repoFilePaths: string[],
+  maxTurns: number = 20,
 ): Promise<Finding[]> {
   const model = await createModel(modelConfig);
 
@@ -31,7 +32,7 @@ export async function reviewChunkWithAgent(
     `Please review this diff chunk:\n\n${diffChunk}`;
 
   try {
-    const result = await run(agent, initialMessage, { maxTurns: 10 });
+    const result = await run(agent, initialMessage, { maxTurns });
 
     if (result.finalOutput) {
       console.log("Agent Raw Response:", result.finalOutput);

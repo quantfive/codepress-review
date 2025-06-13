@@ -13,6 +13,10 @@ async function run(): Promise<void> {
     const anthropicApiKey = core.getInput("anthropic_api_key");
     const geminiApiKey = core.getInput("gemini_api_key");
 
+    // Handle max_turns input with proper default fallback
+    const maxTurnsInput = core.getInput("max_turns");
+    const maxTurns = maxTurnsInput ? maxTurnsInput : "20";
+
     // Validate required API key based on provider
     if (modelProvider === "openai" && !openaiApiKey) {
       core.setFailed("openai_api_key is required when using OpenAI provider");
@@ -38,6 +42,7 @@ async function run(): Promise<void> {
     process.env.OPENAI_API_KEY = openaiApiKey;
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     process.env.GEMINI_API_KEY = geminiApiKey;
+    process.env.MAX_TURNS = maxTurns;
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
     const { pull_request } = context.payload;

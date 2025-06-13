@@ -67,6 +67,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `openai_api_key`    | ⚠️       |                       | Required if using OpenAI                     |
 | `anthropic_api_key` | ⚠️       |                       | Required if using Anthropic                  |
 | `gemini_api_key`    | ⚠️       |                       | Required if using Google                     |
+| `max_turns`         | ❌       | `20`                  | Maximum turns for interactive agent review   |
 
 ## Examples
 
