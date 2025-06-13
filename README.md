@@ -4,12 +4,13 @@ A turnkey GitHub Action for automatic, inline code review on every Pull Request 
 
 ## Features
 
-- 🤖 **AI-Powered Reviews**: Uses GPT-4, Claude, Gemini, and other leading models
+- 🤖 **AI-Powered Reviews**: Use GPT-4, Claude, or Gemini to power your PRs
+- 🔑 **BYOK + OS**: 100% open source. Install as a github action, and use your own key
 - 💬 **Inline Comments**: Posts line-level feedback directly on PRs
 - 🔄 **Provider Agnostic**: Easily switch between OpenAI, Anthropic, Google
 - 📝 **Smart Chunking**: Handles large diffs efficiently
 - 🛡️ **Robust**: Built-in retries, rate limiting, and error handling
-- ⚡ **Zero Setup**: Just add to your workflow file
+- ⚡ **Zero Setup**: Just add to your github action workflows
 - 🎯 **Customizable**: Use custom review guidelines via configuration file
 
 ## Quick Start
