@@ -12,7 +12,10 @@ async function run(): Promise<void> {
     const openaiApiKey = core.getInput("openai_api_key");
     const anthropicApiKey = core.getInput("anthropic_api_key");
     const geminiApiKey = core.getInput("gemini_api_key");
-    const maxTurns = core.getInput("max_turns");
+
+    // Handle max_turns input with proper default fallback
+    const maxTurnsInput = core.getInput("max_turns");
+    const maxTurns = maxTurnsInput ? maxTurnsInput : "20";
 
     // Validate required API key based on provider
     if (modelProvider === "openai" && !openaiApiKey) {

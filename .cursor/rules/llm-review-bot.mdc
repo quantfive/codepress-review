@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+We're using an LLM code review bot, well our own repo! so all PR comments unless otherwise specified are from our own LLM review bot.
