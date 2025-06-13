@@ -1,0 +1,44 @@
+name: "CodePress Review"
+description: "Automatic code review using AI models (OpenAI, Anthropic, Google, etc.) with inline PR comments"
+author: "@quantfive"
+
+branding:
+  icon: "git-pull-request"
+  color: "green"
+
+inputs:
+  github_token:
+    description: "GitHub token for API access"
+    required: true
+    default: ${{ github.token }}
+
+  model_provider:
+    description: "AI model provider (openai, anthropic, gemini)"
+    required: true
+    default: "openai"
+
+  model_name:
+    description: "AI model name (e.g., gpt-4o, claude-3-sonnet-20240229, gemini-1.5-pro)"
+    required: true
+    default: "o4-mini"
+
+  openai_api_key:
+    description: "OpenAI API key (required if using OpenAI)"
+    required: false
+
+  anthropic_api_key:
+    description: "Anthropic API key (required if using Anthropic)"
+    required: false
+
+  gemini_api_key:
+    description: "Google Gemini API key (required if using Gemini)"
+    required: false
+
+  max_turns:
+    description: "Maximum number of turns for the interactive agent"
+    required: false
+    default: "12"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
