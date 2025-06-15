@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
-import { Finding, GitHubConfig } from "./types";
+import { Finding, GitHubConfig, DiffSummary } from "./types";
+import { CODEPRESS_REVIEW_TAG } from "./constants";
 
 /**
  * Formats a finding into a GitHub comment with appropriate styling.
@@ -252,6 +253,21 @@ export class GitHubClient {
   }
 
   /**
+   * Fetches existing reviews on a PR.
+   */
+  async getExistingReviews(prNumber: number) {
+    const reviews = await this.octokit.paginate(
+      this.octokit.pulls.listReviews,
+      {
+        owner: this.config.owner,
+        repo: this.config.repo,
+        pull_number: prNumber,
+      },
+    );
+    return reviews;
+  }
+
+  /**
    * Creates a review comment on a PR.
    * @deprecated Use createReview for batch commenting instead
    */
@@ -288,7 +304,7 @@ export class GitHubClient {
     prNumber: number,
     commitId: string,
     findings: Finding[],
-    reviewSummary?: string,
+    diffSummary?: DiffSummary,
   ): Promise<void> {
     if (findings.length === 0) {
       console.log("No findings to submit in review");
@@ -302,9 +318,37 @@ export class GitHubClient {
       body: formatGitHubComment(finding),
     }));
 
-    const body =
-      reviewSummary ||
-      `🔍 **Code Review Summary**\n\nFound ${findings.length} item${findings.length === 1 ? "" : "s"} that ${findings.length === 1 ? "needs" : "need"} attention during review.`;
+    // Generate the review body
+    const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**\n`];
+
+    if (diffSummary) {
+      const { prType, summaryPoints, keyRisks } = diffSummary;
+
+      summaryParts.push(`**PR Type:** ${prType}\n`);
+
+      if (summaryPoints.length > 0) {
+        summaryParts.push(`**Overview:**`);
+        summaryPoints.forEach((point) => {
+          summaryParts.push(`• ${point}`);
+        });
+        summaryParts.push("");
+      }
+
+      if (keyRisks.length > 0) {
+        summaryParts.push(`**Key Risks:**`);
+        keyRisks.forEach((risk) => {
+          summaryParts.push(`• [${risk.tag}] ${risk.description}`);
+        });
+        summaryParts.push("");
+      }
+    }
+
+    // Always append findings information at the end
+    summaryParts.push(
+      `**Review Results:** Found ${findings.length} item${findings.length === 1 ? "" : "s"} that ${findings.length === 1 ? "needs" : "need"} attention during review.`,
+    );
+
+    const body = summaryParts.join("\n");
 
     const makeRequest = async () => {
       await this.octokit.pulls.createReview({

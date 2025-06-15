@@ -11,6 +11,7 @@ import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
 import { setTimeout } from "node:timers/promises";
 import { ProcessableChunk } from "./diff-parser";
 import { createModel } from "./model-factory";
+import { isCodePressReviewObject, isCodePressCommentObject } from "./constants";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
@@ -54,17 +55,59 @@ export async function callWithRetry<T>(
 export async function summarizeDiff(
   chunks: ProcessableChunk[],
   modelConfig: ModelConfig,
+  existingReviews: any[] = [],
+  existingComments: any[] = [],
 ): Promise<DiffSummary> {
   const model = await createModel(modelConfig);
 
   // Create a condensed view of all chunks for the summary
   const diffOverview = chunks
     .map((chunk, index) => {
-      return `=== CHUNK ${index}: ${chunk.fileName} ===\n${chunk.content}\n`;
+      return `<chunk index="${index}" file="${chunk.fileName}">\n${chunk.content}\n</chunk>`;
     })
-    .join("\n");
+    .join("\n\n");
+
+  // Build context from existing reviews and comments
+  let contextSection = "";
+
+  if (existingReviews.length > 0) {
+    const botReviews = existingReviews.filter(
+      (review) => isCodePressReviewObject(review) && review.body,
+    );
+
+    if (botReviews.length > 0) {
+      contextSection += "<previousReviews>\n";
+      botReviews.forEach((review, index) => {
+        contextSection += `  <review index="${index + 1}" submittedAt="${review.submitted_at}">\n${review.body}\n  </review>\n`;
+      });
+      contextSection += "</previousReviews>\n\n";
+    }
+  }
+
+  if (existingComments.length > 0) {
+    const botComments = existingComments.filter((comment) =>
+      isCodePressCommentObject(comment),
+    );
+
+    if (botComments.length > 0) {
+      contextSection += "<previousComments>\n";
+      botComments.forEach((comment) => {
+        if (comment.path && comment.line) {
+          contextSection += `  <comment path="${comment.path}" line="${comment.line}">${comment.body}</comment>\n`;
+        }
+      });
+      contextSection += "</previousComments>\n\n";
+    }
+  }
 
   const systemPrompt = getSummarySystemPrompt();
+
+  const userContent = `
+<summaryRequest>
+${contextSection.trim() ? contextSection : ""}  <diffChunks>
+${diffOverview}
+  </diffChunks>
+</summaryRequest>`.trim();
 
   const { text } = await generateText({
     model,
@@ -72,7 +115,7 @@ export async function summarizeDiff(
     messages: [
       {
         role: "user",
-        content: diffOverview,
+        content: userContent,
       },
     ],
   });
@@ -88,12 +131,16 @@ export async function summarizeDiff(
  */
 function parseSummaryResponse(text: string): DiffSummary {
   try {
+    // First try to extract the global section, fallback to parsing without wrapper for backwards compatibility
+    const globalMatch = text.match(/<global>(.*?)<\/global>/s);
+    const globalContent = globalMatch ? globalMatch[1] : text;
+
     // Extract PR type
-    const prTypeMatch = text.match(/<prType>(.*?)<\/prType>/s);
+    const prTypeMatch = globalContent.match(/<prType>(.*?)<\/prType>/s);
     const prType = prTypeMatch ? prTypeMatch[1].trim() : "unknown";
 
     // Extract overview items
-    const overviewMatch = text.match(/<overview>(.*?)<\/overview>/s);
+    const overviewMatch = globalContent.match(/<overview>(.*?)<\/overview>/s);
     const summaryPoints: string[] = [];
     if (overviewMatch) {
       const itemMatches = overviewMatch[1].match(/<item>(.*?)<\/item>/gs);
@@ -105,7 +152,7 @@ function parseSummaryResponse(text: string): DiffSummary {
     }
 
     // Extract key risks
-    const keyRisksMatch = text.match(/<keyRisks>(.*?)<\/keyRisks>/s);
+    const keyRisksMatch = globalContent.match(/<keyRisks>(.*?)<\/keyRisks>/s);
     const keyRisks: RiskItem[] = [];
     if (keyRisksMatch) {
       const riskMatches = keyRisksMatch[1].match(/<item[^>]*>(.*?)<\/item>/gs);

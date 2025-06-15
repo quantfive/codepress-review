@@ -1,5 +1,5 @@
 import { Agent, run } from "@openai/agents";
-import { Finding, ModelConfig } from "../types";
+import { Finding, ModelConfig, DiffSummary } from "../types";
 import { allTools } from "./tools";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { parseXMLResponse, resolveLineNumbers } from "../xml-parser";
@@ -12,7 +12,8 @@ import { aisdk } from "@openai/agents-extensions";
 export async function reviewChunkWithAgent(
   diffChunk: string,
   modelConfig: ModelConfig,
-  summaryContext: string,
+  diffSummary: DiffSummary | undefined,
+  chunkIndex: number,
   repoFilePaths: string[],
   maxTurns: number = 20,
 ): Promise<Finding[]> {
@@ -26,10 +27,85 @@ export async function reviewChunkWithAgent(
   });
 
   const fileList = repoFilePaths.join("\n");
-  const initialMessage =
-    `Here is a list of all files in the repository:\n${fileList}\n\n` +
-    `Here is the context from the overall diff analysis:\n${summaryContext}\n\n` +
-    `Please review this diff chunk:\n\n${diffChunk}`;
+
+  // Build summary context for this chunk
+  let summaryContext = "No summary available.";
+  if (diffSummary) {
+    const { prType, summaryPoints, keyRisks, hunks } = diffSummary;
+    const contextLines: string[] = [];
+
+    contextLines.push("<diffContext>");
+    contextLines.push(`  <prType>${prType}</prType>`);
+
+    if (summaryPoints.length > 0) {
+      contextLines.push("  <overview>");
+      summaryPoints.forEach((item: string) => {
+        contextLines.push(`    <item>${item}</item>`);
+      });
+      contextLines.push("  </overview>");
+    }
+
+    if (keyRisks.length > 0) {
+      contextLines.push("  <keyRisks>");
+      keyRisks.forEach((risk) => {
+        contextLines.push(
+          `    <item tag="${risk.tag}">${risk.description}</item>`,
+        );
+      });
+      contextLines.push("  </keyRisks>");
+    }
+
+    // Find specific notes for this chunk
+    const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
+    if (hunkSummary) {
+      contextLines.push("  <chunkSpecific>");
+      contextLines.push(`    <overview>${hunkSummary.overview}</overview>`);
+
+      if (hunkSummary.risks.length > 0) {
+        contextLines.push("    <risks>");
+        hunkSummary.risks.forEach((risk) => {
+          contextLines.push(
+            `      <item tag="${risk.tag}">${risk.description}</item>`,
+          );
+        });
+        contextLines.push("    </risks>");
+      }
+
+      if (hunkSummary.tests.length > 0) {
+        contextLines.push("    <suggestedTests>");
+        hunkSummary.tests.forEach((test) => {
+          contextLines.push(`      <item>${test}</item>`);
+        });
+        contextLines.push("    </suggestedTests>");
+      }
+
+      contextLines.push("  </chunkSpecific>");
+    } else {
+      console.log(
+        `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
+      );
+    }
+
+    contextLines.push("</diffContext>");
+    summaryContext = contextLines.join("\n");
+  }
+
+  const initialMessage = `
+<reviewRequest>
+  <repositoryFiles>
+${fileList}
+  </repositoryFiles>
+  
+  <diffAnalysisContext>
+${summaryContext}
+  </diffAnalysisContext>
+  
+  <diffChunk>
+${diffChunk}
+  </diffChunk>
+  
+  <instruction>Please review this diff chunk using the provided context.</instruction>
+</reviewRequest>`;
 
   try {
     const result = await run(agent, initialMessage, { maxTurns });
