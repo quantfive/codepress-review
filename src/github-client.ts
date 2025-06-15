@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { Finding, GitHubConfig, DiffSummary } from "./types";
+import { CODEPRESS_REVIEW_TAG } from "./constants";
 
 /**
  * Formats a finding into a GitHub comment with appropriate styling.
@@ -318,7 +319,7 @@ export class GitHubClient {
     }));
 
     // Generate the review body
-    const summaryParts = [`❇️ **CodePress Review Summary**\n`];
+    const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**\n`];
 
     if (diffSummary) {
       const { prType, summaryPoints, keyRisks } = diffSummary;

@@ -9,6 +9,7 @@ import { splitDiff, ProcessableChunk } from "./diff-parser";
 import { callWithRetry, summarizeDiff } from "./ai-client";
 import { reviewChunkWithAgent } from "./agent";
 import { GitHubClient } from "./github-client";
+import { isCodePressCommentObject } from "./constants";
 
 /**
  * Service class that orchestrates the entire review process.
@@ -204,8 +205,8 @@ export class ReviewService {
     }
 
     // Fetch existing comments to avoid duplicates
-    const botComments = existingCommentsData.filter(
-      (comment) => comment.user?.login === "github-actions[bot]",
+    const botComments = existingCommentsData.filter((comment) =>
+      isCodePressCommentObject(comment),
     );
 
     const existingComments = new Map<string, Set<number>>();

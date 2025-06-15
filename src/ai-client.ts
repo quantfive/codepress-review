@@ -11,6 +11,7 @@ import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
 import { setTimeout } from "node:timers/promises";
 import { ProcessableChunk } from "./diff-parser";
 import { createModel } from "./model-factory";
+import { isCodePressReviewObject, isCodePressCommentObject } from "./constants";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
@@ -71,7 +72,7 @@ export async function summarizeDiff(
 
   if (existingReviews.length > 0) {
     const botReviews = existingReviews.filter(
-      (review) => review.user?.login === "github-actions[bot]" && review.body,
+      (review) => isCodePressReviewObject(review) && review.body,
     );
 
     if (botReviews.length > 0) {
@@ -84,8 +85,8 @@ export async function summarizeDiff(
   }
 
   if (existingComments.length > 0) {
-    const botComments = existingComments.filter(
-      (comment) => comment.user?.login === "github-actions[bot]",
+    const botComments = existingComments.filter((comment) =>
+      isCodePressCommentObject(comment),
     );
 
     if (botComments.length > 0) {
