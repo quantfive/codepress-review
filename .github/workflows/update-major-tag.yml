@@ -17,8 +17,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.ref }}
           fetch-depth: 0
-        # This automatically checks out the code at the specific commit of the version tag.
+        # This explicitly checks out the code at the specific commit of the version tag.
         # fetch-depth: 0 ensures we have full git history and tag information for reliable tag operations.
 
       - name: Extract major version from tag
