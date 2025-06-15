@@ -33,7 +33,6 @@ jest.mock("../src/ai-client", () => {
   return {
     ...actual,
     callWithRetry: jest.fn(),
-    reviewChunk: jest.fn(),
     summarizeDiff: jest.fn(),
   };
 });

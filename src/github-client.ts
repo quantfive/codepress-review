@@ -318,7 +318,7 @@ export class GitHubClient {
     }));
 
     // Generate the review body
-    const summaryParts = [`🔍 **CodePress Review Summary**\n`];
+    const summaryParts = [`❇️ **CodePress Review Summary**\n`];
 
     if (diffSummary) {
       const { prType, summaryPoints, keyRisks } = diffSummary;
