@@ -34,56 +34,78 @@ export async function reviewChunkWithAgent(
     const { prType, summaryPoints, keyRisks, hunks } = diffSummary;
     const contextLines: string[] = [];
 
-    contextLines.push(`PR TYPE: ${prType}`, "");
+    contextLines.push("<diffContext>");
+    contextLines.push(`  <prType>${prType}</prType>`);
 
     if (summaryPoints.length > 0) {
-      contextLines.push(
-        "OVERVIEW:",
-        ...summaryPoints.map((item: string) => `- ${item}`),
-        "",
-      );
+      contextLines.push("  <overview>");
+      summaryPoints.forEach((item: string) => {
+        contextLines.push(`    <item>${item}</item>`);
+      });
+      contextLines.push("  </overview>");
     }
 
     if (keyRisks.length > 0) {
-      contextLines.push(
-        "KEY RISKS TO WATCH FOR:",
-        ...keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`),
-        "",
-      );
+      contextLines.push("  <keyRisks>");
+      keyRisks.forEach((risk) => {
+        contextLines.push(
+          `    <item tag="${risk.tag}">${risk.description}</item>`,
+        );
+      });
+      contextLines.push("  </keyRisks>");
     }
 
     // Find specific notes for this chunk
     const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
     if (hunkSummary) {
-      contextLines.push(
-        "SPECIFIC NOTES FOR THIS CHUNK:",
-        `Overview: ${hunkSummary.overview}`,
-      );
+      contextLines.push("  <chunkSpecific>");
+      contextLines.push(`    <overview>${hunkSummary.overview}</overview>`);
 
       if (hunkSummary.risks.length > 0) {
-        contextLines.push(
-          `Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}`,
-        );
+        contextLines.push("    <risks>");
+        hunkSummary.risks.forEach((risk) => {
+          contextLines.push(
+            `      <item tag="${risk.tag}">${risk.description}</item>`,
+          );
+        });
+        contextLines.push("    </risks>");
       }
 
       if (hunkSummary.tests.length > 0) {
-        contextLines.push(`Suggested Tests: ${hunkSummary.tests.join(", ")}`);
+        contextLines.push("    <suggestedTests>");
+        hunkSummary.tests.forEach((test) => {
+          contextLines.push(`      <item>${test}</item>`);
+        });
+        contextLines.push("    </suggestedTests>");
       }
 
-      contextLines.push("");
+      contextLines.push("  </chunkSpecific>");
     } else {
       console.log(
         `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
       );
     }
 
+    contextLines.push("</diffContext>");
     summaryContext = contextLines.join("\n");
   }
 
-  const initialMessage =
-    `Here is a list of all files in the repository:\n${fileList}\n\n` +
-    `Here is the context from the overall diff analysis:\n${summaryContext}\n\n` +
-    `Please review this diff chunk:\n\n${diffChunk}`;
+  const initialMessage = `
+<reviewRequest>
+  <repositoryFiles>
+${fileList}
+  </repositoryFiles>
+  
+  <diffAnalysisContext>
+${summaryContext}
+  </diffAnalysisContext>
+  
+  <diffChunk>
+${diffChunk}
+  </diffChunk>
+  
+  <instruction>Please review this diff chunk using the provided context.</instruction>
+</reviewRequest>`;
 
   try {
     const result = await run(agent, initialMessage, { maxTurns });

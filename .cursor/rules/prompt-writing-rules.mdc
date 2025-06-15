@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Whenever you write system prompts, or other prompts when integrating with LLM's, use XML format. Look at and [summary-agent-system-prompt.ts](mdc:src/summary-agent-system-prompt.ts) and [agent-system-prompt.ts](mdc:src/agent/agent-system-prompt.ts) to see the XML format we want and expect.

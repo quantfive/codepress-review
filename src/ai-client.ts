@@ -62,9 +62,9 @@ export async function summarizeDiff(
   // Create a condensed view of all chunks for the summary
   const diffOverview = chunks
     .map((chunk, index) => {
-      return `=== CHUNK ${index}: ${chunk.fileName} ===\n${chunk.content}\n`;
+      return `<chunk index="${index}" file="${chunk.fileName}">\n${chunk.content}\n</chunk>`;
     })
-    .join("\n");
+    .join("\n\n");
 
   // Build context from existing reviews and comments
   let contextSection = "";
@@ -75,10 +75,11 @@ export async function summarizeDiff(
     );
 
     if (botReviews.length > 0) {
-      contextSection += "=== PREVIOUS CODEPRESS REVIEWS ===\n";
+      contextSection += "<previousReviews>\n";
       botReviews.forEach((review, index) => {
-        contextSection += `--- Review ${index + 1} (${review.submitted_at}) ---\n${review.body}\n\n`;
+        contextSection += `  <review index="${index + 1}" submittedAt="${review.submitted_at}">\n${review.body}\n  </review>\n`;
       });
+      contextSection += "</previousReviews>\n\n";
     }
   }
 
@@ -88,19 +89,24 @@ export async function summarizeDiff(
     );
 
     if (botComments.length > 0) {
-      contextSection += "=== PREVIOUS CODEPRESS COMMENTS ===\n";
+      contextSection += "<previousComments>\n";
       botComments.forEach((comment) => {
         if (comment.path && comment.line) {
-          contextSection += `${comment.path}:${comment.line} - ${comment.body}\n`;
+          contextSection += `  <comment path="${comment.path}" line="${comment.line}">${comment.body}</comment>\n`;
         }
       });
-      contextSection += "\n";
+      contextSection += "</previousComments>\n\n";
     }
   }
 
   const systemPrompt = getSummarySystemPrompt();
 
-  const userContent = contextSection + diffOverview;
+  const userContent = `
+<summaryRequest>
+${contextSection.trim() ? contextSection : ""}  <diffChunks>
+${diffOverview}
+  </diffChunks>
+</summaryRequest>`.trim();
 
   const { text } = await generateText({
     model,
