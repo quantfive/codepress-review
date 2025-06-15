@@ -54,6 +54,8 @@ export async function callWithRetry<T>(
 export async function summarizeDiff(
   chunks: ProcessableChunk[],
   modelConfig: ModelConfig,
+  existingReviews: any[] = [],
+  existingComments: any[] = [],
 ): Promise<DiffSummary> {
   const model = await createModel(modelConfig);
 
@@ -64,7 +66,41 @@ export async function summarizeDiff(
     })
     .join("\n");
 
+  // Build context from existing reviews and comments
+  let contextSection = "";
+
+  if (existingReviews.length > 0) {
+    const botReviews = existingReviews.filter(
+      (review) => review.user?.login === "github-actions[bot]" && review.body,
+    );
+
+    if (botReviews.length > 0) {
+      contextSection += "=== PREVIOUS CODEPRESS REVIEWS ===\n";
+      botReviews.forEach((review, index) => {
+        contextSection += `--- Review ${index + 1} (${review.submitted_at}) ---\n${review.body}\n\n`;
+      });
+    }
+  }
+
+  if (existingComments.length > 0) {
+    const botComments = existingComments.filter(
+      (comment) => comment.user?.login === "github-actions[bot]",
+    );
+
+    if (botComments.length > 0) {
+      contextSection += "=== PREVIOUS CODEPRESS COMMENTS ===\n";
+      botComments.forEach((comment) => {
+        if (comment.path && comment.line) {
+          contextSection += `${comment.path}:${comment.line} - ${comment.body}\n`;
+        }
+      });
+      contextSection += "\n";
+    }
+  }
+
   const systemPrompt = getSummarySystemPrompt();
+
+  const userContent = contextSection + diffOverview;
 
   const { text } = await generateText({
     model,
@@ -72,7 +108,7 @@ export async function summarizeDiff(
     messages: [
       {
         role: "user",
-        content: diffOverview,
+        content: userContent,
       },
     ],
   });
@@ -88,12 +124,16 @@ export async function summarizeDiff(
  */
 function parseSummaryResponse(text: string): DiffSummary {
   try {
+    // First try to extract the global section, fallback to parsing without wrapper for backwards compatibility
+    const globalMatch = text.match(/<global>(.*?)<\/global>/s);
+    const globalContent = globalMatch ? globalMatch[1] : text;
+
     // Extract PR type
-    const prTypeMatch = text.match(/<prType>(.*?)<\/prType>/s);
+    const prTypeMatch = globalContent.match(/<prType>(.*?)<\/prType>/s);
     const prType = prTypeMatch ? prTypeMatch[1].trim() : "unknown";
 
     // Extract overview items
-    const overviewMatch = text.match(/<overview>(.*?)<\/overview>/s);
+    const overviewMatch = globalContent.match(/<overview>(.*?)<\/overview>/s);
     const summaryPoints: string[] = [];
     if (overviewMatch) {
       const itemMatches = overviewMatch[1].match(/<item>(.*?)<\/item>/gs);
@@ -105,7 +145,7 @@ function parseSummaryResponse(text: string): DiffSummary {
     }
 
     // Extract key risks
-    const keyRisksMatch = text.match(/<keyRisks>(.*?)<\/keyRisks>/s);
+    const keyRisksMatch = globalContent.match(/<keyRisks>(.*?)<\/keyRisks>/s);
     const keyRisks: RiskItem[] = [];
     if (keyRisksMatch) {
       const riskMatches = keyRisksMatch[1].match(/<item[^>]*>(.*?)<\/item>/gs);

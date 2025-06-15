@@ -28,10 +28,18 @@ jest.mock("../src/config", () => ({
 }));
 
 jest.mock("../src/github-client");
-jest.mock("../src/ai-client", () => ({
-  callWithRetry: jest.fn(),
-  reviewChunk: jest.fn(),
-  summarizeDiff: jest.fn(),
+jest.mock("../src/ai-client", () => {
+  const actual = jest.requireActual("../src/ai-client");
+  return {
+    ...actual,
+    callWithRetry: jest.fn(),
+    reviewChunk: jest.fn(),
+    summarizeDiff: jest.fn(),
+  };
+});
+
+jest.mock("../src/agent", () => ({
+  reviewChunkWithAgent: jest.fn(),
 }));
 
 describe("ReviewService", () => {
@@ -74,6 +82,7 @@ describe("ReviewService", () => {
       commitId: "mock-commit-id",
       prInfo: {} as any,
     });
+    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
     mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
     mockGithubClient.createReviewComment = jest
       .fn()
@@ -191,7 +200,12 @@ describe("ReviewService", () => {
       1,
       "mock-commit-id",
       mockFindings,
-      expect.stringContaining("Code Review Summary"),
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Test summary point"],
+        keyRisks: [],
+        hunks: [],
+      }),
     );
   });
 
@@ -263,9 +277,12 @@ describe("ReviewService", () => {
       1,
       "mock-commit-id",
       [...mockFindings1, ...mockFindings2], // All findings combined
-      expect.stringContaining(
-        "Found 2 items that need attention: 1 required, 1 optional",
-      ),
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Test summary point"],
+        keyRisks: [],
+        hunks: [],
+      }),
     );
   });
 
@@ -322,7 +339,12 @@ describe("ReviewService", () => {
       1,
       "mock-commit-id",
       mockFindings,
-      expect.stringContaining("Code Review Summary"),
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Test summary point"],
+        keyRisks: [],
+        hunks: [],
+      }),
     );
 
     // Should fallback to individual comments
@@ -371,5 +393,85 @@ describe("ReviewService", () => {
     // Assert
     expect(mockGithubClient.createReview).not.toHaveBeenCalled();
     expect(mockGithubClient.createReviewComment).not.toHaveBeenCalled();
+  });
+
+  it("should pass existing reviews and comments to summarizeDiff for context", async () => {
+    // Arrange
+    mockGithubClient.getExistingComments.mockResolvedValue([
+      {
+        path: "different-file.txt",
+        line: 5,
+        body: "Previous comment",
+        user: { login: "github-actions[bot]" },
+      },
+    ] as any);
+
+    const existingReview = {
+      user: { login: "github-actions[bot]" },
+      body: "Previous review body",
+      submitted_at: "2023-01-01T00:00:00Z",
+    } as any;
+
+    mockGithubClient.getExistingReviews.mockResolvedValue([existingReview]);
+
+    const mockFindings: Finding[] = [
+      {
+        path: "file1.txt",
+        line: 2,
+        message: "A finding",
+        severity: "required",
+      },
+    ];
+
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Test summary point"],
+          keyRisks: [],
+          hunks: [],
+        });
+      } else {
+        return Promise.resolve(mockFindings);
+      }
+    });
+
+    const mockChunks = [
+      {
+        fileName: "file1.txt",
+        content: "diff --git a/file1.txt b/file1.txt...",
+        hunk: { newStart: 1, newLines: 3 },
+      },
+    ];
+
+    jest.spyOn(require("fs"), "existsSync").mockReturnValue(false);
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert - Check that summarizeDiff was called with existing reviews and comments
+    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 0);
+    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 1);
+    // Verify that both existing reviews and comments were fetched
+    expect(mockGithubClient.getExistingReviews).toHaveBeenCalledWith(1);
+    expect(mockGithubClient.getExistingComments).toHaveBeenCalledWith(1);
+    // Verify that the review was created with the diff summary
+    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
+      1,
+      "mock-commit-id",
+      mockFindings,
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Test summary point"],
+        keyRisks: [],
+        hunks: [],
+      }),
+    );
   });
 });

@@ -11,12 +11,18 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
   <!--  1. PURPOSE & GOVERNING PRINCIPLE  -->
   <purpose>
     You are an automated <strong>summariser</strong>.  
-    You receive the <em>entire</em> unified diff of a pull request **once**.  
+    You receive the <em>entire</em> unified diff of a pull request and potentially previous CodePress reviews/comments.  
     Your single objective is to distil:
       • PR-level context (what, why, key risks)  
       • Concise, machine-readable notes for <em>every</em> diff hunk  
     so that downstream per-hunk reviewers gain global awareness without
     re-processing the whole diff.
+    
+    <strong>IMPORTANT:</strong> If you receive previous CodePress reviews or comments:
+    • Focus on NEW changes that weren't covered in previous reviews
+    • Avoid repeating identical analysis from previous reviews
+    • Build upon previous insights rather than duplicating them
+    • Reference how current changes relate to previous feedback
   </purpose>
 
   <!--  2. WHAT TO EXTRACT  -->
@@ -35,39 +41,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
     <notes>Pay attention to file structure. Make sure it's appropriately placed, as well as placed in the right files. IMPORTANT: Remember that hunks show partial file context - imports, dependencies, and related code may exist outside the visible diff lines.</notes>
   </hunkChecklist>
 
-  <!--  3. OUTPUT FORMAT (STRICT)  -->
-  <responseFormat>
-    <!-- ✦ Emit exactly ONE <global> block. -->
-    <global>
-      <prType>feature</prType>
-      <overview>
-        <item>Adds StripeWebhookService to handle provider-specific webhooks…</item>
-        <!-- repeat 1-5 items -->
-      </overview>
-      <keyRisks>
-        <item tag="SEC">New /webhook endpoint lacks HMAC verification.</item>
-        <!-- repeat 0-10 items -->
-      </keyRisks>
-    </global>
-
-    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
-    <hunks>
-      <hunk index="0">
-        <file>src/components/SEOHead.tsx</file>
-        <overview>Makes <code>description</code> prop optional to support legacy pages.</overview>
-        <risks>
-          <item tag="SEO">Missing descriptions may hurt search ranking.</item>
-        </risks>
-        <tests>
-          <item>Render page without description and verify meta tags default correctly.</item>
-        </tests>
-      </hunk>
-
-      <!-- repeat <hunk> … </hunk> blocks as needed -->
-    </hunks>
-  </responseFormat>
-
-  <!--  4. CONSTRAINTS  -->
+  <!--  3. CONSTRAINTS  -->
   <constraints>
     <noOtherText>No additional top-level nodes, comments, or prose outside the specified XML.</noOtherText>
     <tokenBudget>Total response ≤ 950 tokens.</tokenBudget>
@@ -93,13 +67,43 @@ export function getSummarySystemPrompt(): string {
   let summaryGuidelines = DEFAULT_SUMMARY_SYSTEM_PROMPT;
 
   if (existsSync(customPromptPath)) {
-    try {
-      summaryGuidelines = readFileSync(customPromptPath, "utf8");
-    } catch (error) {
-      console.warn(`Failed to read custom summary prompt file: ${error}`);
-      // Fall back to default guidelines
-    }
+    summaryGuidelines = readFileSync(customPromptPath, "utf8");
   }
 
-  return summaryGuidelines;
+  const summaryGuidelinesWithInstructions = `${summaryGuidelines}
+  
+<!--  OUTPUT FORMAT (STRICT)  -->
+<responseFormat>
+  <!-- ✦ Emit exactly ONE <global> block. -->
+  <global>
+    <prType>feature</prType>
+    <overview>
+      <item>Adds StripeWebhookService to handle provider-specific webhooks…</item>
+      <!-- repeat 1-5 items -->
+    </overview>
+    <keyRisks>
+      <item tag="SEC">New /webhook endpoint lacks HMAC verification.</item>
+      <!-- repeat 0-10 items -->
+    </keyRisks>
+  </global>
+
+  <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
+  <hunks>
+    <hunk index="0">
+      <file>src/components/SEOHead.tsx</file>
+      <overview>Makes <code>description</code> prop optional to support legacy pages.</overview>
+      <risks>
+        <item tag="SEO">Missing descriptions may hurt search ranking.</item>
+      </risks>
+      <tests>
+        <item>Render page without description and verify meta tags default correctly.</item>
+      </tests>
+    </hunk>
+
+    <!-- repeat <hunk> … </hunk> blocks as needed -->
+  </hunks>
+</responseFormat>
+  `;
+
+  return summaryGuidelinesWithInstructions;
 }

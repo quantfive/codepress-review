@@ -74,66 +74,13 @@ export class ReviewService {
     try {
       const modelConfig = getModelConfig();
 
-      // Build summary context for this chunk
-      let summaryContext = "No summary available.";
-      if (this.diffSummary) {
-        const { prType, summaryPoints, keyRisks, hunks } = this.diffSummary;
-        const contextLines: string[] = [];
-
-        contextLines.push(`PR TYPE: ${prType}`, "");
-
-        if (summaryPoints.length > 0) {
-          contextLines.push(
-            "OVERVIEW:",
-            ...summaryPoints.map((item: string) => `- ${item}`),
-            "",
-          );
-        }
-
-        if (keyRisks.length > 0) {
-          contextLines.push(
-            "KEY RISKS TO WATCH FOR:",
-            ...keyRisks.map((risk) => `- [${risk.tag}] ${risk.description}`),
-            "",
-          );
-        }
-
-        // Find specific notes for this chunk
-        const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
-        if (hunkSummary) {
-          contextLines.push(
-            "SPECIFIC NOTES FOR THIS CHUNK:",
-            `Overview: ${hunkSummary.overview}`,
-          );
-
-          if (hunkSummary.risks.length > 0) {
-            contextLines.push(
-              `Risks: ${hunkSummary.risks.map((risk) => `[${risk.tag}] ${risk.description}`).join(", ")}`,
-            );
-          }
-
-          if (hunkSummary.tests.length > 0) {
-            contextLines.push(
-              `Suggested Tests: ${hunkSummary.tests.join(", ")}`,
-            );
-          }
-
-          contextLines.push("");
-        } else {
-          console.log(
-            `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
-          );
-        }
-
-        summaryContext = contextLines.join("\n");
-      }
-
       findings = await callWithRetry(
         () =>
           reviewChunkWithAgent(
             chunk.content,
             modelConfig,
-            summaryContext,
+            this.diffSummary,
+            chunkIndex,
             this.repoFilePaths,
             this.config.maxTurns,
           ),
@@ -210,9 +157,22 @@ export class ReviewService {
       .map((chunk, index) => ({ chunk, originalIndex: index }))
       .filter(({ chunk }) => !ig.ignores(chunk.fileName));
 
-    // First pass: Summarize the entire diff
+    // Get PR information
+    const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
+
+    // Fetch existing reviews and comments BEFORE summarization to provide context
+    const existingReviews = await this.githubClient.getExistingReviews(
+      this.config.pr,
+    );
+    const existingCommentsData = await this.githubClient.getExistingComments(
+      this.config.pr,
+    );
+
+    // First pass: Summarize the entire diff with context from previous reviews/comments
     if (filteredChunks.length > 0) {
-      console.log("Performing initial diff summarization...");
+      console.log(
+        "Performing initial diff summarization with existing context...",
+      );
       try {
         const modelConfig = getModelConfig();
         this.diffSummary = await callWithRetry(
@@ -220,6 +180,8 @@ export class ReviewService {
             summarizeDiff(
               filteredChunks.map(({ chunk }) => chunk),
               modelConfig,
+              existingReviews,
+              existingCommentsData,
             ),
           0, // Use 0 as a special index for the summary step
         );
@@ -241,13 +203,7 @@ export class ReviewService {
       }
     }
 
-    // Get PR information
-    const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
-
     // Fetch existing comments to avoid duplicates
-    const existingCommentsData = await this.githubClient.getExistingComments(
-      this.config.pr,
-    );
     const botComments = existingCommentsData.filter(
       (comment) => comment.user?.login === "github-actions[bot]",
     );
@@ -293,28 +249,12 @@ export class ReviewService {
         `\n🔍 Creating review with ${allFindings.length} total findings...`,
       );
 
-      // Generate a summary of findings by severity
-      const severityCounts = allFindings.reduce(
-        (acc, finding) => {
-          const severity = finding.severity || "other";
-          acc[severity] = (acc[severity] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>,
-      );
-
-      const summaryParts = Object.entries(severityCounts)
-        .map(([severity, count]) => `${count} ${severity}`)
-        .join(", ");
-
-      const reviewSummary = `🔍 **Code Review Summary**\n\nFound ${allFindings.length} item${allFindings.length === 1 ? "" : "s"} that need${allFindings.length === 1 ? "s" : ""} attention: ${summaryParts}.\n\nPlease review the inline comments below for specific details.`;
-
       try {
         await this.githubClient.createReview(
           this.config.pr,
           commitId,
           allFindings,
-          reviewSummary,
+          this.diffSummary,
         );
       } catch (error: unknown) {
         const errorMessage =
