@@ -163,6 +163,10 @@ describe("AI Client", () => {
             tests: ["Verify documentation accuracy"],
           },
         ],
+        decision: {
+          recommendation: "APPROVE",
+          reasoning: "No specific reasoning provided",
+        },
       });
 
       expect(generateText).toHaveBeenCalledWith({
@@ -171,7 +175,9 @@ describe("AI Client", () => {
         messages: [
           {
             role: "user",
-            content: expect.stringContaining("=== CHUNK 0: src/example.ts ==="),
+            content: expect.stringContaining(
+              '<chunk index="0" file="src/example.ts">',
+            ),
           },
         ],
       });
@@ -302,6 +308,10 @@ describe("AI Client", () => {
             tests: ["Test utility function outputs"],
           },
         ],
+        decision: {
+          recommendation: "APPROVE",
+          reasoning: "No specific reasoning provided",
+        },
       });
     });
 
@@ -343,6 +353,10 @@ describe("AI Client", () => {
             tests: [],
           },
         ],
+        decision: {
+          recommendation: "APPROVE",
+          reasoning: "No specific reasoning provided",
+        },
       });
     });
 
@@ -383,6 +397,10 @@ describe("AI Client", () => {
         summaryPoints: [],
         keyRisks: [],
         hunks: [],
+        decision: {
+          recommendation: "APPROVE",
+          reasoning: "No specific reasoning provided",
+        },
       });
     });
 
@@ -401,6 +419,10 @@ describe("AI Client", () => {
         summaryPoints: [],
         keyRisks: [],
         hunks: [],
+        decision: {
+          recommendation: "APPROVE",
+          reasoning: "No specific reasoning provided",
+        },
       });
     });
 
@@ -433,6 +455,10 @@ describe("AI Client", () => {
         summaryPoints: ["Failed to parse summary"],
         keyRisks: [],
         hunks: [],
+        decision: {
+          recommendation: "REQUEST_CHANGES",
+          reasoning: "Failed to parse summary response",
+        },
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -551,6 +577,33 @@ describe("AI Client", () => {
           tag,
           description: `Risk for ${tag}`,
         });
+      });
+    });
+
+    it("should parse decision recommendation correctly", async () => {
+      const xmlWithDecision = `
+<global>
+  <prType>feature</prType>
+  <overview>
+    <item>Test summary</item>
+  </overview>
+  <keyRisks></keyRisks>
+  <decision>
+    <recommendation>REQUEST_CHANGES</recommendation>
+    <reasoning>Critical security issues found that must be addressed.</reasoning>
+  </decision>
+</global>
+<hunks></hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithDecision,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.decision).toEqual({
+        recommendation: "REQUEST_CHANGES",
+        reasoning: "Critical security issues found that must be addressed.",
       });
     });
   });

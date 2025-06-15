@@ -170,6 +170,33 @@ function parseSummaryResponse(text: string): DiffSummary {
       }
     }
 
+    // Extract decision
+    const decisionMatch = globalContent.match(/<decision>(.*?)<\/decision>/s);
+    let decision = {
+      recommendation: "APPROVE" as "APPROVE" | "REQUEST_CHANGES",
+      reasoning: "No specific reasoning provided",
+    };
+
+    if (decisionMatch) {
+      const recommendationMatch = decisionMatch[1].match(
+        /<recommendation>(.*?)<\/recommendation>/s,
+      );
+      const reasoningMatch = decisionMatch[1].match(
+        /<reasoning>(.*?)<\/reasoning>/s,
+      );
+
+      if (recommendationMatch) {
+        const rec = recommendationMatch[1].trim();
+        if (rec === "APPROVE" || rec === "REQUEST_CHANGES") {
+          decision.recommendation = rec;
+        }
+      }
+
+      if (reasoningMatch) {
+        decision.reasoning = reasoningMatch[1].trim();
+      }
+    }
+
     // Extract hunks
     const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
     const hunks: HunkSummary[] = [];
@@ -239,6 +266,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       summaryPoints,
       keyRisks,
       hunks,
+      decision,
     };
   } catch (error) {
     console.error("Failed to parse summary response:", error);
@@ -247,6 +275,10 @@ function parseSummaryResponse(text: string): DiffSummary {
       summaryPoints: ["Failed to parse summary"],
       keyRisks: [],
       hunks: [],
+      decision: {
+        recommendation: "REQUEST_CHANGES",
+        reasoning: "Failed to parse summary response",
+      },
     };
   }
 }

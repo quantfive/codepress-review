@@ -71,4 +71,8 @@ export interface DiffSummary {
   summaryPoints: string[];
   keyRisks: RiskItem[];
   hunks: HunkSummary[];
+  decision: {
+    recommendation: "APPROVE" | "REQUEST_CHANGES";
+    reasoning: string;
+  };
 }

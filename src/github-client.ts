@@ -306,11 +306,6 @@ export class GitHubClient {
     findings: Finding[],
     diffSummary?: DiffSummary,
   ): Promise<void> {
-    if (findings.length === 0) {
-      console.log("No findings to submit in review");
-      return;
-    }
-
     const comments = findings.map((finding) => ({
       path: finding.path,
       line: finding.line ?? undefined,
@@ -321,8 +316,11 @@ export class GitHubClient {
     // Generate the review body
     const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**\n`];
 
+    // Determine review event based on the decision
+    let reviewEvent: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" = "COMMENT";
+
     if (diffSummary) {
-      const { prType, summaryPoints, keyRisks } = diffSummary;
+      const { prType, summaryPoints, keyRisks, decision } = diffSummary;
 
       summaryParts.push(`**PR Type:** ${prType}\n`);
 
@@ -341,12 +339,31 @@ export class GitHubClient {
         });
         summaryParts.push("");
       }
+
+      // Add decision information
+      if (decision) {
+        summaryParts.push(
+          `**Decision:** ${decision.recommendation === "APPROVE" ? "✅ APPROVE" : "❌ REQUEST CHANGES"}`,
+        );
+        summaryParts.push(`**Reasoning:** ${decision.reasoning}`);
+        summaryParts.push("");
+
+        // Set the review event based on the decision
+        reviewEvent =
+          decision.recommendation === "APPROVE" ? "APPROVE" : "REQUEST_CHANGES";
+      }
     }
 
-    // Always append findings information at the end
-    summaryParts.push(
-      `**Review Results:** Found ${findings.length} item${findings.length === 1 ? "" : "s"} that ${findings.length === 1 ? "needs" : "need"} attention during review.`,
-    );
+    // Add findings information
+    if (findings.length > 0) {
+      summaryParts.push(
+        `**Review Results:** Found ${findings.length} item${findings.length === 1 ? "" : "s"} that ${findings.length === 1 ? "needs" : "need"} attention during review.`,
+      );
+    } else if (reviewEvent === "APPROVE") {
+      summaryParts.push(
+        `**Review Results:** No specific issues found. Code looks good to merge! 🚀`,
+      );
+    }
 
     const body = summaryParts.join("\n");
 
@@ -357,18 +374,32 @@ export class GitHubClient {
         pull_number: prNumber,
         commit_id: commitId,
         body,
-        event: "COMMENT", // This creates a review without approval/rejection
+        event: reviewEvent,
         comments,
       });
     };
 
     try {
       await makeRequest();
-      console.log(`✅ Created review with ${findings.length} comments`);
+      const eventText =
+        reviewEvent === "APPROVE"
+          ? "approved"
+          : reviewEvent === "REQUEST_CHANGES"
+            ? "requested changes"
+            : "commented on";
+      console.log(
+        `✅ ${eventText.charAt(0).toUpperCase() + eventText.slice(1)} PR with ${findings.length} comments`,
+      );
     } catch (error) {
       await this.rateLimitHandler.handleRateLimit(error, makeRequest);
+      const eventText =
+        reviewEvent === "APPROVE"
+          ? "approved"
+          : reviewEvent === "REQUEST_CHANGES"
+            ? "requested changes"
+            : "commented on";
       console.log(
-        `✅ Created review with ${findings.length} comments (after retry)`,
+        `✅ ${eventText.charAt(0).toUpperCase() + eventText.slice(1)} PR with ${findings.length} comments (after retry)`,
       );
     }
   }

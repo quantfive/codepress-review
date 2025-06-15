@@ -244,11 +244,16 @@ export class ReviewService {
       }
     }
 
-    // Create a single review with all findings at the end
-    if (allFindings.length > 0) {
-      console.log(
-        `\n🔍 Creating review with ${allFindings.length} total findings...`,
-      );
+    // Create a review - either with findings or just the summary decision
+    const shouldCreateReview =
+      allFindings.length > 0 || this.diffSummary?.decision;
+
+    if (shouldCreateReview) {
+      const findingsText =
+        allFindings.length > 0
+          ? `${allFindings.length} total findings`
+          : "summary decision only";
+      console.log(`\n🔍 Creating review with ${findingsText}...`);
 
       try {
         await this.githubClient.createReview(
@@ -261,27 +266,34 @@ export class ReviewService {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         console.error("Failed to create review:", errorMessage);
-        // Fallback: try to create individual comments
-        console.log("Attempting to create individual comments as fallback...");
-        const commentPromises = allFindings.map(async (finding) => {
-          try {
-            await this.githubClient.createReviewComment(
-              this.config.pr,
-              commitId,
-              finding,
-            );
-            console.log(`✅ Commented on ${finding.path}:${finding.line}`);
-          } catch (e: unknown) {
-            const eMessage = e instanceof Error ? e.message : String(e);
-            console.error(
-              `❌ Failed to comment on ${finding.path}:${finding.line}: ${eMessage}`,
-            );
-          }
-        });
-        await Promise.all(commentPromises);
+
+        // Only fallback to individual comments if we have findings
+        if (allFindings.length > 0) {
+          console.log(
+            "Attempting to create individual comments as fallback...",
+          );
+          const commentPromises = allFindings.map(async (finding) => {
+            try {
+              await this.githubClient.createReviewComment(
+                this.config.pr,
+                commitId,
+                finding,
+              );
+              console.log(`✅ Commented on ${finding.path}:${finding.line}`);
+            } catch (e: unknown) {
+              const eMessage = e instanceof Error ? e.message : String(e);
+              console.error(
+                `❌ Failed to comment on ${finding.path}:${finding.line}: ${eMessage}`,
+              );
+            }
+          });
+          await Promise.all(commentPromises);
+        }
       }
     } else {
-      console.log("🎉 No issues found during review!");
+      console.log(
+        "🎉 No issues found during review and no decision available!",
+      );
     }
   }
 }

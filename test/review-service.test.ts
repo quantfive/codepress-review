@@ -166,6 +166,10 @@ describe("ReviewService", () => {
           summaryPoints: ["Test summary point"],
           keyRisks: [],
           hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "No specific reasoning provided",
+          },
         });
       } else {
         // This is the reviewChunk call
@@ -204,6 +208,10 @@ describe("ReviewService", () => {
         summaryPoints: ["Test summary point"],
         keyRisks: [],
         hunks: [],
+        decision: expect.objectContaining({
+          recommendation: expect.any(String),
+          reasoning: expect.any(String),
+        }),
       }),
     );
   });
@@ -239,6 +247,10 @@ describe("ReviewService", () => {
           summaryPoints: ["Test summary point"],
           keyRisks: [],
           hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "No specific reasoning provided",
+          },
         });
       } else if (hunkIdx === 1) {
         return Promise.resolve(mockFindings1);
@@ -281,6 +293,10 @@ describe("ReviewService", () => {
         summaryPoints: ["Test summary point"],
         keyRisks: [],
         hunks: [],
+        decision: expect.objectContaining({
+          recommendation: expect.any(String),
+          reasoning: expect.any(String),
+        }),
       }),
     );
   });
@@ -309,6 +325,10 @@ describe("ReviewService", () => {
           summaryPoints: ["Test summary point"],
           keyRisks: [],
           hunks: [],
+          decision: {
+            recommendation: "REQUEST_CHANGES",
+            reasoning: "Issues found that need attention",
+          },
         });
       } else {
         return Promise.resolve(mockFindings);
@@ -343,6 +363,10 @@ describe("ReviewService", () => {
         summaryPoints: ["Test summary point"],
         keyRisks: [],
         hunks: [],
+        decision: expect.objectContaining({
+          recommendation: expect.any(String),
+          reasoning: expect.any(String),
+        }),
       }),
     );
 
@@ -354,7 +378,7 @@ describe("ReviewService", () => {
     );
   });
 
-  it("should not create review when no findings are found", async () => {
+  it("should create review with decision even when no findings are found", async () => {
     // Arrange
     mockGithubClient.getExistingComments.mockResolvedValue([]);
 
@@ -365,6 +389,10 @@ describe("ReviewService", () => {
           summaryPoints: ["Test summary point"],
           keyRisks: [],
           hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "Code looks good overall",
+          },
         });
       } else {
         return Promise.resolve([]); // No findings
@@ -390,7 +418,21 @@ describe("ReviewService", () => {
     await (reviewService as any).execute();
 
     // Assert
-    expect(mockGithubClient.createReview).not.toHaveBeenCalled();
+    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
+      1,
+      "mock-commit-id",
+      [], // No findings
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Test summary point"],
+        keyRisks: [],
+        hunks: [],
+        decision: {
+          recommendation: "APPROVE",
+          reasoning: "Code looks good overall",
+        },
+      }),
+    );
     expect(mockGithubClient.createReviewComment).not.toHaveBeenCalled();
   });
 
@@ -429,6 +471,10 @@ describe("ReviewService", () => {
           summaryPoints: ["Test summary point"],
           keyRisks: [],
           hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "No specific reasoning provided",
+          },
         });
       } else {
         return Promise.resolve(mockFindings);
@@ -470,7 +516,177 @@ describe("ReviewService", () => {
         summaryPoints: ["Test summary point"],
         keyRisks: [],
         hunks: [],
+        decision: expect.objectContaining({
+          recommendation: expect.any(String),
+          reasoning: expect.any(String),
+        }),
       }),
     );
+  });
+
+  it("should create review with REQUEST_CHANGES decision", async () => {
+    // Arrange
+    mockGithubClient.getExistingComments.mockResolvedValue([]);
+
+    const mockFindings: Finding[] = [
+      {
+        path: "file1.txt",
+        line: 2,
+        message: "Critical security issue",
+        severity: "required",
+      },
+    ];
+
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Added new authentication feature"],
+          keyRisks: [{ tag: "SEC", description: "Missing input validation" }],
+          hunks: [],
+          decision: {
+            recommendation: "REQUEST_CHANGES",
+            reasoning:
+              "Critical security vulnerabilities must be addressed before merge",
+          },
+        });
+      } else {
+        return Promise.resolve(mockFindings);
+      }
+    });
+
+    const mockChunks = [
+      {
+        fileName: "file1.txt",
+        content: "diff --git a/file1.txt b/file1.txt...",
+        hunk: { newStart: 1, newLines: 3 },
+      },
+    ];
+
+    jest.spyOn(require("fs"), "existsSync").mockReturnValue(false);
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert
+    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
+      1,
+      "mock-commit-id",
+      mockFindings,
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Added new authentication feature"],
+        keyRisks: [{ tag: "SEC", description: "Missing input validation" }],
+        hunks: [],
+        decision: {
+          recommendation: "REQUEST_CHANGES",
+          reasoning:
+            "Critical security vulnerabilities must be addressed before merge",
+        },
+      }),
+    );
+  });
+
+  it("should APPROVE PR with findings when decision is APPROVE", async () => {
+    // Arrange
+    mockGithubClient.getExistingComments.mockResolvedValue([]);
+
+    const mockFindings: Finding[] = [
+      {
+        path: "src/utils.ts",
+        line: 15,
+        message: "Consider adding JSDoc for better documentation",
+        severity: "optional",
+      },
+      {
+        path: "src/utils.ts",
+        line: 32,
+        message: "Minor: This variable could be const instead of let",
+        severity: "optional",
+      },
+      {
+        path: "tests/utils.test.ts",
+        line: 8,
+        message: "Suggestion: Add edge case test for empty input",
+        severity: "optional",
+      },
+    ];
+
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Added utility functions for data processing"],
+          keyRisks: [
+            { tag: "STYLE", description: "Minor formatting inconsistencies" },
+            {
+              tag: "TEST",
+              description: "Could benefit from additional test coverage",
+            },
+          ],
+          hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning:
+              "Minor suggestions don't block merge. Code quality is good overall and functionality is sound.",
+          },
+        });
+      } else {
+        return Promise.resolve(mockFindings);
+      }
+    });
+
+    const mockChunks = [
+      {
+        fileName: "src/utils.ts",
+        content: "diff --git a/src/utils.ts b/src/utils.ts...",
+        hunk: { newStart: 1, newLines: 10 },
+      },
+    ];
+
+    jest.spyOn(require("fs"), "existsSync").mockReturnValue(false);
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert
+    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
+      1,
+      "mock-commit-id",
+      mockFindings, // Should include all 3 findings as comments
+      expect.objectContaining({
+        prType: "feature",
+        summaryPoints: ["Added utility functions for data processing"],
+        keyRisks: [
+          { tag: "STYLE", description: "Minor formatting inconsistencies" },
+          {
+            tag: "TEST",
+            description: "Could benefit from additional test coverage",
+          },
+        ],
+        hunks: [],
+        decision: {
+          recommendation: "APPROVE", // Should approve despite having findings
+          reasoning:
+            "Minor suggestions don't block merge. Code quality is good overall and functionality is sound.",
+        },
+      }),
+    );
+
+    // Verify we're calling createReview once (not falling back to individual comments)
+    expect(mockGithubClient.createReview).toHaveBeenCalledTimes(1);
+    expect(mockGithubClient.createReviewComment).not.toHaveBeenCalled();
   });
 });
