@@ -17,10 +17,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
           fetch-depth: 0
-        # This explicitly checks out the code at the specific commit of the version tag.
+        # For tag push events, checkout@v4 automatically checks out the tagged commit.
         # fetch-depth: 0 ensures we have full git history and tag information for reliable tag operations.
+
+      - name: Debug checkout information
+        run: |
+          echo "=== Debug Information ==="
+          echo "GITHUB_REF: $GITHUB_REF"
+          echo "GITHUB_SHA: $GITHUB_SHA"
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Current branch: $(git branch --show-current || echo 'detached HEAD')"
+          echo "Tags pointing to current commit:"
+          git tag --points-at HEAD || echo "No tags found"
+          echo "Recent commits:"
+          git log --oneline -5
+          echo "========================"
 
       - name: Extract major version from tag
         id: extract_major_version
