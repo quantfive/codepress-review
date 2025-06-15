@@ -2,6 +2,7 @@ import { ReviewService } from "../src/review-service";
 import { GitHubClient } from "../src/github-client";
 import { callWithRetry, summarizeDiff } from "../src/ai-client";
 import { Finding } from "../src/types";
+import { CODEPRESS_REVIEW_TAG } from "../src/constants";
 
 jest.mock("@octokit/rest", () => ({
   Octokit: jest.fn().mockImplementation(() => ({
@@ -98,7 +99,7 @@ describe("ReviewService", () => {
       {
         path: "file1.txt",
         line: 2,
-        body: "CodePress Review - An existing comment",
+        body: `${CODEPRESS_REVIEW_TAG} - An existing comment`,
         user: { login: "github-actions[bot]" },
       },
     ] as any);

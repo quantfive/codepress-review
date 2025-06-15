@@ -218,10 +218,8 @@ export class ReviewService {
       existingComments.get(comment.path)?.add(comment.line);
     }
 
-    // Process chunks in parallel with a concurrency limit and collect all findings
-    const concurrencyLimit = 15;
+    // Process all chunks in parallel and collect all findings
     const promises: Promise<Finding[]>[] = [];
-    const allFindings: Finding[] = [];
 
     for (let i = 0; i < filteredChunks.length; i++) {
       const { chunk, originalIndex } = filteredChunks[i];
@@ -230,18 +228,13 @@ export class ReviewService {
       console.log("Processing fileName: ", fileName);
 
       promises.push(this.processChunk(chunk, originalIndex, existingComments));
+    }
 
-      if (
-        promises.length >= concurrencyLimit ||
-        i === filteredChunks.length - 1
-      ) {
-        const batchResults = await Promise.all(promises);
-        // Flatten and add all findings from this batch
-        for (const findings of batchResults) {
-          allFindings.push(...findings);
-        }
-        promises.length = 0; // Clear the array
-      }
+    // Wait for all chunks to be processed
+    const allResults = await Promise.all(promises);
+    const allFindings: Finding[] = [];
+    for (const findings of allResults) {
+      allFindings.push(...findings);
     }
 
     // Create a review - either with findings or just the summary decision

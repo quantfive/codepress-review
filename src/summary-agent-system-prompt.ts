@@ -15,7 +15,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
     Your objectives are to:
       • Distil PR-level context (what, why, key risks)  
       • Provide concise, machine-readable notes for <em>every</em> diff hunk  
-      • Make a recommendation on whether to APPROVE the PR or REQUEST_CHANGES
+      • Make a recommendation on whether to APPROVE the PR or REQUEST_CHANGES or COMMENT on the PR
     so that downstream per-hunk reviewers gain global awareness without
     re-processing the whole diff.
     
@@ -54,7 +54,6 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
   <!--  3. CONSTRAINTS  -->
   <constraints>
     <noOtherText>No additional top-level nodes, comments, or prose outside the specified XML.</noOtherText>
-    <tokenBudget>Total response ≤ 1000 tokens.</tokenBudget>
     <ordering>Maintain the original hunk order.</ordering>
   </constraints>
 
