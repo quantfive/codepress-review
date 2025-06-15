@@ -35,13 +35,4 @@ jobs:
         run: pnpm run type-check
 
       - name: Run tests with coverage
-        run: pnpm run test -- --coverage
-
-      - name: Check coverage thresholds
-        run: |
-          if [ -f coverage/coverage-summary.json ]; then
-            echo "Coverage report generated successfully"
-            cat coverage/coverage-summary.json
-          else
-            echo "No coverage report found"
-          fi
+        run: pnpm run test
