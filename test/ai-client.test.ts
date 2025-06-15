@@ -164,7 +164,7 @@ describe("AI Client", () => {
           },
         ],
         decision: {
-          recommendation: "APPROVE",
+          recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
       });
@@ -309,7 +309,7 @@ describe("AI Client", () => {
           },
         ],
         decision: {
-          recommendation: "APPROVE",
+          recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
       });
@@ -354,7 +354,7 @@ describe("AI Client", () => {
           },
         ],
         decision: {
-          recommendation: "APPROVE",
+          recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
       });
@@ -398,7 +398,7 @@ describe("AI Client", () => {
         keyRisks: [],
         hunks: [],
         decision: {
-          recommendation: "APPROVE",
+          recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
       });
@@ -420,7 +420,7 @@ describe("AI Client", () => {
         keyRisks: [],
         hunks: [],
         decision: {
-          recommendation: "APPROVE",
+          recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
       });
@@ -456,7 +456,7 @@ describe("AI Client", () => {
         keyRisks: [],
         hunks: [],
         decision: {
-          recommendation: "REQUEST_CHANGES",
+          recommendation: "COMMENT",
           reasoning: "Failed to parse summary response",
         },
       });
@@ -604,6 +604,64 @@ describe("AI Client", () => {
       expect(result.decision).toEqual({
         recommendation: "REQUEST_CHANGES",
         reasoning: "Critical security issues found that must be addressed.",
+      });
+    });
+
+    it("should parse all valid decision types", async () => {
+      const decisionTypes = ["APPROVE", "REQUEST_CHANGES", "COMMENT"];
+
+      for (const decisionType of decisionTypes) {
+        const xmlWithDecision = `
+<global>
+  <prType>feature</prType>
+  <overview>
+    <item>Test summary</item>
+  </overview>
+  <keyRisks></keyRisks>
+  <decision>
+    <recommendation>${decisionType}</recommendation>
+    <reasoning>Test reasoning for ${decisionType}.</reasoning>
+  </decision>
+</global>
+<hunks></hunks>`;
+
+        (generateText as jest.Mock).mockResolvedValue({
+          text: xmlWithDecision,
+        });
+
+        const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+        expect(result.decision).toEqual({
+          recommendation: decisionType,
+          reasoning: `Test reasoning for ${decisionType}.`,
+        });
+      }
+    });
+
+    it("should handle invalid decision types with fallback", async () => {
+      const xmlWithInvalidDecision = `
+<global>
+  <prType>feature</prType>
+  <overview>
+    <item>Test summary</item>
+  </overview>
+  <keyRisks></keyRisks>
+  <decision>
+    <recommendation>INVALID_DECISION</recommendation>
+    <reasoning>This should use fallback decision.</reasoning>
+  </decision>
+</global>
+<hunks></hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithInvalidDecision,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.decision).toEqual({
+        recommendation: "COMMENT", // Should fallback to default
+        reasoning: "This should use fallback decision.",
       });
     });
   });

@@ -98,7 +98,7 @@ describe("ReviewService", () => {
       {
         path: "file1.txt",
         line: 2,
-        body: "An existing comment",
+        body: "CodePress Review - An existing comment",
         user: { login: "github-actions[bot]" },
       },
     ] as any);
@@ -112,6 +112,10 @@ describe("ReviewService", () => {
           summaryPoints: ["Test summary point"],
           keyRisks: [],
           hunks: [],
+          decision: {
+            recommendation: "COMMENT",
+            reasoning: "No specific reasoning provided",
+          },
         });
       }
       // If hunkIdx is not 0, this shouldn't be called for this test
@@ -143,6 +147,19 @@ describe("ReviewService", () => {
       expect.any(Function),
       0, // This is the summary step
     );
+
+    // Should create a review even with no findings since we have a decision
+    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
+      1,
+      "mock-commit-id",
+      [], // No findings
+      expect.objectContaining({
+        decision: expect.objectContaining({
+          recommendation: "COMMENT",
+          reasoning: "No specific reasoning provided",
+        }),
+      }),
+    );
   });
 
   it("should process a chunk without existing comments", async () => {
@@ -167,7 +184,7 @@ describe("ReviewService", () => {
           keyRisks: [],
           hunks: [],
           decision: {
-            recommendation: "APPROVE",
+            recommendation: "COMMENT",
             reasoning: "No specific reasoning provided",
           },
         });
@@ -248,7 +265,7 @@ describe("ReviewService", () => {
           keyRisks: [],
           hunks: [],
           decision: {
-            recommendation: "APPROVE",
+            recommendation: "COMMENT",
             reasoning: "No specific reasoning provided",
           },
         });

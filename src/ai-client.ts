@@ -6,6 +6,7 @@ import {
   HunkSummary,
   PRType,
   RiskTag,
+  ReviewDecision,
 } from "./types";
 import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
 import { setTimeout } from "node:timers/promises";
@@ -173,7 +174,7 @@ function parseSummaryResponse(text: string): DiffSummary {
     // Extract decision
     const decisionMatch = globalContent.match(/<decision>(.*?)<\/decision>/s);
     let decision = {
-      recommendation: "APPROVE" as "APPROVE" | "REQUEST_CHANGES",
+      recommendation: "COMMENT" as ReviewDecision,
       reasoning: "No specific reasoning provided",
     };
 
@@ -187,8 +188,12 @@ function parseSummaryResponse(text: string): DiffSummary {
 
       if (recommendationMatch) {
         const rec = recommendationMatch[1].trim();
-        if (rec === "APPROVE" || rec === "REQUEST_CHANGES") {
-          decision.recommendation = rec;
+        if (
+          rec === "APPROVE" ||
+          rec === "REQUEST_CHANGES" ||
+          rec === "COMMENT"
+        ) {
+          decision.recommendation = rec as ReviewDecision;
         }
       }
 
@@ -276,7 +281,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       keyRisks: [],
       hunks: [],
       decision: {
-        recommendation: "REQUEST_CHANGES",
+        recommendation: "COMMENT",
         reasoning: "Failed to parse summary response",
       },
     };

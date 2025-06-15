@@ -20,6 +20,7 @@ export function formatGitHubComment(finding: Finding): string {
         optional: "🟡",
         nit: "🔵",
         fyi: "ℹ️",
+        praise: "👏",
       }[finding.severity] || "📝";
     comment = `${severityEmoji} **${finding.severity.toUpperCase()}**: ${comment}`;
   }
@@ -318,57 +319,109 @@ export class GitHubClient {
       body: formatGitHubComment(finding),
     }));
 
-    // Generate the review body
+    // Categorize findings by severity
+    const required = findings.filter((f) => f.severity === "required");
+    const optional = findings.filter((f) => f.severity === "optional");
+    const nit = findings.filter((f) => f.severity === "nit");
+    const fyi = findings.filter((f) => f.severity === "fyi");
+    const praise = findings.filter((f) => f.severity === "praise");
+    const others = [...optional, ...nit, ...fyi];
 
     // Determine review event based on the decision
     let reviewEvent: ReviewDecision = "COMMENT";
-    // Generate the review body: "CodePress Review Summary"
-    const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**`];
 
-    if (diffSummary) {
-      const { prType, summaryPoints, keyRisks, decision } = diffSummary;
+    // Generate the human-friendly review body
+    const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**\n`];
+    summaryParts.push("👋 Hey team,\n");
 
-      summaryParts.push(`**PR Type:** ${prType}`);
+    if (diffSummary?.decision) {
+      const { decision } = diffSummary;
+      reviewEvent = decision.recommendation;
 
-      if (summaryPoints.length > 0) {
-        summaryParts.push(`**Overview:**`);
-        summaryPoints.forEach((point) => {
-          summaryParts.push(`• ${point}`);
-        });
-        summaryParts.push("");
+      if (required.length > 0) {
+        summaryParts.push(
+          `Overall the changes look solid, but I spotted **${required.length} must-fix** issue${required.length === 1 ? "" : "s"} and left ${others.length + praise.length} helpful note${others.length + praise.length === 1 ? "" : "s"} inline.\n`,
+        );
+      } else if (others.length > 0 || praise.length > 0) {
+        summaryParts.push(
+          `Overall the changes look great! I left ${others.length + praise.length} helpful note${others.length + praise.length === 1 ? "" : "s"} inline.\n`,
+        );
+      } else {
+        summaryParts.push(
+          "Overall the changes look great! No specific issues found.\n",
+        );
       }
 
-      if (keyRisks.length > 0) {
-        summaryParts.push(`**Key Risks:**`);
-        keyRisks.forEach((risk) => {
-          summaryParts.push(`• [${risk.tag}] ${risk.description}`);
-        });
-        summaryParts.push("");
-      }
+      summaryParts.push("Here's the quick rundown:\n");
 
       // Add decision information
-      if (decision) {
-        summaryParts.push(
-          `**Decision:** ${decision.recommendation === "APPROVE" ? "✅ APPROVE" : "❌ REQUEST CHANGES"}`,
-        );
-        summaryParts.push(`**Reasoning:** ${decision.reasoning}`);
-        summaryParts.push("");
+      const decisionEmoji =
+        decision.recommendation === "APPROVE"
+          ? "✅"
+          : decision.recommendation === "REQUEST_CHANGES"
+            ? "❌"
+            : "💬";
+      const decisionText =
+        decision.recommendation === "APPROVE"
+          ? "APPROVE"
+          : decision.recommendation === "REQUEST_CHANGES"
+            ? "REQUEST CHANGES"
+            : "COMMENT";
 
-        // Set the review event based on the decision
-        reviewEvent =
-          decision.recommendation === "APPROVE" ? "APPROVE" : "REQUEST_CHANGES";
+      summaryParts.push(`**${decisionEmoji} Decision: ${decisionText}**`);
+      summaryParts.push(`${decision.reasoning}\n`);
+    } else {
+      // Fallback when no decision is available
+      if (required.length > 0) {
+        summaryParts.push(
+          `I spotted **${required.length} must-fix** issue${required.length === 1 ? "" : "s"} and left ${others.length + praise.length} helpful note${others.length + praise.length === 1 ? "" : "s"} inline.\n`,
+        );
+      } else if (others.length > 0 || praise.length > 0) {
+        summaryParts.push(
+          `I left ${others.length + praise.length} helpful note${others.length + praise.length === 1 ? "" : "s"} inline.\n`,
+        );
+      } else {
+        summaryParts.push(
+          "No specific issues found. Code looks good to merge! 🚀\n",
+        );
       }
     }
 
-    // Add findings information
-    if (findings.length > 0) {
-      summaryParts.push(
-        `**Review Results:** Found ${findings.length} item${findings.length === 1 ? "" : "s"} that ${findings.length === 1 ? "needs" : "need"} attention during review.`,
-      );
-    } else if (reviewEvent === "APPROVE") {
-      summaryParts.push(
-        `**Review Results:** No specific issues found. Code looks good to merge! 🚀`,
-      );
+    // Add praise section if any
+    if (praise.length > 0) {
+      summaryParts.push("### 👍 What's working well");
+      praise.forEach((finding) => {
+        summaryParts.push(`• ${finding.message}`);
+      });
+      summaryParts.push("");
+    }
+
+    // Add required issues section
+    if (required.length > 0) {
+      summaryParts.push("### 🚧 Needs a bit of love");
+      required.forEach((finding) => {
+        summaryParts.push(
+          `• **${finding.path}:${finding.line}** - ${finding.message}`,
+        );
+      });
+      summaryParts.push("");
+    }
+
+    // Add other thoughts section
+    if (others.length > 0) {
+      summaryParts.push("### ℹ️ Other thoughts");
+      others.forEach((finding) => {
+        const severityEmoji =
+          finding.severity === "optional"
+            ? "🟡"
+            : finding.severity === "nit"
+              ? "🔵"
+              : "ℹ️";
+        summaryParts.push(
+          `• ${severityEmoji} **${finding.path}:${finding.line}** - ${finding.message}`,
+        );
+      });
+      summaryParts.push("");
     }
 
     const body = summaryParts.join("\n");
