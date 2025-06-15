@@ -66,13 +66,15 @@ export interface HunkSummary {
   tests: string[];
 }
 
+export type ReviewDecision = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+
 export interface DiffSummary {
   prType: PRType;
   summaryPoints: string[];
   keyRisks: RiskItem[];
   hunks: HunkSummary[];
   decision: {
-    recommendation: "APPROVE" | "REQUEST_CHANGES";
+    recommendation: ReviewDecision;
     reasoning: string;
   };
 }

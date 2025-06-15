@@ -33,9 +33,10 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
     <keyRisks>Up to 10 bullets of potential issues, each prefixed with
       [SEC], [PERF], [ARCH], [TEST], [STYLE], [SEO], or [DEP].</keyRisks>
     <decision>
-      Make a binary recommendation: APPROVE | REQUEST_CHANGES
+      Make a binary recommendation: APPROVE | REQUEST_CHANGES | COMMENT
       - APPROVE: Code is production-ready with no blocking issues
       - REQUEST_CHANGES: Has critical issues that must be addressed before merge
+      - COMMENT: No recommendation, just a comment on the PR
       Include 1-2 sentence reasoning for your decision.
 
       Request changes if you wouldn't want the code merged as is, approve otherwise. You can have some comments that disagree with the code direction but still approve the PR as a whole.

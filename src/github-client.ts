@@ -1,5 +1,10 @@
 import { Octokit } from "@octokit/rest";
-import { Finding, GitHubConfig, DiffSummary } from "./types";
+import type {
+  Finding,
+  GitHubConfig,
+  DiffSummary,
+  ReviewDecision,
+} from "./types";
 import { CODEPRESS_REVIEW_TAG } from "./constants";
 
 /**
@@ -314,15 +319,16 @@ export class GitHubClient {
     }));
 
     // Generate the review body
-    const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**\n`];
 
     // Determine review event based on the decision
-    let reviewEvent: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" = "COMMENT";
+    let reviewEvent: ReviewDecision = "COMMENT";
+    // Generate the review body: "CodePress Review Summary"
+    const summaryParts = [`❇️ **${CODEPRESS_REVIEW_TAG} Summary**`];
 
     if (diffSummary) {
       const { prType, summaryPoints, keyRisks, decision } = diffSummary;
 
-      summaryParts.push(`**PR Type:** ${prType}\n`);
+      summaryParts.push(`**PR Type:** ${prType}`);
 
       if (summaryPoints.length > 0) {
         summaryParts.push(`**Overview:**`);
