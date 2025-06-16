@@ -83,38 +83,41 @@ export function getSummarySystemPrompt(): string {
   
 <!--  OUTPUT FORMAT (STRICT)  -->
 <responseFormat>
-  <!-- ✦ Emit exactly ONE <global> block. -->
-  <global>
-    <prType>feature</prType>
-    <overview>
-      <item>Adds StripeWebhookService to handle provider-specific webhooks…</item>
-      <!-- repeat 1-5 items -->
-    </overview>
-    <keyRisks>
-      <item tag="SEC">New /webhook endpoint lacks HMAC verification.</item>
-      <!-- repeat 0-10 items -->
-    </keyRisks>
-    <decision>
-      <recommendation>REQUEST_CHANGES</recommendation>
-      <reasoning>Critical security vulnerability found in webhook endpoint that must be addressed before merge.</reasoning>
-    </decision>
-  </global>
+  <!-- ✦ Emit exactly ONE <summaryResponse> block as the root element. -->
+  <summaryResponse>
+    <!-- ✦ Emit exactly ONE <global> block. -->
+    <global>
+      <prType>feature</prType>
+      <overview>
+        <item>Adds StripeWebhookService to handle provider-specific webhooks…</item>
+        <!-- repeat 1-5 items -->
+      </overview>
+      <keyRisks>
+        <item tag="SEC">New /webhook endpoint lacks HMAC verification.</item>
+        <!-- repeat 0-10 items -->
+      </keyRisks>
+      <decision>
+        <recommendation>REQUEST_CHANGES</recommendation>
+        <reasoning>Critical security vulnerability found in webhook endpoint that must be addressed before merge.</reasoning>
+      </decision>
+    </global>
 
-  <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
-  <hunks>
-    <hunk index="0">
-      <file>src/components/SEOHead.tsx</file>
-      <overview>Makes <code>description</code> prop optional to support legacy pages.</overview>
-      <risks>
-        <item tag="SEO">Missing descriptions may hurt search ranking.</item>
-      </risks>
-      <tests>
-        <item>Render page without description and verify meta tags default correctly.</item>
-      </tests>
-    </hunk>
+    <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
+    <hunks>
+      <hunk index="0">
+        <file>src/components/SEOHead.tsx</file>
+        <overview>Makes <code>description</code> prop optional to support legacy pages.</overview>
+        <risks>
+          <item tag="SEO">Missing descriptions may hurt search ranking.</item>
+        </risks>
+        <tests>
+          <item>Render page without description and verify meta tags default correctly.</item>
+        </tests>
+      </hunk>
 
-    <!-- repeat <hunk> … </hunk> blocks as needed -->
-  </hunks>
+      <!-- repeat <hunk> … </hunk> blocks as needed -->
+    </hunks>
+  </summaryResponse>
 </responseFormat>
   `;
 

@@ -133,19 +133,13 @@ ${diffOverview}
  * Parses the XML summary response into a structured format.
  */
 function parseSummaryResponse(text: string): DiffSummary {
-  let xmlToParse = text.trim();
-  // For backwards compatibility, if the response is not wrapped in <global>, add it.
-  if (!xmlToParse.startsWith("<global>")) {
-    xmlToParse = `<global>${xmlToParse}</global>`;
-  }
-
-  const validationResult = XMLValidator.validate(xmlToParse);
+  const validationResult = XMLValidator.validate(text);
   if (validationResult !== true) {
     console.error(
       "Failed to parse summary response due to invalid XML:",
       validationResult.err,
     );
-    console.error("Invalid XML content:", xmlToParse);
+    console.error("Invalid XML content:", text);
     return {
       prType: "mixed" as PRType,
       summaryPoints: ["Failed to parse summary: Invalid XML"],
@@ -168,22 +162,11 @@ function parseSummaryResponse(text: string): DiffSummary {
   const parser = new XMLParser(options);
 
   try {
-    const fullResponse = parser.parse(xmlToParse);
+    const parsed = parser.parse(text);
 
-    // The entire response might be wrapped in <global> or not.
-    // The parser will create a root object. If the text is just the XML, the root might be the first tag.
-    // Let's find the 'global' content, which might be the root or a child of the root.
-    let globalContent = fullResponse.global || fullResponse;
-    if (
-      Object.keys(globalContent).length === 0 &&
-      xmlToParse.includes("<global>")
-    ) {
-      // It might be nested if the XML string is wrapped in other text
-      const globalMatch = xmlToParse.match(/<global>(.*?)<\/global>/s);
-      if (globalMatch) {
-        globalContent = parser.parse(globalMatch[1]);
-      }
-    }
+    // The root could be <summaryResponse> (new) or <global> (old)
+    const summary = parsed.summaryResponse || parsed;
+    const globalContent = summary.global || summary;
 
     // Extract PR type
     const prType = globalContent.prType || "unknown";
@@ -234,14 +217,7 @@ function parseSummaryResponse(text: string): DiffSummary {
 
     // Extract hunks
     const hunks: HunkSummary[] = [];
-    // The hunks might be at the same level as global or inside it.
-    let hunksData = fullResponse.hunks || globalContent.hunks;
-    if (!hunksData) {
-      const hunksMatch = xmlToParse.match(/<hunks>(.*?)<\/hunks>/s);
-      if (hunksMatch) {
-        hunksData = parser.parse(hunksMatch[0]).hunks;
-      }
-    }
+    const hunksData = summary.hunks || globalContent.hunks;
 
     if (hunksData?.hunk) {
       const hunkItems = Array.isArray(hunksData.hunk)

@@ -217,7 +217,7 @@ describe("AI Client", () => {
       };
 
       (generateText as jest.Mock).mockResolvedValue({
-        text: `<prType>refactor</prType><overview></overview><keyRisks></keyRisks><hunks></hunks>`,
+        text: `<global><prType>refactor</prType><overview></overview><keyRisks></keyRisks><hunks></hunks></global>`,
       });
 
       const result = await summarizeDiff(mockChunks, anthropicConfig);
@@ -315,21 +315,6 @@ describe("AI Client", () => {
       expect(result.decision.reasoning).toContain(
         "Failed to parse summary response due to invalid XML",
       );
-    });
-
-    it("should parse response without a global wrapper for backwards compatibility", async () => {
-      const legacyXml = `<prType>bugfix</prType>
-<overview><item>Fixed a critical bug</item></overview>
-<keyRisks/>
-<hunks/>
-<decision><recommendation>APPROVE</recommendation><reasoning>Good to go</reasoning></decision>`;
-
-      (generateText as jest.Mock).mockResolvedValue({ text: legacyXml });
-      const result = await summarizeDiff([], mockModelConfig);
-
-      expect(result.prType).toBe("bugfix");
-      expect(result.summaryPoints).toEqual(["Fixed a critical bug"]);
-      expect(result.decision.recommendation).toBe("APPROVE");
     });
   });
 
