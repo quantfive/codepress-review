@@ -500,4 +500,44 @@ export class GitHubClient {
       );
     }
   }
+
+  /**
+   * Resolves review comments by updating their content to indicate they've been resolved.
+   * Since GitHub doesn't have a direct "resolve" API, we update the comment body to mark it as resolved.
+   */
+  async resolveReviewComment(
+    prNumber: number,
+    commentId: number,
+    reason: string,
+  ): Promise<void> {
+    const makeRequest = async () => {
+      // First get the current comment to preserve its original content
+      const currentComment = await this.octokit.pulls.getReviewComment({
+        owner: this.config.owner,
+        repo: this.config.repo,
+        comment_id: commentId,
+      });
+
+      const originalBody = currentComment.data.body;
+      const resolvedBody = `${originalBody}
+
+---
+✅ **Resolved by ${CODEPRESS_REVIEW_TAG}**: ${reason}`;
+
+      await this.octokit.pulls.updateReviewComment({
+        owner: this.config.owner,
+        repo: this.config.repo,
+        comment_id: commentId,
+        body: resolvedBody,
+      });
+    };
+
+    try {
+      await makeRequest();
+      console.log(`✅ Resolved comment ${commentId}: ${reason}`);
+    } catch (error) {
+      await this.rateLimitHandler.handleRateLimit(error, makeRequest);
+      console.log(`✅ Resolved comment ${commentId}: ${reason} (after retry)`);
+    }
+  }
 }

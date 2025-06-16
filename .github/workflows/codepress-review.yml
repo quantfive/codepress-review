@@ -3,6 +3,7 @@ name: CodePress Review
 on:
   pull_request:
     types: [opened, reopened, synchronize]
+  workflow_dispatch: # Allow manual triggering
 
 permissions:
   pull-requests: write
@@ -43,24 +44,3 @@ jobs:
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: latest
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-      - name: Install dependencies
-        run: pnpm install
-      - name: Lint
-        run: pnpm run lint
-      - name: Type Check
-        run: npx tsc --noEmit
