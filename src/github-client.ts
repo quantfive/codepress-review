@@ -28,7 +28,7 @@ export function formatGitHubComment(finding: Finding): string {
   }
 
   if (finding.suggestion) {
-    comment += `\n\n**Suggestion:**\n\`\`\`\n${finding.suggestion}\n\`\`\``;
+    comment += `\n\n\`\`\`suggestion\n${finding.suggestion}\n\`\`\``;
   }
 
   return comment;
