@@ -131,6 +131,7 @@ ${escapeXml(diffChunk)}
 </reviewRequest>`;
 
   try {
+    console.log(`[Hunk ${chunkIndex + 1}] Initial Message:\n`, initialMessage);
     const result = await run(agent, initialMessage, { maxTurns });
 
     if (result.finalOutput) {
