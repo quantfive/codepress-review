@@ -58,6 +58,10 @@ describe("ReviewService", () => {
       summaryPoints: ["Test summary point"],
       keyRisks: [],
       hunks: [],
+      decision: {
+        recommendation: "APPROVE",
+        reasoning: "Code looks good overall",
+      },
     });
 
     reviewService = new ReviewService({
@@ -71,11 +75,18 @@ describe("ReviewService", () => {
     });
 
     // Mock the dependencies
-    mockGithubClient = new GitHubClient({
-      token: "mock-token",
-      owner: "mock-owner",
-      repo: "mock-repo",
-    }) as jest.Mocked<GitHubClient>;
+    mockGithubClient = new GitHubClient(
+      {
+        token: "mock-token",
+        owner: "mock-owner",
+        repo: "mock-repo",
+      },
+      {
+        provider: "openai",
+        modelName: "gpt-4",
+        apiKey: "mock-api-key",
+      },
+    ) as jest.Mocked<GitHubClient>;
 
     (reviewService as any).githubClient = mockGithubClient;
     mockGithubClient.getPRInfo.mockResolvedValue({

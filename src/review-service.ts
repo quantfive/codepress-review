@@ -23,7 +23,8 @@ export class ReviewService {
   constructor(config: ReviewConfig) {
     this.config = config;
     const githubConfig = getGitHubConfig();
-    this.githubClient = new GitHubClient(githubConfig);
+    const modelConfig = getModelConfig();
+    this.githubClient = new GitHubClient(githubConfig, modelConfig);
   }
 
   /**

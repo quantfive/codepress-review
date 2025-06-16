@@ -4,7 +4,9 @@ import type {
   GitHubConfig,
   DiffSummary,
   ReviewDecision,
+  ModelConfig,
 } from "./types";
+import { summarizeFindings } from "./ai-client";
 import { CODEPRESS_REVIEW_TAG } from "./constants";
 
 /**
@@ -27,10 +29,6 @@ export function formatGitHubComment(finding: Finding): string {
 
   if (finding.suggestion) {
     comment += `\n\n**Suggestion:**\n\`\`\`\n${finding.suggestion}\n\`\`\``;
-  }
-
-  if (finding.code) {
-    comment += `\n\n**Example:**\n${finding.code}`;
   }
 
   return comment;
@@ -221,9 +219,11 @@ export class GitHubClient {
   private octokit: Octokit;
   private config: GitHubConfig;
   private rateLimitHandler: GitHubRateLimitHandler;
+  private modelConfig: ModelConfig;
 
-  constructor(config: GitHubConfig) {
+  constructor(config: GitHubConfig, modelConfig: ModelConfig) {
     this.config = config;
+    this.modelConfig = modelConfig;
     this.octokit = new Octokit({ auth: config.token });
     this.rateLimitHandler = new GitHubRateLimitHandler();
   }
@@ -387,40 +387,78 @@ export class GitHubClient {
       }
     }
 
-    // Add praise section if any
+    // Get LLM summaries for each section
+    let findingSummaries: {
+      praiseSummary?: string;
+      requiredSummary?: string;
+      othersSummary?: string;
+    } = {};
+
+    // Only call LLM if there are findings to summarize
+    if (praise.length > 0 || required.length > 0 || others.length > 0) {
+      try {
+        findingSummaries = await summarizeFindings(
+          required,
+          optional,
+          nit,
+          fyi,
+          praise,
+          this.modelConfig,
+        );
+      } catch (error) {
+        console.warn(
+          "Failed to generate finding summaries, falling back to detailed list:",
+          error,
+        );
+      }
+    }
+
+    // Add praise section with summary or fallback to detailed list
     if (praise.length > 0) {
       summaryParts.push("### 👍 What's working well");
-      praise.forEach((finding) => {
-        summaryParts.push(`• ${finding.message}`);
-      });
+      if (findingSummaries.praiseSummary) {
+        summaryParts.push(findingSummaries.praiseSummary);
+      } else {
+        praise.forEach((finding) => {
+          summaryParts.push(`• ${finding.message}`);
+        });
+      }
       summaryParts.push("");
     }
 
-    // Add required issues section
+    // Add required issues section with summary or fallback to detailed list
     if (required.length > 0) {
       summaryParts.push("### 🚧 Needs a bit of love");
-      required.forEach((finding) => {
-        summaryParts.push(
-          `• **${finding.path}:${finding.line}** - ${finding.message}`,
-        );
-      });
+      if (findingSummaries.requiredSummary) {
+        summaryParts.push(findingSummaries.requiredSummary);
+      } else {
+        required.forEach((finding) => {
+          summaryParts.push(
+            `• **${finding.path}:${finding.line}** - ${finding.message}`,
+          );
+        });
+      }
       summaryParts.push("");
     }
 
-    // Add other thoughts section
+    // Add other thoughts section with summary or fallback to detailed list
     if (others.length > 0) {
       summaryParts.push("### ℹ️ Other thoughts");
-      others.forEach((finding) => {
-        const severityEmoji =
-          finding.severity === "optional"
-            ? "🟡"
-            : finding.severity === "nit"
-              ? "🔵"
-              : "ℹ️";
-        summaryParts.push(
-          `• ${severityEmoji} **${finding.path}:${finding.line}** - ${finding.message}`,
-        );
-      });
+      if (findingSummaries.othersSummary) {
+        summaryParts.push(findingSummaries.othersSummary);
+      } else {
+        others.forEach((finding) => {
+          const severityEmoji =
+            finding.severity === "optional"
+              ? "🟡"
+              : finding.severity === "nit"
+                ? "🔵"
+                : "ℹ️";
+          summaryParts.push(
+            `• ${severityEmoji} **${finding.path}:${finding.line}** - ${finding.message}`,
+          );
+        });
+      }
       summaryParts.push("");
     }
 

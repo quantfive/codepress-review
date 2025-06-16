@@ -7,6 +7,7 @@ import {
   PRType,
   RiskTag,
   ReviewDecision,
+  Finding,
 } from "./types";
 import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
 import { setTimeout } from "node:timers/promises";
@@ -286,4 +287,119 @@ function parseSummaryResponse(text: string): DiffSummary {
       },
     };
   }
+}
+
+/**
+ * Summarizes findings into concise paragraphs for each severity category.
+ */
+export async function summarizeFindings(
+  required: Finding[],
+  optional: Finding[],
+  nit: Finding[],
+  fyi: Finding[],
+  praise: Finding[],
+  modelConfig: ModelConfig,
+): Promise<{
+  praiseSummary?: string;
+  requiredSummary?: string;
+  othersSummary?: string;
+}> {
+  const model = await createModel(modelConfig);
+
+  const systemPrompt = `<instructions>
+You are a technical writing assistant specializing in code review summaries. Your task is to transform lists of individual code review findings into concise, coherent paragraph summaries.
+
+For each category of findings provided, write a brief paragraph (2-4 sentences) that captures the main themes and patterns without listing every individual issue. Focus on:
+- Common patterns or themes across the findings
+- High-level areas of concern or improvement
+- The overall impact or importance of the issues
+
+Keep each paragraph concise and professional. Use natural language rather than bullet points.
+</instructions>`;
+
+  // Build the user content with findings organized by category
+  let userContent = "<findingsSummaryRequest>\n";
+
+  if (praise.length > 0) {
+    userContent += "<praise>\n";
+    praise.forEach((finding, idx) => {
+      userContent += `<finding id="${idx + 1}" file="${finding.path}" line="${finding.line || "N/A"}">${finding.message}</finding>\n`;
+    });
+    userContent += "</praise>\n\n";
+  }
+
+  if (required.length > 0) {
+    userContent += "<required>\n";
+    required.forEach((finding, idx) => {
+      userContent += `<finding id="${idx + 1}" file="${finding.path}" line="${finding.line || "N/A"}">${finding.message}</finding>\n`;
+    });
+    userContent += "</required>\n\n";
+  }
+
+  const others = [...optional, ...nit, ...fyi];
+  if (others.length > 0) {
+    userContent += "<others>\n";
+    others.forEach((finding, idx) => {
+      const severity = finding.severity || "other";
+      userContent += `<finding id="${idx + 1}" file="${finding.path}" line="${finding.line || "N/A"}" severity="${severity}">${finding.message}</finding>\n`;
+    });
+    userContent += "</others>\n\n";
+  }
+
+  userContent += `Please provide paragraph summaries for each category that has findings. Use this XML format:
+
+<summaryResponse>
+${praise.length > 0 ? "<praiseSummary>Write a paragraph summarizing the praise findings</praiseSummary>" : ""}
+${required.length > 0 ? "<requiredSummary>Write a paragraph summarizing the required findings</requiredSummary>" : ""}
+${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional, nit, and fyi findings</othersSummary>" : ""}
+</summaryResponse>
+</findingsSummaryRequest>`;
+
+  const { text } = await generateText({
+    model,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        content: userContent,
+      },
+    ],
+  });
+
+  console.log("Findings Summary Raw Response:", text);
+
+  // Parse the response
+  const result: {
+    praiseSummary?: string;
+    requiredSummary?: string;
+    othersSummary?: string;
+  } = {};
+
+  try {
+    const praiseSummaryMatch = text.match(
+      /<praiseSummary>(.*?)<\/praiseSummary>/s,
+    );
+    if (praiseSummaryMatch) {
+      result.praiseSummary = praiseSummaryMatch[1].trim();
+    }
+
+    const requiredSummaryMatch = text.match(
+      /<requiredSummary>(.*?)<\/requiredSummary>/s,
+    );
+    if (requiredSummaryMatch) {
+      result.requiredSummary = requiredSummaryMatch[1].trim();
+    }
+
+    const othersSummaryMatch = text.match(
+      /<othersSummary>(.*?)<\/othersSummary>/s,
+    );
+    if (othersSummaryMatch) {
+      result.othersSummary = othersSummaryMatch[1].trim();
+    }
+  } catch (error) {
+    console.error("Failed to parse findings summary response:", error);
+    // Return empty object to fall back to original formatting
+  }
+
+  return result;
 }
