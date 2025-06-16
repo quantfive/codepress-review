@@ -15,6 +15,7 @@ export async function reviewChunkWithAgent(
   diffSummary: DiffSummary | undefined,
   chunkIndex: number,
   repoFilePaths: string[],
+  existingComments: any[] = [],
   maxTurns: number = 20,
 ): Promise<Finding[]> {
   const model = await createModel(modelConfig);
@@ -90,6 +91,24 @@ export async function reviewChunkWithAgent(
     summaryContext = contextLines.join("\n");
   }
 
+  // Build existing comments context for this chunk
+  let existingCommentsContext = "";
+  if (existingComments.length > 0) {
+    const contextLines: string[] = [];
+    contextLines.push("<existingComments>");
+    existingComments.forEach((comment) => {
+      if (comment.path && comment.line && comment.body) {
+        contextLines.push(
+          `  <comment path="${comment.path}" line="${comment.line}" createdAt="${comment.created_at || "unknown"}">`,
+        );
+        contextLines.push(`    ${comment.body}`);
+        contextLines.push(`  </comment>`);
+      }
+    });
+    contextLines.push("</existingComments>");
+    existingCommentsContext = contextLines.join("\n");
+  }
+
   const initialMessage = `
 <reviewRequest>
   <repositoryFiles>
@@ -100,11 +119,12 @@ ${fileList}
 ${summaryContext}
   </diffAnalysisContext>
   
+  ${existingCommentsContext ? `<existingCommentsContext>\n${existingCommentsContext}\n  </existingCommentsContext>\n  ` : ""}
   <diffChunk>
 ${diffChunk}
   </diffChunk>
   
-  <instruction>Please review this diff chunk using the provided context.</instruction>
+  <instruction>Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments - avoid creating duplicate or similar comments unless you have significantly different insights." : ""}</instruction>
 </reviewRequest>`;
 
   try {

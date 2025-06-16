@@ -49,6 +49,7 @@ export class ReviewService {
     chunk: ProcessableChunk,
     chunkIndex: number,
     existingComments: Map<string, Set<number>>,
+    existingCommentsData: any[],
   ): Promise<Finding[]> {
     console.log(
       `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(
@@ -72,6 +73,27 @@ export class ReviewService {
       }
     }
 
+    // Collect existing comments relevant to this chunk
+    const { newStart, newLines } = chunk.hunk;
+    const chunkLineRange = Array.from(
+      { length: newLines },
+      (_, i) => newStart + i,
+    );
+
+    const relevantComments = existingCommentsData.filter((comment) => {
+      return (
+        comment.path === chunk.fileName &&
+        comment.line &&
+        chunkLineRange.includes(comment.line)
+      );
+    });
+
+    if (relevantComments.length > 0) {
+      console.log(
+        `[Hunk ${chunkIndex + 1}] Found ${relevantComments.length} existing comments for this chunk - passing to agent for context`,
+      );
+    }
+
     let findings: Finding[] = [];
     try {
       const modelConfig = getModelConfig();
@@ -84,6 +106,7 @@ export class ReviewService {
             this.diffSummary,
             chunkIndex,
             this.repoFilePaths,
+            relevantComments,
             this.config.maxTurns,
           ),
         chunkIndex + 1,
@@ -113,6 +136,7 @@ export class ReviewService {
     // De-duplicate findings that are identical to avoid spamming,
     // but allow for multiple different comments on the same line.
     const seenSignatures = new Set<string>();
+
     const uniqueFindings = findings.filter((finding) => {
       if (finding.line === null || finding.line <= 0) {
         return false; // Don't process findings without a line number
@@ -228,7 +252,14 @@ export class ReviewService {
 
       console.log("Processing fileName: ", fileName);
 
-      promises.push(this.processChunk(chunk, originalIndex, existingComments));
+      promises.push(
+        this.processChunk(
+          chunk,
+          originalIndex,
+          existingComments,
+          existingCommentsData,
+        ),
+      );
     }
 
     // Wait for all chunks to be processed
