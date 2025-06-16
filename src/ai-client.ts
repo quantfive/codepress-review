@@ -145,6 +145,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       "Failed to parse summary response due to invalid XML:",
       validationResult.err,
     );
+    console.error("Invalid XML content:", xmlToParse);
     return {
       prType: "mixed" as PRType,
       summaryPoints: ["Failed to parse summary: Invalid XML"],
@@ -397,6 +398,7 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
         "Failed to parse findings summary response due to invalid XML:",
         validationResult.err,
       );
+      console.error("Invalid XML content for findings:", text);
       return {};
     }
 
