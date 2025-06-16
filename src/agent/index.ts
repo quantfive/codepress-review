@@ -115,19 +115,21 @@ export async function reviewChunkWithAgent(
   const initialMessage = `
 <reviewRequest>
   <repositoryFiles>
-${escapeXml(fileList)}
+    ${escapeXml(fileList)}
   </repositoryFiles>
-  
   <diffAnalysisContext>
-${summaryContext}
+    ${escapeXml(summaryContext)}
   </diffAnalysisContext>
-  
-  ${existingCommentsContext ? `<existingCommentsContext>\n${existingCommentsContext}\n  </existingCommentsContext>\n  ` : ""}
+  <existingCommentsContext>
+    ${existingCommentsContext}
+  </existingCommentsContext>
   <diffChunk>
-${escapeXml(diffChunk)}
+    ${escapeXml(diffChunk)}
   </diffChunk>
-  
-  <instruction>Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments:\n  1. Avoid creating duplicate or similar comments unless you have significantly different insights.\n  2. Analyze whether any existing comments have been addressed by the changes in this diff.\n  3. If you find that an existing comment has been resolved by the code changes, include it in the <resolvedComments> section with a clear explanation of how it was addressed." : ""}</instruction>
+
+  <instruction>
+    Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments:\n  1. Avoid creating duplicate or similar comments unless you have significantly different insights.\n  2. Analyze whether any existing comments have been addressed by the changes in this diff.\n  3. If you find that an existing comment has been resolved by the code changes, include it in the <resolvedComments> section with a clear explanation of how it was addressed." : ""}
+  </instruction>
 </reviewRequest>`;
 
   try {

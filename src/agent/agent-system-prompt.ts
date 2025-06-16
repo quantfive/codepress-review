@@ -160,6 +160,7 @@ export function getInteractiveSystemPrompt(): string {
       1. <comments> - new review comments to post
         ✦ Preserve the order in which issues appear in the diff.
         ✦ Omit <suggestion> and/or <code> if you have nothing useful to add.
+        ✦ If the comment already exists in the <existingCommentsContext>, do not post it again.
       2. <resolvedComments> - existing comments that are now resolved
 
       If there are existing comments in the context, analyze whether the diff
