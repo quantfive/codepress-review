@@ -175,8 +175,16 @@ export class ReviewService {
         return false; // Don't process findings without a line number
       }
 
-      // Create a unique signature for the finding based on its content.
-      const signature = `${finding.path}:${finding.line}:${finding.message}`;
+      // First, check if a comment already exists on this line from a previous run.
+      if (existingComments.get(finding.path)?.has(finding.line)) {
+        console.log(
+          `[Hunk ${chunkIndex + 1}] Skipping finding on ${finding.path}:${finding.line} as a comment already exists on this line.`,
+        );
+        return false;
+      }
+
+      // Create a unique signature for the finding based on its content for this run.
+      const signature = `${finding.path}:${finding.line}`;
       if (seenSignatures.has(signature)) {
         return false;
       }
