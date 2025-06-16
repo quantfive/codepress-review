@@ -113,6 +113,12 @@ export class ReviewService {
 
       findings = agentResponse.findings;
 
+      // Add detailed logging for raw findings from the agent
+      console.log(
+        `[Hunk ${chunkIndex + 1}] Raw agentResponse:`,
+        JSON.stringify(agentResponse, null, 2),
+      );
+
       // Handle resolved comments from agentResponse.resolvedComments
       if (agentResponse.resolvedComments.length > 0) {
         console.log(

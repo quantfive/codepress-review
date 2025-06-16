@@ -501,9 +501,88 @@ export class GitHubClient {
     }
   }
 
+  private async findReviewThread(
+    prNumber: number,
+    commentId: number,
+  ): Promise<any | null> {
+    let hasNextPage = true;
+    let endCursor: string | null = null;
+
+    const findThreadQuery = `
+      query FindReviewThread($owner: String!, $repo: String!, $prNumber: Int!, $after: String) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $prNumber) {
+            reviewThreads(first: 100, after: $after) {
+              nodes {
+                id
+                isResolved
+                comments(first: 10) {
+                  nodes {
+                    databaseId
+                  }
+                }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    while (hasNextPage) {
+      const result: any = await this.octokit.graphql(findThreadQuery, {
+        owner: this.config.owner,
+        repo: this.config.repo,
+        prNumber: prNumber,
+        after: endCursor,
+      });
+
+      const reviewThreads = result.repository.pullRequest.reviewThreads;
+      const threads = reviewThreads.nodes;
+      const targetThread = threads.find((thread: any) =>
+        thread.comments.nodes.some((c: any) => c.databaseId === commentId),
+      );
+
+      if (targetThread) {
+        return targetThread; // Found the thread
+      }
+
+      hasNextPage = reviewThreads.pageInfo.hasNextPage;
+      endCursor = reviewThreads.pageInfo.endCursor;
+
+      if (!hasNextPage) {
+        break; // All threads have been checked
+      }
+    }
+
+    return null; // Thread not found
+  }
+
+  private async resolveReviewThreadById(threadId: string): Promise<void> {
+    const resolveThreadMutation = `
+      mutation ResolveReviewThread($threadId: ID!) {
+        resolveReviewThread(input: {threadId: $threadId}) {
+          thread {
+            id
+            isResolved
+          }
+        }
+      }
+    `;
+
+    await this.octokit.graphql(resolveThreadMutation, {
+      threadId,
+    });
+    console.log(`Successfully resolved review thread ${threadId}`);
+  }
+
   /**
-   * Resolves review comments by updating their content to indicate they've been resolved.
-   * Since GitHub doesn't have a direct "resolve" API, we update the comment body to mark it as resolved.
+   * Resolves review comments by updating their content to indicate they've been resolved
+   * and using GraphQL API to actually resolve the conversation thread.
+   * This provides both visual indication and native GitHub "resolved" functionality.
    */
   async resolveReviewComment(
     prNumber: number,
@@ -511,33 +590,33 @@ export class GitHubClient {
     reason: string,
   ): Promise<void> {
     const makeRequest = async () => {
-      // First get the current comment to preserve its original content
+      // Step 1: Update the comment body to mark it as resolved
       const currentComment = await this.octokit.pulls.getReviewComment({
         owner: this.config.owner,
         repo: this.config.repo,
         comment_id: commentId,
       });
-
-      const originalBody = currentComment.data.body;
-      const resolvedBody = `${originalBody}
-
----
-✅ **Resolved by ${CODEPRESS_REVIEW_TAG}**: ${reason}`;
-
+      const resolvedBody = `${currentComment.data.body}\n\n---\n✅ **Resolved by ${CODEPRESS_REVIEW_TAG}**\n> ${reason}`;
       await this.octokit.pulls.updateReviewComment({
         owner: this.config.owner,
         repo: this.config.repo,
         comment_id: commentId,
         body: resolvedBody,
       });
+      console.log(`Successfully updated review comment ${commentId}`);
+
+      // Step 2: Find and resolve the actual review thread
+      const targetThread = await this.findReviewThread(prNumber, commentId);
+
+      if (targetThread && !targetThread.isResolved) {
+        await this.resolveReviewThreadById(targetThread.id);
+      }
     };
 
     try {
       await makeRequest();
-      console.log(`✅ Resolved comment ${commentId}: ${reason}`);
     } catch (error) {
       await this.rateLimitHandler.handleRateLimit(error, makeRequest);
-      console.log(`✅ Resolved comment ${commentId}: ${reason} (after retry)`);
     }
   }
 }
