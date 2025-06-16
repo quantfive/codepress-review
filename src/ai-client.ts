@@ -153,7 +153,7 @@ function parseSummaryResponse(text: string): DiffSummary {
     const globalContent = summary.global || summary;
 
     // Extract PR type
-    const prType = globalContent.prType || "unknown";
+    const prType = (globalContent.prType?.content || "unknown").toString();
 
     // Extract overview items
     const summaryPoints: string[] = [];
@@ -162,7 +162,7 @@ function parseSummaryResponse(text: string): DiffSummary {
         ? globalContent.overview.item
         : [globalContent.overview.item];
       summaryPoints.push(
-        ...items.map((item: any) => (item.content || item).toString().trim()),
+        ...items.map((item: any) => item.content.toString().trim()),
       );
     }
 
@@ -174,10 +174,10 @@ function parseSummaryResponse(text: string): DiffSummary {
         : [globalContent.keyRisks.item];
 
       items.forEach((item: any) => {
-        if (item.tag && (item.content || typeof item === "string")) {
+        if (item.tag && item.content) {
           keyRisks.push({
             tag: item.tag as RiskTag,
-            description: (item.content || item).toString().trim(),
+            description: item.content.toString().trim(),
           });
         }
       });
@@ -217,10 +217,10 @@ function parseSummaryResponse(text: string): DiffSummary {
               ? hunk.risks.item
               : [hunk.risks.item];
             riskItems.forEach((item: any) => {
-              if (item.tag && (item.content || typeof item === "string")) {
+              if (item.tag && item.content) {
                 risks.push({
                   tag: item.tag as RiskTag,
-                  description: (item.content || item).toString().trim(),
+                  description: item.content.toString().trim(),
                 });
               }
             });
@@ -233,9 +233,7 @@ function parseSummaryResponse(text: string): DiffSummary {
               ? hunk.tests.item
               : [hunk.tests.item];
             tests.push(
-              ...testItems.map((item: any) =>
-                (item.content || item).toString().trim(),
-              ),
+              ...testItems.map((item: any) => item.content.toString().trim()),
             );
           }
 
