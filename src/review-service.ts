@@ -97,7 +97,7 @@ export class ReviewService {
     try {
       const modelConfig = getModelConfig();
 
-      findings = await callWithRetry(
+      const agentResponse = await callWithRetry(
         () =>
           reviewChunkWithAgent(
             chunk.content,
@@ -110,6 +110,34 @@ export class ReviewService {
           ),
         chunkIndex + 1,
       );
+
+      findings = agentResponse.findings;
+
+      // Handle resolved comments from agentResponse.resolvedComments
+      if (agentResponse.resolvedComments.length > 0) {
+        console.log(
+          `[Hunk ${chunkIndex + 1}] Found ${agentResponse.resolvedComments.length} comments to resolve:`,
+          agentResponse.resolvedComments.map(
+            (rc) => `${rc.path}:${rc.line} - ${rc.reason}`,
+          ),
+        );
+
+        // Resolve each comment by updating its content
+        for (const resolvedComment of agentResponse.resolvedComments) {
+          try {
+            await this.githubClient.resolveReviewComment(
+              this.config.pr,
+              parseInt(resolvedComment.commentId, 10),
+              resolvedComment.reason,
+            );
+          } catch (error) {
+            console.error(
+              `Failed to resolve comment ${resolvedComment.commentId}:`,
+              error,
+            );
+          }
+        }
+      }
     } catch (error: any) {
       if (APICallError.isInstance(error)) {
         console.error(

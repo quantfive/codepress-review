@@ -1,7 +1,7 @@
 import { ReviewService } from "../src/review-service";
 import { GitHubClient } from "../src/github-client";
 import { callWithRetry, summarizeDiff } from "../src/ai-client";
-import { Finding } from "../src/types";
+import { Finding, AgentResponse } from "../src/types";
 import { CODEPRESS_REVIEW_TAG } from "../src/constants";
 
 jest.mock("@octokit/rest", () => ({
@@ -201,8 +201,11 @@ describe("ReviewService", () => {
           },
         });
       } else {
-        // This is the reviewChunk call
-        return Promise.resolve(mockFindings);
+        // This is the reviewChunk call - now returns AgentResponse
+        return Promise.resolve({
+          findings: mockFindings,
+          resolvedComments: [],
+        } as AgentResponse);
       }
     });
 
@@ -282,11 +285,20 @@ describe("ReviewService", () => {
           },
         });
       } else if (hunkIdx === 1) {
-        return Promise.resolve(mockFindings1);
+        return Promise.resolve({
+          findings: mockFindings1,
+          resolvedComments: [],
+        } as AgentResponse);
       } else if (hunkIdx === 2) {
-        return Promise.resolve(mockFindings2);
+        return Promise.resolve({
+          findings: mockFindings2,
+          resolvedComments: [],
+        } as AgentResponse);
       }
-      return Promise.resolve([]);
+      return Promise.resolve({
+        findings: [],
+        resolvedComments: [],
+      } as AgentResponse);
     });
 
     const mockChunks = [
@@ -360,7 +372,10 @@ describe("ReviewService", () => {
           },
         });
       } else {
-        return Promise.resolve(mockFindings);
+        return Promise.resolve({
+          findings: mockFindings,
+          resolvedComments: [],
+        } as AgentResponse);
       }
     });
 
@@ -424,7 +439,10 @@ describe("ReviewService", () => {
           },
         });
       } else {
-        return Promise.resolve([]); // No findings
+        return Promise.resolve({
+          findings: [], // No findings
+          resolvedComments: [],
+        } as AgentResponse);
       }
     });
 
@@ -506,7 +524,10 @@ describe("ReviewService", () => {
           },
         });
       } else {
-        return Promise.resolve(mockFindings);
+        return Promise.resolve({
+          findings: mockFindings,
+          resolvedComments: [],
+        } as AgentResponse);
       }
     });
 
@@ -580,7 +601,10 @@ describe("ReviewService", () => {
           },
         });
       } else {
-        return Promise.resolve(mockFindings);
+        return Promise.resolve({
+          findings: mockFindings,
+          resolvedComments: [],
+        } as AgentResponse);
       }
     });
 
@@ -667,7 +691,10 @@ describe("ReviewService", () => {
           },
         });
       } else {
-        return Promise.resolve(mockFindings);
+        return Promise.resolve({
+          findings: mockFindings,
+          resolvedComments: [],
+        } as AgentResponse);
       }
     });
 

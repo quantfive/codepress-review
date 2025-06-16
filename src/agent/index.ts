@@ -1,8 +1,8 @@
 import { Agent, run } from "@openai/agents";
-import { Finding, ModelConfig, DiffSummary } from "../types";
+import { Finding, ModelConfig, DiffSummary, AgentResponse } from "../types";
 import { allTools } from "./tools";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
-import { parseXMLResponse, resolveLineNumbers } from "../xml-parser";
+import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
 import { createModel } from "../model-factory";
 import { aisdk } from "@openai/agents-extensions";
 import { escapeXml } from "../xml-utils";
@@ -18,7 +18,7 @@ export async function reviewChunkWithAgent(
   repoFilePaths: string[],
   existingComments: any[] = [],
   maxTurns: number = 20,
-): Promise<Finding[]> {
+): Promise<AgentResponse> {
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
@@ -102,7 +102,7 @@ export async function reviewChunkWithAgent(
     existingComments.forEach((comment) => {
       if (comment.path && comment.line && comment.body) {
         contextLines.push(
-          `  <comment path="${escapeXml(comment.path)}" line="${escapeXml(String(comment.line))}" createdAt="${escapeXml(comment.created_at) || "unknown"}">`,
+          `  <comment id="${escapeXml(String(comment.id || `${comment.path}:${comment.line}`))}" path="${escapeXml(comment.path)}" line="${escapeXml(String(comment.line))}" createdAt="${escapeXml(comment.created_at) || "unknown"}">`,
         );
         contextLines.push(`    ${escapeXml(comment.body)}`);
         contextLines.push(`  </comment>`);
@@ -127,7 +127,7 @@ ${summaryContext}
 ${escapeXml(diffChunk)}
   </diffChunk>
   
-  <instruction>Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments - avoid creating duplicate or similar comments unless you have significantly different insights." : ""}</instruction>
+  <instruction>Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments:\n  1. Avoid creating duplicate or similar comments unless you have significantly different insights.\n  2. Analyze whether any existing comments have been addressed by the changes in this diff.\n  3. If you find that an existing comment has been resolved by the code changes, include it in the <resolvedComments> section with a clear explanation of how it was addressed." : ""}</instruction>
 </reviewRequest>`;
 
   try {
@@ -135,15 +135,44 @@ ${escapeXml(diffChunk)}
 
     if (result.finalOutput) {
       console.log("Agent Raw Response:", result.finalOutput);
-      const findings = parseXMLResponse(result.finalOutput as string);
-      return resolveLineNumbers(findings, diffChunk);
+      const response = parseAgentResponse(result.finalOutput as string);
+      const resolvedFindings = resolveLineNumbers(response.findings, diffChunk);
+      return {
+        findings: resolvedFindings,
+        resolvedComments: response.resolvedComments,
+      };
     } else {
       console.error("Agent failed to produce a final output.", result);
-      return [];
+      return { findings: [], resolvedComments: [] };
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("An error occurred while running the agent:", errorMessage);
-    return [];
+    return { findings: [], resolvedComments: [] };
   }
+}
+
+/**
+ * Reviews a diff chunk using the interactive agent.
+ * @deprecated Use reviewChunkWithAgent which returns the full AgentResponse instead
+ */
+export async function reviewChunkWithAgentLegacy(
+  diffChunk: string,
+  modelConfig: ModelConfig,
+  diffSummary: DiffSummary | undefined,
+  chunkIndex: number,
+  repoFilePaths: string[],
+  existingComments: any[] = [],
+  maxTurns: number = 20,
+): Promise<Finding[]> {
+  const response = await reviewChunkWithAgent(
+    diffChunk,
+    modelConfig,
+    diffSummary,
+    chunkIndex,
+    repoFilePaths,
+    existingComments,
+    maxTurns,
+  );
+  return response.findings;
 }

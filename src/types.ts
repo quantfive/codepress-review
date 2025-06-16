@@ -78,3 +78,15 @@ export interface DiffSummary {
     reasoning: string;
   };
 }
+
+export interface ResolvedComment {
+  commentId: string;
+  path: string;
+  line: number;
+  reason: string; // Why this comment is considered resolved
+}
+
+export interface AgentResponse {
+  findings: Finding[];
+  resolvedComments: ResolvedComment[];
+}
