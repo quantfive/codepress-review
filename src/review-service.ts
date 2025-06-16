@@ -75,16 +75,15 @@ export class ReviewService {
 
     // Collect existing comments relevant to this chunk
     const { newStart, newLines } = chunk.hunk;
-    const chunkLineRange = Array.from(
-      { length: newLines },
-      (_, i) => newStart + i,
-    );
+    const start = newStart;
+    const end = newStart + newLines - 1;
 
     const relevantComments = existingCommentsData.filter((comment) => {
       return (
         comment.path === chunk.fileName &&
         comment.line &&
-        chunkLineRange.includes(comment.line)
+        comment.line >= start &&
+        comment.line <= end
       );
     });
 
