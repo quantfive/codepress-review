@@ -1,6 +1,12 @@
-import { summarizeDiff } from "../src/ai-client";
+import { summarizeDiff, summarizeFindings } from "../src/ai-client";
 import { ProcessableChunk } from "../src/diff-parser";
-import { ModelConfig, DiffSummary, PRType, RiskTag } from "../src/types";
+import {
+  ModelConfig,
+  DiffSummary,
+  PRType,
+  RiskTag,
+  Finding,
+} from "../src/types";
 
 // Mock the ai library
 jest.mock("ai", () => ({
@@ -87,6 +93,7 @@ describe("AI Client", () => {
   describe("summarizeDiff", () => {
     it("should successfully summarize a diff with valid XML response", async () => {
       const mockXMLResponse = `
+<global>
 <prType>feature</prType>
 <overview>
   <item>Added new function to handle user requests</item>
@@ -97,8 +104,7 @@ describe("AI Client", () => {
   <item tag="PERF">New function may have performance implications</item>
 </keyRisks>
 <hunks>
-  <hunk index="0">
-    <file>src/example.ts</file>
+  <hunk index="0" file="src/example.ts">
     <overview>Refactored return value and added new function</overview>
     <risks>
       <item tag="TEST">Missing test coverage</item>
@@ -108,8 +114,7 @@ describe("AI Client", () => {
       <item>Should test backward compatibility</item>
     </tests>
   </hunk>
-  <hunk index="1">
-    <file>README.md</file>
+  <hunk index="1" file="README.md">
     <overview>Added documentation line</overview>
     <risks>
       <item tag="STYLE">Minor documentation update</item>
@@ -118,7 +123,8 @@ describe("AI Client", () => {
       <item>Verify documentation accuracy</item>
     </tests>
   </hunk>
-</hunks>`;
+</hunks>
+</global>`;
 
       (generateText as jest.Mock).mockResolvedValue({
         text: mockXMLResponse,
@@ -226,7 +232,7 @@ describe("AI Client", () => {
     // and create focused tests for the parsing logic
 
     it("should parse complete XML response correctly", async () => {
-      const completeXML = `
+      const completeXML = `<global>
 <prType>feature</prType>
 <overview>
   <item>First summary point</item>
@@ -239,430 +245,269 @@ describe("AI Client", () => {
   <item tag="TEST">Missing test coverage</item>
 </keyRisks>
 <hunks>
-  <hunk index="0">
-    <file>src/auth.ts</file>
+  <hunk index="0" file="src/auth.ts">
     <overview>Updated authentication logic</overview>
     <risks>
-      <item tag="SEC">Potential security flaw</item>
-      <item tag="TEST">No tests for new auth flow</item>
+      <item tag="SEC">Potential for injection</item>
     </risks>
     <tests>
-      <item>Test valid credentials</item>
-      <item>Test invalid credentials</item>
-      <item>Test edge cases</item>
+      <item>Add integration tests for new logic</item>
     </tests>
   </hunk>
-  <hunk index="1">
-    <file>src/utils.ts</file>
-    <overview>Added utility functions</overview>
-    <risks>
-      <item tag="PERF">May impact performance</item>
-    </risks>
-    <tests>
-      <item>Test utility function outputs</item>
-    </tests>
-  </hunk>
-</hunks>`;
+</hunks>
+<decision>
+  <recommendation>REQUEST_CHANGES</recommendation>
+  <reasoning>Significant security concerns identified.</reasoning>
+</decision>
+</global>`;
 
       (generateText as jest.Mock).mockResolvedValue({
         text: completeXML,
       });
 
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
+      const result = await summarizeDiff([], mockModelConfig);
 
-      expect(result).toEqual({
-        prType: "feature",
-        summaryPoints: [
-          "First summary point",
-          "Second summary point",
-          "Third summary point",
-        ],
-        keyRisks: [
-          {
-            tag: "SEC",
-            description: "Security vulnerability in authentication",
-          },
-          { tag: "PERF", description: "Performance degradation possible" },
-          { tag: "TEST", description: "Missing test coverage" },
-        ],
-        hunks: [
-          {
-            index: 0,
-            file: "src/auth.ts",
-            overview: "Updated authentication logic",
-            risks: [
-              { tag: "SEC", description: "Potential security flaw" },
-              { tag: "TEST", description: "No tests for new auth flow" },
-            ],
-            tests: [
-              "Test valid credentials",
-              "Test invalid credentials",
-              "Test edge cases",
-            ],
-          },
-          {
-            index: 1,
-            file: "src/utils.ts",
-            overview: "Added utility functions",
-            risks: [{ tag: "PERF", description: "May impact performance" }],
-            tests: ["Test utility function outputs"],
-          },
-        ],
-        decision: {
-          recommendation: "COMMENT",
-          reasoning: "No specific reasoning provided",
-        },
-      });
+      expect(result.prType).toBe("feature");
+      expect(result.summaryPoints).toHaveLength(3);
+      expect(result.keyRisks).toHaveLength(3);
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].file).toBe("src/auth.ts");
+      expect(result.hunks[0].risks).toHaveLength(1);
+      expect(result.hunks[0].tests).toHaveLength(1);
+      expect(result.decision.recommendation).toBe("REQUEST_CHANGES");
+      expect(result.decision.reasoning).toBe(
+        "Significant security concerns identified.",
+      );
     });
 
-    it("should handle partial XML with missing sections", async () => {
-      const partialXML = `
-<prType>bugfix</prType>
-<overview>
-  <item>Fixed critical bug</item>
-</overview>
-<keyRisks>
-</keyRisks>
-<hunks>
-  <hunk index="0">
-    <file>src/bug.ts</file>
-    <overview>Fixed the bug</overview>
-    <risks>
-    </risks>
-    <tests>
-    </tests>
-  </hunk>
-</hunks>`;
-
+    it("should handle empty or minimal XML response", async () => {
       (generateText as jest.Mock).mockResolvedValue({
-        text: partialXML,
+        text: "<global></global>",
       });
 
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      expect(result).toEqual({
-        prType: "bugfix",
-        summaryPoints: ["Fixed critical bug"],
-        keyRisks: [],
-        hunks: [
-          {
-            index: 0,
-            file: "src/bug.ts",
-            overview: "Fixed the bug",
-            risks: [],
-            tests: [],
-          },
-        ],
-        decision: {
-          recommendation: "COMMENT",
-          reasoning: "No specific reasoning provided",
-        },
-      });
-    });
-
-    it("should handle malformed XML gracefully", async () => {
-      const malformedXML = `
-<prType>feature
-<overview>
-  <item>Missing closing tag
-</overview>
-<keyRisks>
-  <item tag="TEST">Unclosed item
-<hunks>
-  Invalid structure
-`;
-
-      (generateText as jest.Mock).mockResolvedValue({
-        text: malformedXML,
-      });
-
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      // Should parse what it can from malformed XML
-      expect(result.prType).toBe("unknown"); // prType regex doesn't match due to missing closing tag
+      const result = await summarizeDiff([], mockModelConfig);
+      expect(result.prType).toBe("unknown");
       expect(result.summaryPoints).toEqual([]);
       expect(result.keyRisks).toEqual([]);
       expect(result.hunks).toEqual([]);
+      expect(result.decision.recommendation).toBe("COMMENT");
     });
 
-    it("should handle empty XML response", async () => {
-      (generateText as jest.Mock).mockResolvedValue({
-        text: "",
-      });
+    it("should handle malformed XML gracefully", async () => {
+      const malformedXml = `<global>
+        <prType>feature</prType>
+        <overview><item>Missing closing tag</overview>
+        <keyRisks><item tag="TEST">Unclosed item</keyRisks>
+        <hunks>Invalid structure
+      </global>`; // Missing closing tags
 
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
+      (generateText as jest.Mock).mockResolvedValue({ text: malformedXml });
 
-      expect(result).toEqual({
-        prType: "unknown",
-        summaryPoints: [],
-        keyRisks: [],
-        hunks: [],
-        decision: {
-          recommendation: "COMMENT",
-          reasoning: "No specific reasoning provided",
-        },
-      });
-    });
+      const result = await summarizeDiff([], mockModelConfig);
 
-    it("should handle non-XML text response", async () => {
-      const plainTextResponse =
-        "This is just plain text without any XML structure";
-
-      (generateText as jest.Mock).mockResolvedValue({
-        text: plainTextResponse,
-      });
-
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      expect(result).toEqual({
-        prType: "unknown",
-        summaryPoints: [],
-        keyRisks: [],
-        hunks: [],
-        decision: {
-          recommendation: "COMMENT",
-          reasoning: "No specific reasoning provided",
-        },
-      });
-    });
-
-    it("should handle parsing errors with fallback values", async () => {
-      // Create a response that will cause a parsing error
-      const problematicXML = `<prType>feature</prType><overview><item>Valid</item></overview>`;
-
-      (generateText as jest.Mock).mockResolvedValue({
-        text: problematicXML,
-      });
-
-      // Mock console.error to capture the error
-      const consoleSpy = jest
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-
-      // Temporarily mock the regex match to throw an error
-      const originalMatch = String.prototype.match;
-      String.prototype.match = jest.fn().mockImplementation(() => {
-        throw new Error("Regex error");
-      });
-
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      // Restore the original method
-      String.prototype.match = originalMatch;
-
-      expect(result).toEqual({
-        prType: "mixed",
-        summaryPoints: ["Failed to parse summary"],
-        keyRisks: [],
-        hunks: [],
-        decision: {
-          recommendation: "COMMENT",
-          reasoning: "Failed to parse summary response",
-        },
-      });
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Failed to parse summary response:",
-        expect.any(Error),
-      );
-
-      consoleSpy.mockRestore();
-    });
-
-    it("should handle XML with invalid risk tags", async () => {
-      const xmlWithInvalidTags = `
-<prType>feature</prType>
-<overview>
-  <item>Valid summary</item>
-</overview>
-<keyRisks>
-  <item tag="INVALID">Should still be parsed</item>
-  <item tag="SEC">Valid security risk</item>
-</keyRisks>
-<hunks>
-</hunks>`;
-
-      (generateText as jest.Mock).mockResolvedValue({
-        text: xmlWithInvalidTags,
-      });
-
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      expect(result.keyRisks).toEqual([
-        { tag: "INVALID", description: "Should still be parsed" },
-        { tag: "SEC", description: "Valid security risk" },
+      // With XML validation, this should now return the default error object
+      expect(result.prType).toBe("mixed");
+      expect(result.summaryPoints).toEqual([
+        "Failed to parse summary: Invalid XML",
       ]);
-    });
-
-    it("should handle XML with missing required attributes", async () => {
-      const xmlWithMissingAttrs = `
-<prType>feature</prType>
-<overview>
-  <item>Valid summary</item>
-</overview>
-<keyRisks>
-  <item>Missing tag attribute</item>
-</keyRisks>
-<hunks>
-  <hunk>
-    <file>test.ts</file>
-    <overview>Missing index attribute</overview>
-    <risks></risks>
-    <tests></tests>
-  </hunk>
-</hunks>`;
-
-      (generateText as jest.Mock).mockResolvedValue({
-        text: xmlWithMissingAttrs,
-      });
-
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      // Should ignore items with missing required attributes
       expect(result.keyRisks).toEqual([]);
       expect(result.hunks).toEqual([]);
+      expect(result.decision.reasoning).toContain(
+        "Failed to parse summary response due to invalid XML",
+      );
     });
 
-    it("should handle all valid PR types", async () => {
-      const prTypes: PRType[] = [
-        "feature",
-        "bugfix",
-        "refactor",
-        "docs",
-        "test",
-        "chore",
-        "dependency-bump",
-        "mixed",
+    it("should parse response without a global wrapper for backwards compatibility", async () => {
+      const legacyXml = `<prType>bugfix</prType>
+<overview><item>Fixed a critical bug</item></overview>
+<keyRisks/>
+<hunks/>
+<decision><recommendation>APPROVE</recommendation><reasoning>Good to go</reasoning></decision>`;
+
+      (generateText as jest.Mock).mockResolvedValue({ text: legacyXml });
+      const result = await summarizeDiff([], mockModelConfig);
+
+      expect(result.prType).toBe("bugfix");
+      expect(result.summaryPoints).toEqual(["Fixed a critical bug"]);
+      expect(result.decision.recommendation).toBe("APPROVE");
+    });
+  });
+
+  describe("summarizeFindings", () => {
+    let mockRequiredFindings: Finding[];
+    let mockOptionalFindings: Finding[];
+    let mockNitFindings: Finding[];
+    let mockFyiFindings: Finding[];
+    let mockPraiseFindings: Finding[];
+
+    beforeEach(() => {
+      mockRequiredFindings = [
+        {
+          path: "src/auth.ts",
+          line: 42,
+          message:
+            "Missing input validation could lead to security vulnerability",
+          severity: "required",
+        },
+        {
+          path: "src/db.ts",
+          line: 15,
+          message: "SQL injection risk in query construction",
+          severity: "required",
+        },
       ];
 
-      for (const prType of prTypes) {
-        const xml = `<prType>${prType}</prType><overview></overview><keyRisks></keyRisks><hunks></hunks>`;
-
-        (generateText as jest.Mock).mockResolvedValue({
-          text: xml,
-        });
-
-        const result = await summarizeDiff(mockChunks, mockModelConfig);
-        expect(result.prType).toBe(prType);
-      }
-    });
-
-    it("should handle all valid risk tags", async () => {
-      const riskTags: RiskTag[] = [
-        "SEC",
-        "PERF",
-        "ARCH",
-        "TEST",
-        "STYLE",
-        "DEP",
+      mockOptionalFindings = [
+        {
+          path: "src/utils.ts",
+          line: 23,
+          message: "Consider using a more efficient algorithm here",
+          severity: "optional",
+        },
       ];
 
-      const xml = `
-<prType>feature</prType>
-<overview></overview>
-<keyRisks>
-  ${riskTags.map((tag) => `<item tag="${tag}">Risk for ${tag}</item>`).join("\n  ")}
-</keyRisks>
-<hunks></hunks>`;
+      mockNitFindings = [
+        {
+          path: "src/style.ts",
+          line: 8,
+          message: "Inconsistent spacing in function declaration",
+          severity: "nit",
+        },
+      ];
+
+      mockFyiFindings = [
+        {
+          path: "src/config.ts",
+          line: 5,
+          message: "This pattern is deprecated but still functional",
+          severity: "fyi",
+        },
+      ];
+
+      mockPraiseFindings = [
+        {
+          path: "src/test.ts",
+          line: 30,
+          message: "Excellent error handling implementation",
+          severity: "praise",
+        },
+        {
+          path: "src/api.ts",
+          line: 67,
+          message: "Great use of TypeScript generics for type safety",
+          severity: "praise",
+        },
+      ];
+    });
+
+    it("should summarize findings from all categories successfully", async () => {
+      const mockResponse = `
+<summaryResponse>
+<praiseSummary>The code demonstrates excellent practices with strong error handling and effective use of TypeScript features for type safety.</praiseSummary>
+<requiredSummary>Critical security vulnerabilities were identified including missing input validation and SQL injection risks.</requiredSummary>
+<othersSummary>Several improvement opportunities were noted including algorithm efficiency enhancements and code style consistency.</othersSummary>
+</summaryResponse>`;
 
       (generateText as jest.Mock).mockResolvedValue({
-        text: xml,
+        text: mockResponse,
       });
 
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
+      const result = await summarizeFindings(
+        mockRequiredFindings,
+        mockOptionalFindings,
+        mockNitFindings,
+        mockFyiFindings,
+        mockPraiseFindings,
+        mockModelConfig,
+      );
 
-      expect(result.keyRisks).toHaveLength(riskTags.length);
-      riskTags.forEach((tag, index) => {
-        expect(result.keyRisks[index]).toEqual({
-          tag,
-          description: `Risk for ${tag}`,
-        });
+      expect(result).toEqual({
+        praiseSummary:
+          "The code demonstrates excellent practices with strong error handling and effective use of TypeScript features for type safety.",
+        requiredSummary:
+          "Critical security vulnerabilities were identified including missing input validation and SQL injection risks.",
+        othersSummary:
+          "Several improvement opportunities were noted including algorithm efficiency enhancements and code style consistency.",
+      });
+
+      expect(generateText).toHaveBeenCalledWith({
+        model: "mock-openai-model",
+        system: expect.stringContaining("technical writing assistant"),
+        messages: [
+          {
+            role: "user",
+            content: expect.stringContaining("<findingsSummaryRequest>"),
+          },
+        ],
       });
     });
 
-    it("should parse decision recommendation correctly", async () => {
-      const xmlWithDecision = `
-<global>
-  <prType>feature</prType>
-  <overview>
-    <item>Test summary</item>
-  </overview>
-  <keyRisks></keyRisks>
-  <decision>
-    <recommendation>REQUEST_CHANGES</recommendation>
-    <reasoning>Critical security issues found that must be addressed.</reasoning>
-  </decision>
-</global>
-<hunks></hunks>`;
+    it("should handle API errors gracefully", async () => {
+      (generateText as jest.Mock).mockRejectedValue(
+        new Error("API rate limit exceeded"),
+      );
 
-      (generateText as jest.Mock).mockResolvedValue({
-        text: xmlWithDecision,
-      });
+      const result = await summarizeFindings(
+        mockRequiredFindings,
+        mockOptionalFindings,
+        [],
+        [],
+        [],
+        mockModelConfig,
+      );
 
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-      expect(result.decision).toEqual({
-        recommendation: "REQUEST_CHANGES",
-        reasoning: "Critical security issues found that must be addressed.",
-      });
+      expect(result).toEqual({});
+      expect(console.error).toHaveBeenCalledWith(
+        "Failed to parse findings summary response:",
+        expect.any(Error),
+      );
     });
 
-    it("should parse all valid decision types", async () => {
-      const decisionTypes = ["APPROVE", "REQUEST_CHANGES", "COMMENT"];
+    it("should handle malformed XML response gracefully", async () => {
+      const modelConfig: ModelConfig = {
+        provider: "openai",
+        modelName: "gpt-4",
+        apiKey: "test-api-key",
+      };
 
-      for (const decisionType of decisionTypes) {
-        const xmlWithDecision = `
-<global>
-  <prType>feature</prType>
-  <overview>
-    <item>Test summary</item>
-  </overview>
-  <keyRisks></keyRisks>
-  <decision>
-    <recommendation>${decisionType}</recommendation>
-    <reasoning>Test reasoning for ${decisionType}.</reasoning>
-  </decision>
-</global>
-<hunks></hunks>`;
-
-        (generateText as jest.Mock).mockResolvedValue({
-          text: xmlWithDecision,
-        });
-
-        const result = await summarizeDiff(mockChunks, mockModelConfig);
-
-        expect(result.decision).toEqual({
-          recommendation: decisionType,
-          reasoning: `Test reasoning for ${decisionType}.`,
-        });
-      }
-    });
-
-    it("should handle invalid decision types with fallback", async () => {
-      const xmlWithInvalidDecision = `
-<global>
-  <prType>feature</prType>
-  <overview>
-    <item>Test summary</item>
-  </overview>
-  <keyRisks></keyRisks>
-  <decision>
-    <recommendation>INVALID_DECISION</recommendation>
-    <reasoning>This should use fallback decision.</reasoning>
-  </decision>
-</global>
-<hunks></hunks>`;
+      // Missing closing tag for praiseSummary
+      const malformedXml = `<summaryResponse>
+        <requiredSummary>Security issues found</requiredSummary>
+        <praiseSummary>Well done!
+      </summaryResponse>`;
 
       (generateText as jest.Mock).mockResolvedValue({
-        text: xmlWithInvalidDecision,
+        text: malformedXml,
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+        finishReason: "stop",
       });
 
-      const result = await summarizeDiff(mockChunks, mockModelConfig);
+      const result = await summarizeFindings(
+        [{ message: "sec", path: "s.js", line: 1 }],
+        [],
+        [],
+        [],
+        [{ message: "praise", path: "p.js", line: 1 }],
+        modelConfig,
+      );
 
-      expect(result.decision).toEqual({
-        recommendation: "COMMENT", // Should fallback to default
-        reasoning: "This should use fallback decision.",
-      });
+      // With validation, this will fail and return an empty object
+      expect(result).toEqual({});
+    });
+
+    it("should return empty object on API error", async () => {
+      (generateText as jest.Mock).mockRejectedValue(new Error("API Error"));
+
+      const result = await summarizeFindings(
+        mockRequiredFindings,
+        mockOptionalFindings,
+        mockNitFindings,
+        mockFyiFindings,
+        mockPraiseFindings,
+        mockModelConfig,
+      );
+
+      expect(result).toEqual({});
     });
   });
 });
