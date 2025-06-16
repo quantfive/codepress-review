@@ -5,6 +5,7 @@ import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { parseXMLResponse, resolveLineNumbers } from "../xml-parser";
 import { createModel } from "../model-factory";
 import { aisdk } from "@openai/agents-extensions";
+import { escapeXml } from "../xml-utils";
 
 /**
  * Reviews a diff chunk using the interactive agent.
@@ -36,12 +37,12 @@ export async function reviewChunkWithAgent(
     const contextLines: string[] = [];
 
     contextLines.push("<diffContext>");
-    contextLines.push(`  <prType>${prType}</prType>`);
+    contextLines.push(`  <prType>${escapeXml(prType)}</prType>`);
 
     if (summaryPoints.length > 0) {
       contextLines.push("  <overview>");
       summaryPoints.forEach((item: string) => {
-        contextLines.push(`    <item>${item}</item>`);
+        contextLines.push(`    <item>${escapeXml(item)}</item>`);
       });
       contextLines.push("  </overview>");
     }
@@ -50,7 +51,7 @@ export async function reviewChunkWithAgent(
       contextLines.push("  <keyRisks>");
       keyRisks.forEach((risk) => {
         contextLines.push(
-          `    <item tag="${risk.tag}">${risk.description}</item>`,
+          `    <item tag="${escapeXml(risk.tag)}">${escapeXml(risk.description)}</item>`,
         );
       });
       contextLines.push("  </keyRisks>");
@@ -60,13 +61,15 @@ export async function reviewChunkWithAgent(
     const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
     if (hunkSummary) {
       contextLines.push("  <chunkSpecific>");
-      contextLines.push(`    <overview>${hunkSummary.overview}</overview>`);
+      contextLines.push(
+        `    <overview>${escapeXml(hunkSummary.overview)}</overview>`,
+      );
 
       if (hunkSummary.risks.length > 0) {
         contextLines.push("    <risks>");
         hunkSummary.risks.forEach((risk) => {
           contextLines.push(
-            `      <item tag="${risk.tag}">${risk.description}</item>`,
+            `      <item tag="${escapeXml(risk.tag)}">${escapeXml(risk.description)}</item>`,
           );
         });
         contextLines.push("    </risks>");
@@ -75,7 +78,7 @@ export async function reviewChunkWithAgent(
       if (hunkSummary.tests.length > 0) {
         contextLines.push("    <suggestedTests>");
         hunkSummary.tests.forEach((test) => {
-          contextLines.push(`      <item>${test}</item>`);
+          contextLines.push(`      <item>${escapeXml(test)}</item>`);
         });
         contextLines.push("    </suggestedTests>");
       }
@@ -99,9 +102,9 @@ export async function reviewChunkWithAgent(
     existingComments.forEach((comment) => {
       if (comment.path && comment.line && comment.body) {
         contextLines.push(
-          `  <comment path="${comment.path}" line="${comment.line}" createdAt="${comment.created_at || "unknown"}">`,
+          `  <comment path="${escapeXml(comment.path)}" line="${escapeXml(String(comment.line))}" createdAt="${escapeXml(comment.created_at) || "unknown"}">`,
         );
-        contextLines.push(`    ${comment.body}`);
+        contextLines.push(`    ${escapeXml(comment.body)}`);
         contextLines.push(`  </comment>`);
       }
     });
@@ -112,7 +115,7 @@ export async function reviewChunkWithAgent(
   const initialMessage = `
 <reviewRequest>
   <repositoryFiles>
-${fileList}
+${escapeXml(fileList)}
   </repositoryFiles>
   
   <diffAnalysisContext>
@@ -121,7 +124,7 @@ ${summaryContext}
   
   ${existingCommentsContext ? `<existingCommentsContext>\n${existingCommentsContext}\n  </existingCommentsContext>\n  ` : ""}
   <diffChunk>
-${diffChunk}
+${escapeXml(diffChunk)}
   </diffChunk>
   
   <instruction>Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments - avoid creating duplicate or similar comments unless you have significantly different insights." : ""}</instruction>
