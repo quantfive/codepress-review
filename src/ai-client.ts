@@ -1,5 +1,5 @@
 import { generateText, APICallError } from "ai";
-import { XMLParser, XMLValidator } from "fast-xml-parser";
+import { XMLParser } from "fast-xml-parser";
 import {
   ModelConfig,
   DiffSummary,
@@ -133,24 +133,6 @@ ${diffOverview}
  * Parses the XML summary response into a structured format.
  */
 function parseSummaryResponse(text: string): DiffSummary {
-  const validationResult = XMLValidator.validate(text);
-  if (validationResult !== true) {
-    console.error(
-      "Failed to parse summary response due to invalid XML:",
-      validationResult.err,
-    );
-    console.error("Invalid XML content:", text);
-    return {
-      prType: "mixed" as PRType,
-      summaryPoints: ["Failed to parse summary: Invalid XML"],
-      keyRisks: [],
-      hunks: [],
-      decision: {
-        recommendation: "COMMENT",
-        reasoning: "Failed to parse summary response due to invalid XML",
-      },
-    };
-  }
   const options = {
     ignoreAttributes: false,
     attributeNamePrefix: "",
@@ -158,6 +140,8 @@ function parseSummaryResponse(text: string): DiffSummary {
     parseAttributeValue: true,
     removeNSPrefix: true,
     trimValues: true,
+    allowBooleanAttributes: true,
+    ignoreDeclaration: true,
   };
   const parser = new XMLParser(options);
 
@@ -282,7 +266,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       hunks: [],
       decision: {
         recommendation: "COMMENT",
-        reasoning: "Failed to parse summary response",
+        reasoning: "Failed to parse summary",
       },
     };
   }
@@ -368,19 +352,11 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
 
     console.log("Findings Summary Raw Response:", text);
 
-    const validationResult = XMLValidator.validate(text);
-    if (validationResult !== true) {
-      console.error(
-        "Failed to parse findings summary response due to invalid XML:",
-        validationResult.err,
-      );
-      console.error("Invalid XML content for findings:", text);
-      return {};
-    }
-
     const options = {
       ignoreAttributes: true,
       trimValues: true,
+      allowBooleanAttributes: true,
+      ignoreDeclaration: true,
     };
     const parser = new XMLParser(options);
     const parsed = parser.parse(text);
