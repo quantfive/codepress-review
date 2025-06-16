@@ -11,6 +11,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup environment
         uses: ./.github/actions/setup
 
@@ -20,6 +23,9 @@ jobs:
   type-check:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup environment
         uses: ./.github/actions/setup
 
@@ -29,6 +35,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup environment
         uses: ./.github/actions/setup
 
