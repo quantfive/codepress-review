@@ -156,53 +156,79 @@ export function getInteractiveSystemPrompt(): string {
   <!-- RESPONSE FORMAT -->
   <responseFormat>
     <!--
-      Emit one <comment> element for every issue you want the agent
-      to post as an inline GitHub review comment.
+      Your response should contain two main sections:
+      1. <comments> - new review comments to post
+        ✦ Preserve the order in which issues appear in the diff.
+        ✦ Omit <suggestion> and/or <code> if you have nothing useful to add.
+        ✦ If the comment already exists in the <existingCommentsContext>, do not post it again.
+      2. <resolvedComments> - existing comments that are now resolved
 
-      ✦ DO NOT include any other top-level text.
-      ✦ Preserve the order in which issues appear in the diff.
-      ✦ Omit <suggestion> and/or <code> if you have nothing useful to add.
+      If there are existing comments in the context, analyze whether the diff
+      changes address those comments. If so, mark them as resolved.
     -->
-    <comment>
-      <!-- how serious is the issue?
-          • required  - must be fixed before approval
-          • praise    - praise the author for good work
-          • optional  - nice improvement but not mandatory
-          • nit       - tiny style/polish issue
-          • fyi       - informational note               -->
-      <severity>required</severity>
+    
+    <comments>
+      <!-- Emit one <comment> element for every NEW issue you want to post -->
+      <comment>
+        <!-- how serious is the issue?
+            • required  - must be fixed before approval
+            • praise    - praise the author for good work
+            • optional  - nice improvement but not mandatory
+            • nit       - tiny style/polish issue
+            • fyi       - informational note               -->
+        <severity>required</severity>
 
-      <!-- repository-relative path exactly as it appears in the diff -->
-      <file>src/components/SEOHead.tsx</file>
+        <!-- repository-relative path exactly as it appears in the diff -->
+        <file>src/components/SEOHead.tsx</file>
 
-      <!-- copy the full changed line from the diff, including the leading
-          "+" or "-" so GitHub can locate the exact position            -->
-      <line>+  description?: string;</line>
+        <!-- copy the full changed line from the diff, including the leading
+            "+" or "-" so GitHub can locate the exact position            -->
+        <line>+  description?: string;</line>
 
-      <!-- concise explanation of what's wrong & why it matters          -->
-      <message>
-        Description looks mandatory for SEO; consider removing the "?" to
-        make the prop required and avoid missing-description bugs.
-      </message>
+        <!-- concise explanation of what's wrong & why it matters          -->
+        <message>
+          Description looks mandatory for SEO; consider removing the "?" to
+          make the prop required and avoid missing-description bugs.
+        </message>
 
-      <!-- OPTIONAL: concrete replacement or illustrative snippet        -->
-      <suggestion>
-        +  description: string;
-      </suggestion>
+        <!-- OPTIONAL: concrete replacement or illustrative snippet        -->
+        <suggestion>
+          +  description: string;
+        </suggestion>
 
-      <!-- OPTIONAL: side-by-side fix or longer example (use fenced code
-          so GitHub renders it nicely)                                  -->
-      <code>
-        \`\`\`tsx
-        interface SEOProps {
-          title: string;
-          description: string; // required for correct meta tags
-        }
-        \`\`\`
-      </code>
-    </comment>
+        <!-- OPTIONAL: side-by-side fix or longer example (use fenced code
+            so GitHub renders it nicely)                                  -->
+        <code>
+          \`\`\`tsx
+          interface SEOProps {
+            title: string;
+            description: string; // required for correct meta tags
+          }
+          \`\`\`
+        </code>
+      </comment>
 
-    <!-- repeat additional <comment> blocks as needed -->
+      <!-- repeat additional <comment> blocks as needed -->
+    </comments>
+
+    <resolvedComments>
+      <!-- For each existing comment that you believe has been addressed by the diff changes -->
+      <resolved>
+        <!-- The comment ID from the existing comment (if available) -->
+        <commentId>123456789</commentId>
+        
+        <!-- The exact path and line from the existing comment -->
+        <path>src/components/Header.tsx</path>
+        <line>42</line>
+        
+        <!-- Brief explanation of why this comment is now resolved -->
+        <reason>
+          The null check has been added as suggested, preventing potential runtime errors.
+        </reason>
+      </resolved>
+
+      <!-- repeat additional <resolved> blocks as needed -->
+    </resolvedComments>
   </responseFormat>
 
   <!-- CONSTRAINTS -->

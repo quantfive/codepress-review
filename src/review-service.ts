@@ -49,6 +49,7 @@ export class ReviewService {
     chunk: ProcessableChunk,
     chunkIndex: number,
     existingComments: Map<string, Set<number>>,
+    existingCommentsData: any[],
   ): Promise<Finding[]> {
     console.log(
       `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(
@@ -72,11 +73,31 @@ export class ReviewService {
       }
     }
 
+    // Collect existing comments relevant to this chunk
+    const { newStart, newLines } = chunk.hunk;
+    const start = newStart;
+    const end = newStart + newLines - 1;
+
+    const relevantComments = existingCommentsData.filter((comment) => {
+      return (
+        comment.path === chunk.fileName &&
+        comment.line &&
+        comment.line >= start &&
+        comment.line <= end
+      );
+    });
+
+    if (relevantComments.length > 0) {
+      console.log(
+        `[Hunk ${chunkIndex + 1}] Found ${relevantComments.length} existing comments for this chunk - passing to agent for context`,
+      );
+    }
+
     let findings: Finding[] = [];
     try {
       const modelConfig = getModelConfig();
 
-      findings = await callWithRetry(
+      const agentResponse = await callWithRetry(
         () =>
           reviewChunkWithAgent(
             chunk.content,
@@ -84,10 +105,45 @@ export class ReviewService {
             this.diffSummary,
             chunkIndex,
             this.repoFilePaths,
+            relevantComments,
             this.config.maxTurns,
           ),
         chunkIndex + 1,
       );
+
+      findings = agentResponse.findings;
+
+      // Add detailed logging for raw findings from the agent
+      console.log(
+        `[Hunk ${chunkIndex + 1}] Raw agentResponse:`,
+        JSON.stringify(agentResponse, null, 2),
+      );
+
+      // Handle resolved comments from agentResponse.resolvedComments
+      if (agentResponse.resolvedComments.length > 0) {
+        console.log(
+          `[Hunk ${chunkIndex + 1}] Found ${agentResponse.resolvedComments.length} comments to resolve:`,
+          agentResponse.resolvedComments.map(
+            (rc) => `${rc.path}:${rc.line} - ${rc.reason}`,
+          ),
+        );
+
+        // Resolve each comment by updating its content
+        for (const resolvedComment of agentResponse.resolvedComments) {
+          try {
+            await this.githubClient.resolveReviewComment(
+              this.config.pr,
+              parseInt(resolvedComment.commentId, 10),
+              resolvedComment.reason,
+            );
+          } catch (error) {
+            console.error(
+              `Failed to resolve comment ${resolvedComment.commentId}:`,
+              error,
+            );
+          }
+        }
+      }
     } catch (error: any) {
       if (APICallError.isInstance(error)) {
         console.error(
@@ -113,13 +169,22 @@ export class ReviewService {
     // De-duplicate findings that are identical to avoid spamming,
     // but allow for multiple different comments on the same line.
     const seenSignatures = new Set<string>();
+
     const uniqueFindings = findings.filter((finding) => {
       if (finding.line === null || finding.line <= 0) {
         return false; // Don't process findings without a line number
       }
 
-      // Create a unique signature for the finding based on its content.
-      const signature = `${finding.path}:${finding.line}:${finding.message}`;
+      // First, check if a comment already exists on this line from a previous run.
+      if (existingComments.get(finding.path)?.has(finding.line)) {
+        console.log(
+          `[Hunk ${chunkIndex + 1}] Skipping finding on ${finding.path}:${finding.line} as a comment already exists on this line.`,
+        );
+        return false;
+      }
+
+      // Create a unique signature for the finding based on its content for this run.
+      const signature = `${finding.path}:${finding.line}`;
       if (seenSignatures.has(signature)) {
         return false;
       }
@@ -228,7 +293,14 @@ export class ReviewService {
 
       console.log("Processing fileName: ", fileName);
 
-      promises.push(this.processChunk(chunk, originalIndex, existingComments));
+      promises.push(
+        this.processChunk(
+          chunk,
+          originalIndex,
+          existingComments,
+          existingCommentsData,
+        ),
+      );
     }
 
     // Wait for all chunks to be processed
