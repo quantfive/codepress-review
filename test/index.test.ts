@@ -16,6 +16,7 @@ jest.mock("../src/ai-review", () => ({
 
 describe("GitHub Action main run function", () => {
   let mockGetInput: jest.SpyInstance;
+  let mockGetBooleanInput: jest.SpyInstance;
   let mockGetOctokit: jest.SpyInstance;
   let mockPullsGet: jest.Mock;
   let mockPullsList: jest.Mock;
@@ -43,6 +44,22 @@ describe("GitHub Action main run function", () => {
           return "";
       }
     });
+
+    // Mock core.getBooleanInput
+    mockGetBooleanInput = jest
+      .spyOn(core, "getBooleanInput")
+      .mockImplementation((name) => {
+        switch (name) {
+          case "update_pr_description":
+            return false;
+          default:
+            return false;
+        }
+      });
+
+    // Mock core.info and core.setFailed
+    jest.spyOn(core, "info").mockImplementation(() => {});
+    jest.spyOn(core, "setFailed").mockImplementation(() => {});
 
     // Mock Octokit
     mockPullsGet = jest.fn().mockResolvedValue({ data: "diff" });
