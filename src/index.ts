@@ -149,4 +149,9 @@ async function run(): Promise<void> {
   }
 }
 
-run();
+// Only run if not in a test environment
+if (process.env.JEST_WORKER_ID === undefined) {
+  run();
+}
+
+export { run };
