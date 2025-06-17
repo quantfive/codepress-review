@@ -44,14 +44,58 @@ async function run(): Promise<void> {
     process.env.MAX_TURNS = maxTurns;
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
-    const { pull_request } = context.payload;
 
-    if (!pull_request) {
-      core.setFailed("This action can only be run on pull request events");
+    let prNumber: number;
+
+    core.info(`Triggered by event: ${context.eventName}`);
+
+    if (context.payload.pull_request) {
+      prNumber = context.payload.pull_request.number;
+    } else if (context.payload.issue?.pull_request) {
+      prNumber = context.payload.issue.number;
+    } else if (context.eventName === "workflow_dispatch") {
+      core.info("Workflow dispatched manually. Finding PR from branch...");
+      const branchName = context.ref.replace("refs/heads/", "");
+      const octokit = github.getOctokit(githubToken);
+
+      try {
+        const { data: prs } = await octokit.rest.pulls.list({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          head: `${context.repo.owner}:${branchName}`,
+          state: "open",
+          sort: "updated",
+          direction: "desc",
+          per_page: 1,
+        });
+
+        if (prs.length > 0) {
+          prNumber = prs[0].number;
+        } else {
+          core.setFailed(
+            `Could not find an open pull request for branch '${branchName}'.`,
+          );
+          return;
+        }
+      } catch (e: unknown) {
+        core.setFailed(
+          `Failed to find PR for branch '${branchName}'. Error: ${e instanceof Error ? e.message : "Unknown"}`,
+        );
+        return;
+      }
+    } else {
+      core.setFailed(
+        "This action must be run in the context of a pull request, a pull request comment, or a manual dispatch.",
+      );
       return;
     }
 
-    core.info(`Running CodePress Review for PR #${pull_request.number}`);
+    if (isNaN(prNumber)) {
+      core.setFailed("Could not determine a valid pull request number.");
+      return;
+    }
+
+    core.info(`Running CodePress Review for PR #${prNumber}`);
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
     // Generate diff
@@ -64,7 +108,7 @@ async function run(): Promise<void> {
       const diffResponse = await octokit.rest.pulls.get({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        pull_number: pull_request.number,
+        pull_number: prNumber,
         mediaType: {
           format: "diff",
         },
@@ -89,7 +133,7 @@ async function run(): Promise<void> {
         "--diff",
         diffFile,
         "--pr",
-        pull_request.number.toString(),
+        prNumber.toString(),
       ];
 
       const { main } = await import("./ai-review");
@@ -105,4 +149,9 @@ async function run(): Promise<void> {
   }
 }
 
-run();
+// Only run if not in a test environment
+if (process.env.NODE_ENV !== "test") {
+  run();
+}
+
+export { run };

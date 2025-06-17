@@ -22,7 +22,7 @@ name: CodePress Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened]
 
 permissions:
   pull-requests: write
@@ -69,6 +69,69 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `anthropic_api_key` | ⚠️       |                       | Required if using Anthropic                  |
 | `gemini_api_key`    | ⚠️       |                       | Required if using Google                     |
 | `max_turns`         | ❌       | `12`                  | Maximum turns for interactive agent review   |
+
+## Triggering Reviews
+
+Beyond the default behavior of reviewing new PRs, you can configure CodePress to run on-demand.
+
+### On-Demand via PR Comments
+
+You can trigger a new review at any time by posting a comment on the pull request. This is useful when you've pushed new changes and want a fresh review without waiting for another automatic trigger.
+
+To enable comment triggers, use a workflow like this:
+
+```yaml
+name: CodePress Review
+
+on:
+  pull_request:
+    types: [opened, reopened]
+  # Add these new triggers
+  issue_comment:
+    types: [created]
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+permissions:
+  pull-requests: write
+  contents: read
+  issues: read # Required to read PR comments
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    # This condition ensures the action only runs for PRs, manual triggers,
+    # or comments on a PR containing a trigger phrase.
+    # You can customize the phrase '@codepress/review' to your liking.
+    if: |
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '@codepress/review'))
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # This 'ref' is essential to checkout the correct code for comment-triggered runs
+          ref: ${{ github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || github.ref }}
+
+      - name: CodePress Review
+        uses: quantfive/codepress-review@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model_provider: "openai"
+          model_name: "gpt-4o"
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### Manually from the Actions Tab
+
+With `workflow_dispatch` enabled in your workflow file (as shown above), you can manually trigger a review for any branch:
+
+1.  Navigate to your repository's **Actions** tab.
+2.  Select the **CodePress Review** workflow from the list.
+3.  Click the **Run workflow** dropdown.
+4.  Choose the branch you want to review and click **Run workflow**.
+
+The action will automatically find the open pull request associated with that branch and run the review.
 
 ## Examples
 
