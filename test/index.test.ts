@@ -196,4 +196,167 @@ describe("GitHub Action main run function", () => {
       "diff",
     );
   });
+
+  it("should fail if PR number is NaN from pull_request event", async () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: { pull_request: { number: "invalid" } },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Could not determine a valid pull request number.",
+    );
+  });
+
+  it("should fail if PR number is undefined from pull_request event", async () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: { pull_request: { number: undefined } },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Could not determine a valid pull request number.",
+    );
+  });
+
+  it("should fail if PR number is NaN from issue_comment event", async () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "issue_comment",
+        payload: {
+          issue: { number: "not-a-number", pull_request: {} },
+        },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Could not determine a valid pull request number.",
+    );
+  });
+
+  it("should fail if workflow_dispatch GitHub API call throws an error", async () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "workflow_dispatch",
+        payload: {},
+        ref: "refs/heads/error-branch",
+      },
+      writable: true,
+    });
+    mockPullsList.mockRejectedValue(new Error("API Error"));
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Failed to find PR for branch 'error-branch'. Error: API Error",
+    );
+  });
+
+  it("should fail if diff generation fails", async () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: { pull_request: { number: 123 } },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
+    });
+    mockPullsGet.mockRejectedValue(new Error("GitHub API Error"));
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Failed to fetch diff from GitHub API: Error: GitHub API Error",
+    );
+  });
+
+  it("should handle API key validation for OpenAI", async () => {
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "openai";
+        case "model_name":
+          return "gpt-4o";
+        case "openai_api_key":
+          return ""; // Missing API key
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "openai_api_key is required when using OpenAI provider",
+    );
+  });
+
+  it("should handle API key validation for Anthropic", async () => {
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "anthropic";
+        case "model_name":
+          return "claude-3-5-sonnet-20241022";
+        case "anthropic_api_key":
+          return ""; // Missing API key
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "anthropic_api_key is required when using Anthropic provider",
+    );
+  });
+
+  it("should handle API key validation for Gemini", async () => {
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "gemini";
+        case "model_name":
+          return "gemini-1.5-pro";
+        case "gemini_api_key":
+          return ""; // Missing API key
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "gemini_api_key is required when using Gemini provider",
+    );
+  });
 });
