@@ -22,7 +22,7 @@ name: CodePress Review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened]
 
 permissions:
   pull-requests: write
