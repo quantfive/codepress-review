@@ -261,6 +261,19 @@ export class ReviewService {
             (risk) => `[${risk.tag}] ${risk.description}`,
           ),
         );
+
+        // Update PR description if enabled and a description was generated
+        if (
+          this.config.updatePrDescription &&
+          this.diffSummary.prDescription &&
+          this.diffSummary.prDescription.trim()
+        ) {
+          console.log("Attempting to update PR description...");
+          await this.githubClient.updatePRDescription(
+            this.config.pr,
+            this.diffSummary.prDescription.trim(),
+          );
+        }
       } catch (error: any) {
         console.warn(
           "Failed to generate diff summary, proceeding without context:",

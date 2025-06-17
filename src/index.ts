@@ -16,6 +16,9 @@ async function run(): Promise<void> {
     // Handle max_turns input
     const maxTurns = core.getInput("max_turns");
 
+    // Handle update_pr_description input
+    const updatePrDescription = core.getBooleanInput("update_pr_description");
+
     // Validate required API key based on provider
     if (modelProvider === "openai" && !openaiApiKey) {
       core.setFailed("openai_api_key is required when using OpenAI provider");
@@ -42,6 +45,7 @@ async function run(): Promise<void> {
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     process.env.GEMINI_API_KEY = geminiApiKey;
     process.env.MAX_TURNS = maxTurns;
+    process.env.UPDATE_PR_DESCRIPTION = updatePrDescription.toString();
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
 

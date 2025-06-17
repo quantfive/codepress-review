@@ -244,6 +244,55 @@ export class GitHubClient {
   }
 
   /**
+   * Updates the PR description if it's currently blank or empty.
+   */
+  async updatePRDescription(
+    prNumber: number,
+    description: string,
+  ): Promise<boolean> {
+    try {
+      // First, get the current PR to check if description is blank
+      const prInfo = await this.octokit.pulls.get({
+        owner: this.config.owner,
+        repo: this.config.repo,
+        pull_number: prNumber,
+      });
+
+      const currentDescription = prInfo.data.body;
+
+      // Only update if the description is blank, null, or just whitespace
+      if (!currentDescription || currentDescription.trim() === "") {
+        const makeRequest = async () => {
+          await this.octokit.pulls.update({
+            owner: this.config.owner,
+            repo: this.config.repo,
+            pull_number: prNumber,
+            body: description,
+          });
+        };
+
+        try {
+          await makeRequest();
+          console.log(`✅ Updated PR #${prNumber} description`);
+          return true;
+        } catch (error) {
+          await this.rateLimitHandler.handleRateLimit(error, makeRequest);
+          console.log(`✅ Updated PR #${prNumber} description (after retry)`);
+          return true;
+        }
+      } else {
+        console.log(
+          `⏭️  PR #${prNumber} already has a description, skipping update`,
+        );
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Failed to update PR #${prNumber} description:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Fetches existing review comments on a PR.
    */
   async getExistingComments(prNumber: number) {

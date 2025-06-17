@@ -167,6 +167,7 @@ describe("AI Client", () => {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        prDescription: undefined,
       });
 
       expect(generateText).toHaveBeenCalledWith({
@@ -218,6 +219,88 @@ describe("AI Client", () => {
 
       expect(result.prType).toBe("refactor");
       expect(generateText).toHaveBeenCalled();
+    });
+
+    it("should parse PR description from AI response", async () => {
+      const mockXMLResponseWithPRDescription = `
+<global>
+  <prType>feature</prType>
+  <overview>
+    <item>Added authentication service</item>
+  </overview>
+  <keyRisks>
+    <item tag="SEC">Authentication needs validation</item>
+  </keyRisks>
+  <prDescription>
+    ## Add User Authentication Service
+
+    This PR introduces a new authentication service for user login and session management.
+
+    **Key Changes:**
+    - Added AuthService class with JWT token handling
+    - Integrated authentication middleware for protected routes
+    - Added user session management and logout functionality
+
+    **Review Notes:**
+    - Please verify the JWT token validation logic
+    - Ensure proper error handling for invalid credentials
+  </prDescription>
+  <decision>
+    <recommendation>APPROVE</recommendation>
+    <reasoning>Authentication implementation looks solid</reasoning>
+  </decision>
+</global>
+<hunks></hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: mockXMLResponseWithPRDescription,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.prDescription).toBe(`## Add User Authentication Service
+
+    This PR introduces a new authentication service for user login and session management.
+
+    **Key Changes:**
+    - Added AuthService class with JWT token handling
+    - Integrated authentication middleware for protected routes
+    - Added user session management and logout functionality
+
+    **Review Notes:**
+    - Please verify the JWT token validation logic
+    - Ensure proper error handling for invalid credentials`);
+
+      expect(result.prType).toBe("feature");
+      expect(result.decision).toEqual({
+        recommendation: "APPROVE",
+        reasoning: "Authentication implementation looks solid",
+      });
+    });
+
+    it("should handle response without PR description", async () => {
+      const mockXMLResponseWithoutPRDescription = `
+<global>
+  <prType>bugfix</prType>
+  <overview>
+    <item>Fixed memory leak</item>
+  </overview>
+  <keyRisks></keyRisks>
+  <decision>
+    <recommendation>APPROVE</recommendation>
+    <reasoning>Bug fix is straightforward</reasoning>
+  </decision>
+</global>
+<hunks></hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: mockXMLResponseWithoutPRDescription,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.prDescription).toBeUndefined();
+      expect(result.prType).toBe("bugfix");
     });
   });
 
@@ -312,6 +395,7 @@ describe("AI Client", () => {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        prDescription: undefined,
       });
     });
 
@@ -357,6 +441,7 @@ describe("AI Client", () => {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        prDescription: undefined,
       });
     });
 
@@ -401,6 +486,7 @@ describe("AI Client", () => {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        prDescription: undefined,
       });
     });
 
@@ -423,6 +509,7 @@ describe("AI Client", () => {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        prDescription: undefined,
       });
     });
 
@@ -459,6 +546,7 @@ describe("AI Client", () => {
           recommendation: "COMMENT",
           reasoning: "Failed to parse summary response",
         },
+        prDescription: undefined,
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(
