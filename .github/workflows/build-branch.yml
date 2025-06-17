@@ -42,6 +42,9 @@ jobs:
           cp -r dist/ publish/
           cp action.yml publish/
           cp README.md publish/
+          # Only copy the update-major-tag workflow to the build branch
+          mkdir -p publish/.github/workflows
+          cp .github/workflows/update-major-tag.yml publish/.github/workflows/
 
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v4
