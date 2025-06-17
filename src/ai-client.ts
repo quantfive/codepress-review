@@ -211,6 +211,8 @@ function parseSummaryResponse(text: string): DiffSummary {
       ? prDescriptionMatch[1].trim()
       : undefined;
 
+    console.log("PR DESCRIPTION:\n", prDescription);
+
     // Extract hunks
     const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
     const hunks: HunkSummary[] = [];
