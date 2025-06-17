@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { summarizeFindings } from "./ai-client";
 import { CODEPRESS_REVIEW_TAG } from "./constants";
+import { debugLog, debugWarn } from "./debug";
 
 /**
  * Formats a finding into a GitHub comment with appropriate styling.
@@ -146,7 +147,7 @@ class GitHubRateLimitHandler {
     if (rateLimitInfo.retryAfter) {
       // Use retry-after header if present
       waitTime = rateLimitInfo.retryAfter * 1000;
-      console.warn(
+      debugWarn(
         `Primary rate limit hit, waiting ${rateLimitInfo.retryAfter} seconds as specified by retry-after header`,
       );
     } else if (
@@ -157,13 +158,13 @@ class GitHubRateLimitHandler {
       const resetTime = rateLimitInfo.rateLimitReset * 1000;
       const currentTime = Date.now();
       waitTime = Math.max(0, resetTime - currentTime + 1000); // Add 1 second buffer
-      console.warn(
+      debugWarn(
         `Primary rate limit hit, waiting until reset time: ${new Date(resetTime).toISOString()}`,
       );
     } else {
       // Default to 1 minute if no specific guidance
       waitTime = 60000;
-      console.warn(`Primary rate limit hit, waiting 1 minute (default)`);
+      debugWarn(`Primary rate limit hit, waiting 1 minute (default)`);
     }
 
     await this.delay(waitTime);
@@ -186,7 +187,7 @@ class GitHubRateLimitHandler {
     const waitTime =
       baseWaitTime * Math.pow(2, this.secondaryRateLimitRetries - 1);
 
-    console.warn(
+    debugWarn(
       `Secondary rate limit (abuse detection) hit, attempt ${this.secondaryRateLimitRetries}/${this.maxRetries}, waiting ${waitTime / 1000} seconds`,
     );
 
@@ -273,15 +274,15 @@ export class GitHubClient {
 
         try {
           await makeRequest();
-          console.log(`✅ Updated PR #${prNumber} description`);
+          debugLog(`✅ Updated PR #${prNumber} description`);
           return true;
         } catch (error) {
           await this.rateLimitHandler.handleRateLimit(error, makeRequest);
-          console.log(`✅ Updated PR #${prNumber} description (after retry)`);
+          debugLog(`✅ Updated PR #${prNumber} description (after retry)`);
           return true;
         }
       } else {
-        console.log(
+        debugLog(
           `⏭️  PR #${prNumber} already has a description, skipping update`,
         );
         return false;
@@ -455,7 +456,7 @@ export class GitHubClient {
           this.modelConfig,
         );
       } catch (error) {
-        console.warn(
+        debugWarn(
           "Failed to generate finding summaries, falling back to detailed list:",
           error,
         );
@@ -533,7 +534,7 @@ export class GitHubClient {
           : reviewEvent === "REQUEST_CHANGES"
             ? "requested changes"
             : "commented on";
-      console.log(
+      debugLog(
         `✅ ${eventText.charAt(0).toUpperCase() + eventText.slice(1)} PR with ${findings.length} comments`,
       );
     } catch (error) {
@@ -544,7 +545,7 @@ export class GitHubClient {
           : reviewEvent === "REQUEST_CHANGES"
             ? "requested changes"
             : "commented on";
-      console.log(
+      debugLog(
         `✅ ${eventText.charAt(0).toUpperCase() + eventText.slice(1)} PR with ${findings.length} comments (after retry)`,
       );
     }
@@ -625,7 +626,7 @@ export class GitHubClient {
     await this.octokit.graphql(resolveThreadMutation, {
       threadId,
     });
-    console.log(`Successfully resolved review thread ${threadId}`);
+    debugLog(`Successfully resolved review thread ${threadId}`);
   }
 
   /**
@@ -652,7 +653,7 @@ export class GitHubClient {
         comment_id: commentId,
         body: resolvedBody,
       });
-      console.log(`Successfully updated review comment ${commentId}`);
+      debugLog(`Successfully updated review comment ${commentId}`);
 
       // Step 2: Find and resolve the actual review thread
       const targetThread = await this.findReviewThread(prNumber, commentId);

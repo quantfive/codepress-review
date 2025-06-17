@@ -10,6 +10,7 @@ import { callWithRetry, summarizeDiff } from "./ai-client";
 import { reviewChunkWithAgent } from "./agent";
 import { GitHubClient } from "./github-client";
 import { isCodePressCommentObject } from "./constants";
+import { debugLog, debugWarn } from "./debug";
 
 /**
  * Service class that orchestrates the entire review process.
@@ -51,7 +52,7 @@ export class ReviewService {
     existingComments: Map<string, Set<number>>,
     existingCommentsData: any[],
   ): Promise<Finding[]> {
-    console.log(
+    debugLog(
       `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(
         chunk.content,
       )} bytes`,
@@ -63,7 +64,7 @@ export class ReviewService {
       const { newStart, newLines } = chunk.hunk;
       for (let i = 0; i < newLines; i++) {
         if (fileComments.has(newStart + i)) {
-          console.log(
+          debugLog(
             `[Hunk ${
               chunkIndex + 1
             }] Skipping chunk for ${chunk.fileName} as it has existing comments.`,
@@ -88,7 +89,7 @@ export class ReviewService {
     });
 
     if (relevantComments.length > 0) {
-      console.log(
+      debugLog(
         `[Hunk ${chunkIndex + 1}] Found ${relevantComments.length} existing comments for this chunk - passing to agent for context`,
       );
     }
@@ -114,14 +115,14 @@ export class ReviewService {
       findings = agentResponse.findings;
 
       // Add detailed logging for raw findings from the agent
-      console.log(
+      debugLog(
         `[Hunk ${chunkIndex + 1}] Raw agentResponse:`,
         JSON.stringify(agentResponse, null, 2),
       );
 
       // Handle resolved comments from agentResponse.resolvedComments
       if (agentResponse.resolvedComments.length > 0) {
-        console.log(
+        debugLog(
           `[Hunk ${chunkIndex + 1}] Found ${agentResponse.resolvedComments.length} comments to resolve:`,
           agentResponse.resolvedComments.map(
             (rc) => `${rc.path}:${rc.line} - ${rc.reason}`,
@@ -177,7 +178,7 @@ export class ReviewService {
 
       // First, check if a comment already exists on this line from a previous run.
       if (existingComments.get(finding.path)?.has(finding.line)) {
-        console.log(
+        debugLog(
           `[Hunk ${chunkIndex + 1}] Skipping finding on ${finding.path}:${finding.line} as a comment already exists on this line.`,
         );
         return false;
@@ -192,7 +193,7 @@ export class ReviewService {
       return true;
     });
 
-    console.log(
+    debugLog(
       `[Hunk ${chunkIndex + 1}] Found ${uniqueFindings.length} findings`,
     );
     return uniqueFindings;
@@ -237,7 +238,7 @@ export class ReviewService {
 
     // First pass: Summarize the entire diff with context from previous reviews/comments
     if (filteredChunks.length > 0) {
-      console.log(
+      debugLog(
         "Performing initial diff summarization with existing context...",
       );
       try {
@@ -252,10 +253,10 @@ export class ReviewService {
             ),
           0, // Use 0 as a special index for the summary step
         );
-        console.log("Diff summary completed.");
-        console.log("PR Type:", this.diffSummary.prType);
-        console.log("Summary Points:", this.diffSummary.summaryPoints);
-        console.log(
+        debugLog("Diff summary completed.");
+        debugLog("PR Type:", this.diffSummary.prType);
+        debugLog("Summary Points:", this.diffSummary.summaryPoints);
+        debugLog(
           "Key Risks:",
           this.diffSummary.keyRisks.map(
             (risk) => `[${risk.tag}] ${risk.description}`,
@@ -268,14 +269,14 @@ export class ReviewService {
           this.diffSummary.prDescription &&
           this.diffSummary.prDescription.trim()
         ) {
-          console.log("Attempting to update PR description...");
+          debugLog("Attempting to update PR description...");
           await this.githubClient.updatePRDescription(
             this.config.pr,
             this.diffSummary.prDescription.trim(),
           );
         }
       } catch (error: any) {
-        console.warn(
+        debugWarn(
           "Failed to generate diff summary, proceeding without context:",
           error.message,
         );
@@ -304,7 +305,7 @@ export class ReviewService {
       const { chunk, originalIndex } = filteredChunks[i];
       const { fileName } = chunk;
 
-      console.log("Processing fileName: ", fileName);
+      debugLog("Processing fileName: ", fileName);
 
       promises.push(
         this.processChunk(
@@ -332,7 +333,7 @@ export class ReviewService {
         allFindings.length > 0
           ? `${allFindings.length} total findings`
           : "summary decision only";
-      console.log(`\n🔍 Creating review with ${findingsText}...`);
+      debugLog(`\n🔍 Creating review with ${findingsText}...`);
 
       try {
         await this.githubClient.createReview(
@@ -348,9 +349,7 @@ export class ReviewService {
 
         // Only fallback to individual comments if we have findings
         if (allFindings.length > 0) {
-          console.log(
-            "Attempting to create individual comments as fallback...",
-          );
+          debugLog("Attempting to create individual comments as fallback...");
           const commentPromises = allFindings.map(async (finding) => {
             try {
               await this.githubClient.createReviewComment(
@@ -358,7 +357,7 @@ export class ReviewService {
                 commitId,
                 finding,
               );
-              console.log(`✅ Commented on ${finding.path}:${finding.line}`);
+              debugLog(`✅ Commented on ${finding.path}:${finding.line}`);
             } catch (e: unknown) {
               const eMessage = e instanceof Error ? e.message : String(e);
               console.error(
@@ -370,9 +369,7 @@ export class ReviewService {
         }
       }
     } else {
-      console.log(
-        "🎉 No issues found during review and no decision available!",
-      );
+      debugLog("🎉 No issues found during review and no decision available!");
     }
   }
 }

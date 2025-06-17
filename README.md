@@ -71,6 +71,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `gemini_api_key`        | ⚠️       |                       | Required if using Google                     |
 | `max_turns`             | ❌       | `12`                  | Maximum turns for interactive agent review   |
 | `update_pr_description` | ❌       | `true`                | Auto-generate PR descriptions for blank PRs  |
+| `debug`                 | ❌       | `false`               | Enable debug mode for detailed console logs  |
 
 ## Triggering Reviews
 
@@ -147,6 +148,21 @@ The action will automatically find the open pull request associated with that br
     model_provider: "openai"
     model_name: "o4-mini"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+### With Debug Mode Enabled
+
+```yaml
+- name: CodePress Review (Debug)
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    debug: true
+    max_turns: 20
+    update_pr_description: false
 ```
 
 ### Anthropic Claude
@@ -263,6 +279,11 @@ The feature is controlled by the `update_pr_description` parameter:
     update_pr_description: "true" # Enable (default)
     # update_pr_description: "false"  # Disable
 ```
+
+#### Large PR Processing
+
+- Very large PRs may hit token limits or timeout
+- Consider using `.codepressignore` to exclude generated files, `.codepressignore` follows `.gitignore` conventions
 
 ### Custom Description Guidelines
 
@@ -406,6 +427,48 @@ You are analyzing a complete pull request. Focus on:
 - Flag cross-cutting concerns that might not be obvious from individual file changes
 - Emphasize testing strategies for complex changes
 ```
+
+## Debugging and Troubleshooting
+
+### Debug Mode
+
+When troubleshooting issues or developing locally, you can enable detailed debug logging:
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    debug: true # Enable detailed logging
+```
+
+**Debug mode provides:**
+
+- Detailed processing logs for each diff chunk
+- Raw AI model responses before parsing
+- Rate limiting and retry information
+- GitHub API call details
+- Agent interaction logs (v2 only)
+- Error stack traces and context
+
+**Note:** Debug mode significantly increases log output. Only enable when troubleshooting specific issues. Always disable in production to keep action logs clean.
+
+### Common Issues
+
+#### Reviews Not Appearing
+
+1. Check that the action has `pull-requests: write` permission
+2. Verify the correct API key is provided for your model provider
+3. Enable debug mode to see detailed error logs
+
+#### Rate Limiting
+
+- CodePress automatically handles GitHub API rate limits with exponential backoff
+- For high-volume repositories, consider using a dedicated PAT with higher rate limits
+- Debug mode shows rate limit details and retry attempts
 
 ## Cost & Performance Caveats
 

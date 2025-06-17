@@ -73,6 +73,7 @@ describe("ReviewService", () => {
       githubRepository: "mock-owner/mock-repo",
       maxTurns: 20,
       updatePrDescription: false,
+      debug: false,
     });
 
     // Mock the dependencies
@@ -795,6 +796,7 @@ describe("PR Description Generation", () => {
       githubRepository: "mock-owner/mock-repo",
       maxTurns: 20,
       updatePrDescription: true, // Feature enabled
+      debug: false,
     });
 
     // Mock the dependencies
@@ -876,6 +878,7 @@ describe("PR Description Generation", () => {
       githubRepository: "mock-owner/mock-repo",
       maxTurns: 20,
       updatePrDescription: false, // Feature disabled
+      debug: false,
     });
 
     // Mock the dependencies
@@ -953,6 +956,7 @@ describe("PR Description Generation", () => {
       githubRepository: "mock-owner/mock-repo",
       maxTurns: 20,
       updatePrDescription: true, // Feature enabled
+      debug: false,
     });
 
     // Mock the dependencies
@@ -1030,6 +1034,7 @@ describe("PR Description Generation", () => {
       githubRepository: "mock-owner/mock-repo",
       maxTurns: 20,
       updatePrDescription: true, // Feature enabled
+      debug: false,
     });
 
     // Mock the dependencies

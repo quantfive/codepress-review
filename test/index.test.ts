@@ -52,6 +52,8 @@ describe("GitHub Action main run function", () => {
         switch (name) {
           case "update_pr_description":
             return false;
+          case "debug":
+            return false;
           default:
             return false;
         }
@@ -375,5 +377,48 @@ describe("GitHub Action main run function", () => {
     expect(core.setFailed).toHaveBeenCalledWith(
       "gemini_api_key is required when using Gemini provider",
     );
+  });
+
+  it("should set DEBUG environment variable based on debug input", async () => {
+    mockGetBooleanInput.mockImplementation((name) => {
+      switch (name) {
+        case "debug":
+          return true;
+        case "update_pr_description":
+          return false;
+        default:
+          return false;
+      }
+    });
+
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: { pull_request: { number: 123 } },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
+    });
+
+    await run();
+
+    expect(process.env.DEBUG).toBe("true");
+  });
+
+  it("should set DEBUG environment variable to false by default", async () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: { pull_request: { number: 123 } },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
+    });
+
+    await run();
+
+    expect(process.env.DEBUG).toBe("false");
   });
 });

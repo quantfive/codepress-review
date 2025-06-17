@@ -6,6 +6,7 @@ import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
 import { createModel } from "../model-factory";
 import { aisdk } from "@openai/agents-extensions";
 import { escapeXml } from "../xml-utils";
+import { debugLog, debugError } from "../debug";
 
 /**
  * Reviews a diff chunk using the interactive agent.
@@ -85,7 +86,7 @@ export async function reviewChunkWithAgent(
 
       contextLines.push("  </chunkSpecific>");
     } else {
-      console.log(
+      debugLog(
         `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
       );
     }
@@ -133,11 +134,11 @@ export async function reviewChunkWithAgent(
 </reviewRequest>`;
 
   try {
-    console.log(`[Hunk ${chunkIndex + 1}] Initial Message:\n`, initialMessage);
+    debugLog(`[Hunk ${chunkIndex + 1}] Initial Message:\n`, initialMessage);
     const result = await run(agent, initialMessage, { maxTurns });
 
     if (result.finalOutput) {
-      console.log("Agent Raw Response:", result.finalOutput);
+      debugLog("Agent Raw Response:", result.finalOutput);
       const response = parseAgentResponse(result.finalOutput as string);
       const resolvedFindings = resolveLineNumbers(response.findings, diffChunk);
       return {
@@ -145,12 +146,12 @@ export async function reviewChunkWithAgent(
         resolvedComments: response.resolvedComments,
       };
     } else {
-      console.error("Agent failed to produce a final output.", result);
+      debugError("Agent failed to produce a final output.", result);
       return { findings: [], resolvedComments: [] };
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("An error occurred while running the agent:", errorMessage);
+    debugError("An error occurred while running the agent:", errorMessage);
     return { findings: [], resolvedComments: [] };
   }
 }

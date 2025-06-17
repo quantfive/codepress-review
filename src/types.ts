@@ -17,6 +17,7 @@ export interface ReviewConfig {
   githubRepository: string;
   maxTurns: number;
   updatePrDescription: boolean;
+  debug: boolean;
 }
 
 export interface ModelConfig {
