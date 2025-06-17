@@ -1,4 +1,5 @@
 import * as core from "@actions/core";
+import * as exec from "@actions/exec";
 import * as github from "@actions/github";
 import { writeFileSync } from "fs";
 import { resolve } from "path";
@@ -44,14 +45,64 @@ async function run(): Promise<void> {
     process.env.MAX_TURNS = maxTurns;
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
-    const { pull_request } = context.payload;
 
-    if (!pull_request) {
-      core.setFailed("This action can only be run on pull request events");
+    let prNumber: number;
+
+    core.info(`Triggered by event: ${context.eventName}`);
+
+    if (context.payload.pull_request) {
+      prNumber = context.payload.pull_request.number;
+    } else if (context.payload.issue?.pull_request) {
+      prNumber = context.payload.issue.number;
+    } else if (context.eventName === "workflow_dispatch") {
+      core.info("Workflow dispatched manually. Finding PR from branch...");
+      const branchName = context.ref.replace("refs/heads/", "");
+      let prNumberStr = "";
+      const options = {
+        listeners: {
+          stdout: (data: Buffer) => {
+            prNumberStr += data.toString();
+          },
+        },
+        ignoreReturnCode: true,
+      };
+
+      await exec.exec(
+        "gh",
+        [
+          "pr",
+          "list",
+          "--head",
+          branchName,
+          "--json",
+          "number",
+          "--jq",
+          '.[0].number // ""',
+        ],
+        options,
+      );
+
+      if (prNumberStr && prNumberStr.trim()) {
+        prNumber = parseInt(prNumberStr.trim(), 10);
+      } else {
+        core.setFailed(
+          `Could not find an open pull request for branch '${branchName}'.`,
+        );
+        return;
+      }
+    } else {
+      core.setFailed(
+        "This action must be run in the context of a pull request, a pull request comment, or a manual dispatch.",
+      );
       return;
     }
 
-    core.info(`Running CodePress Review for PR #${pull_request.number}`);
+    if (isNaN(prNumber)) {
+      core.setFailed("Could not determine a valid pull request number.");
+      return;
+    }
+
+    core.info(`Running CodePress Review for PR #${prNumber}`);
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
     // Generate diff
@@ -64,7 +115,7 @@ async function run(): Promise<void> {
       const diffResponse = await octokit.rest.pulls.get({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        pull_number: pull_request.number,
+        pull_number: prNumber,
         mediaType: {
           format: "diff",
         },
@@ -89,7 +140,7 @@ async function run(): Promise<void> {
         "--diff",
         diffFile,
         "--pr",
-        pull_request.number.toString(),
+        prNumber.toString(),
       ];
 
       const { main } = await import("./ai-review");
