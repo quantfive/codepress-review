@@ -9,7 +9,7 @@
     "review": "ts-node src/ai-review.ts",
     "lint": "eslint src/**/*.ts --max-warnings=0",
     "type-check": "tsc --noEmit",
-    "test": "jest",
+    "test": "NODE_ENV=test jest",
     "prepare": "husky",
     "check-dist": "npm run build && git diff --exit-code dist/"
   },

@@ -150,7 +150,7 @@ async function run(): Promise<void> {
 }
 
 // Only run if not in a test environment
-if (process.env.JEST_WORKER_ID === undefined) {
+if (process.env.NODE_ENV !== "test") {
   run();
 }
 

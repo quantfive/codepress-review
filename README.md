@@ -101,10 +101,10 @@ jobs:
     runs-on: ubuntu-latest
     # This condition ensures the action only runs for PRs, manual triggers,
     # or comments on a PR containing a trigger phrase.
-    # You can customize the phrase '@bot review' to your liking.
+    # You can customize the phrase '@codepress/review' to your liking.
     if: |
       github.event_name != 'issue_comment' ||
-      (github.event.issue.pull_request && contains(github.event.comment.body, '@bot review'))
+      (github.event.issue.pull_request && contains(github.event.comment.body, '@codepress/review'))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
