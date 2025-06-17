@@ -16,6 +16,7 @@ export interface ReviewConfig {
   githubToken: string;
   githubRepository: string;
   maxTurns: number;
+  updatePrDescription: boolean;
 }
 
 export interface ModelConfig {
@@ -77,6 +78,7 @@ export interface DiffSummary {
     recommendation: ReviewDecision;
     reasoning: string;
   };
+  prDescription?: string;
 }
 
 export interface ResolvedComment {

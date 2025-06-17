@@ -72,6 +72,7 @@ describe("ReviewService", () => {
       githubToken: "mock-token",
       githubRepository: "mock-owner/mock-repo",
       maxTurns: 20,
+      updatePrDescription: false,
     });
 
     // Mock the dependencies
@@ -98,6 +99,7 @@ describe("ReviewService", () => {
     mockGithubClient.createReviewComment = jest
       .fn()
       .mockResolvedValue(undefined);
+    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -744,5 +746,335 @@ describe("ReviewService", () => {
     // Verify we're calling createReview once (not falling back to individual comments)
     expect(mockGithubClient.createReview).toHaveBeenCalledTimes(1);
     expect(mockGithubClient.createReviewComment).not.toHaveBeenCalled();
+  });
+});
+
+describe("PR Description Generation", () => {
+  let reviewService: ReviewService;
+  let mockGithubClient: jest.Mocked<GitHubClient>;
+
+  beforeEach(() => {
+    // Suppress console.log and console.error
+    jest.spyOn(console, "log").mockImplementation(() => {});
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("should update PR description when feature is enabled and description is generated", async () => {
+    // Mock callWithRetry to return a DiffSummary with PR description for the summary step
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        // This is the summarizeDiff call
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Added authentication service"],
+          keyRisks: [],
+          hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "Code looks good",
+          },
+          prDescription:
+            "## Add Authentication Service\n\nThis PR adds user authentication.",
+        });
+      }
+      // For other hunk indices, shouldn't be called
+      throw new Error("Unexpected call to callWithRetry for reviewChunk");
+    });
+
+    reviewService = new ReviewService({
+      pr: 1,
+      diff: "mock-diff-path",
+      provider: "openai",
+      modelName: "gpt-4",
+      githubToken: "mock-token",
+      githubRepository: "mock-owner/mock-repo",
+      maxTurns: 20,
+      updatePrDescription: true, // Feature enabled
+    });
+
+    // Mock the dependencies
+    mockGithubClient = new GitHubClient(
+      {
+        token: "mock-token",
+        owner: "mock-owner",
+        repo: "mock-repo",
+      },
+      {
+        provider: "openai",
+        modelName: "gpt-4",
+        apiKey: "mock-api-key",
+      },
+    ) as jest.Mocked<GitHubClient>;
+
+    (reviewService as any).githubClient = mockGithubClient;
+    mockGithubClient.getPRInfo.mockResolvedValue({
+      commitId: "mock-commit-id",
+      prInfo: {} as any,
+    });
+    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
+    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
+    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
+    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
+
+    const mockChunks = [
+      {
+        fileName: "src/auth.ts",
+        content: "diff --git a/src/auth.ts b/src/auth.ts...",
+        hunk: { newStart: 1, newLines: 3 },
+      },
+    ];
+
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert
+    expect(mockGithubClient.updatePRDescription).toHaveBeenCalledWith(
+      1,
+      "## Add Authentication Service\n\nThis PR adds user authentication.",
+    );
+  });
+
+  it("should not update PR description when feature is disabled", async () => {
+    // Mock callWithRetry to return a DiffSummary with PR description for the summary step
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        // This is the summarizeDiff call
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Added authentication service"],
+          keyRisks: [],
+          hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "Code looks good",
+          },
+          prDescription:
+            "## Add Authentication Service\n\nThis PR adds user authentication.",
+        });
+      }
+      throw new Error("Unexpected call to callWithRetry for reviewChunk");
+    });
+
+    reviewService = new ReviewService({
+      pr: 1,
+      diff: "mock-diff-path",
+      provider: "openai",
+      modelName: "gpt-4",
+      githubToken: "mock-token",
+      githubRepository: "mock-owner/mock-repo",
+      maxTurns: 20,
+      updatePrDescription: false, // Feature disabled
+    });
+
+    // Mock the dependencies
+    mockGithubClient = new GitHubClient(
+      {
+        token: "mock-token",
+        owner: "mock-owner",
+        repo: "mock-repo",
+      },
+      {
+        provider: "openai",
+        modelName: "gpt-4",
+        apiKey: "mock-api-key",
+      },
+    ) as jest.Mocked<GitHubClient>;
+
+    (reviewService as any).githubClient = mockGithubClient;
+    mockGithubClient.getPRInfo.mockResolvedValue({
+      commitId: "mock-commit-id",
+      prInfo: {} as any,
+    });
+    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
+    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
+    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
+    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
+
+    const mockChunks = [
+      {
+        fileName: "src/auth.ts",
+        content: "diff --git a/src/auth.ts b/src/auth.ts...",
+        hunk: { newStart: 1, newLines: 3 },
+      },
+    ];
+
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert
+    expect(mockGithubClient.updatePRDescription).not.toHaveBeenCalled();
+  });
+
+  it("should not update PR description when feature is enabled but no description is generated", async () => {
+    // Mock callWithRetry to return a DiffSummary without PR description
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        // This is the summarizeDiff call
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Added authentication service"],
+          keyRisks: [],
+          hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "Code looks good",
+          },
+          prDescription: undefined, // No description generated
+        });
+      }
+      throw new Error("Unexpected call to callWithRetry for reviewChunk");
+    });
+
+    reviewService = new ReviewService({
+      pr: 1,
+      diff: "mock-diff-path",
+      provider: "openai",
+      modelName: "gpt-4",
+      githubToken: "mock-token",
+      githubRepository: "mock-owner/mock-repo",
+      maxTurns: 20,
+      updatePrDescription: true, // Feature enabled
+    });
+
+    // Mock the dependencies
+    mockGithubClient = new GitHubClient(
+      {
+        token: "mock-token",
+        owner: "mock-owner",
+        repo: "mock-repo",
+      },
+      {
+        provider: "openai",
+        modelName: "gpt-4",
+        apiKey: "mock-api-key",
+      },
+    ) as jest.Mocked<GitHubClient>;
+
+    (reviewService as any).githubClient = mockGithubClient;
+    mockGithubClient.getPRInfo.mockResolvedValue({
+      commitId: "mock-commit-id",
+      prInfo: {} as any,
+    });
+    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
+    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
+    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
+    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
+
+    const mockChunks = [
+      {
+        fileName: "src/auth.ts",
+        content: "diff --git a/src/auth.ts b/src/auth.ts...",
+        hunk: { newStart: 1, newLines: 3 },
+      },
+    ];
+
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert
+    expect(mockGithubClient.updatePRDescription).not.toHaveBeenCalled();
+  });
+
+  it("should not update PR description when feature is enabled but description is empty", async () => {
+    // Mock callWithRetry to return a DiffSummary with empty PR description
+    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
+      if (hunkIdx === 0) {
+        // This is the summarizeDiff call
+        return Promise.resolve({
+          prType: "feature",
+          summaryPoints: ["Added authentication service"],
+          keyRisks: [],
+          hunks: [],
+          decision: {
+            recommendation: "APPROVE",
+            reasoning: "Code looks good",
+          },
+          prDescription: "   \n  \t  \n   ", // Empty/whitespace description
+        });
+      }
+      throw new Error("Unexpected call to callWithRetry for reviewChunk");
+    });
+
+    reviewService = new ReviewService({
+      pr: 1,
+      diff: "mock-diff-path",
+      provider: "openai",
+      modelName: "gpt-4",
+      githubToken: "mock-token",
+      githubRepository: "mock-owner/mock-repo",
+      maxTurns: 20,
+      updatePrDescription: true, // Feature enabled
+    });
+
+    // Mock the dependencies
+    mockGithubClient = new GitHubClient(
+      {
+        token: "mock-token",
+        owner: "mock-owner",
+        repo: "mock-repo",
+      },
+      {
+        provider: "openai",
+        modelName: "gpt-4",
+        apiKey: "mock-api-key",
+      },
+    ) as jest.Mocked<GitHubClient>;
+
+    (reviewService as any).githubClient = mockGithubClient;
+    mockGithubClient.getPRInfo.mockResolvedValue({
+      commitId: "mock-commit-id",
+      prInfo: {} as any,
+    });
+    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
+    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
+    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
+    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
+
+    const mockChunks = [
+      {
+        fileName: "src/auth.ts",
+        content: "diff --git a/src/auth.ts b/src/auth.ts...",
+        hunk: { newStart: 1, newLines: 3 },
+      },
+    ];
+
+    jest
+      .spyOn(require("fs"), "readFileSync")
+      .mockReturnValue("mock diff content");
+    jest
+      .spyOn(require("../src/diff-parser"), "splitDiff")
+      .mockReturnValue(mockChunks);
+
+    // Act
+    await (reviewService as any).execute();
+
+    // Assert
+    expect(mockGithubClient.updatePRDescription).not.toHaveBeenCalled();
   });
 });

@@ -203,6 +203,14 @@ function parseSummaryResponse(text: string): DiffSummary {
       }
     }
 
+    // Extract PR description
+    const prDescriptionMatch = globalContent.match(
+      /<prDescription>(.*?)<\/prDescription>/s,
+    );
+    const prDescription = prDescriptionMatch
+      ? prDescriptionMatch[1].trim()
+      : undefined;
+
     // Extract hunks
     const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
     const hunks: HunkSummary[] = [];
@@ -273,6 +281,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       keyRisks,
       hunks,
       decision,
+      prDescription,
     };
   } catch (error) {
     console.error("Failed to parse summary response:", error);
@@ -285,6 +294,7 @@ function parseSummaryResponse(text: string): DiffSummary {
         recommendation: "COMMENT",
         reasoning: "Failed to parse summary response",
       },
+      prDescription: undefined,
     };
   }
 }

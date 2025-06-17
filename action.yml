@@ -39,6 +39,11 @@ inputs:
     required: false
     default: "12"
 
+  update_pr_description:
+    description: "Whether to update the PR description with AI-generated summary (true/false)"
+    required: false
+    default: "true"
+
 runs:
   using: "node20"
   main: "dist/index.js"

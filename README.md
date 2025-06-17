@@ -7,6 +7,7 @@ A turnkey GitHub Action for automatic, inline code review on every Pull Request 
 - 🤖 **AI-Powered Reviews**: Use GPT-4, Claude, or Gemini to power your PRs
 - 🔑 **BYOK + OS**: 100% open source. Install as a github action, and use your own key
 - 💬 **Inline Comments**: Posts line-level feedback directly on PRs
+- 📄 **Smart PR Descriptions**: Automatically generates structured PR descriptions for blank PRs
 - 🔄 **Provider Agnostic**: Easily switch between OpenAI, Anthropic, Google
 - 📝 **Smart Chunking**: Handles large diffs efficiently
 - 🛡️ **Robust**: Built-in retries, rate limiting, and error handling
@@ -60,15 +61,16 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ### Input Parameters
 
-| Input               | Required | Default               | Description                                  |
-| ------------------- | -------- | --------------------- | -------------------------------------------- |
-| `github_token`      | ✅       | `${{ github.token }}` | GitHub token for API access                  |
-| `model_provider`    | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
-| `model_name`        | ✅       | `gpt-4o`              | Model name (see examples below)              |
-| `openai_api_key`    | ⚠️       |                       | Required if using OpenAI                     |
-| `anthropic_api_key` | ⚠️       |                       | Required if using Anthropic                  |
-| `gemini_api_key`    | ⚠️       |                       | Required if using Google                     |
-| `max_turns`         | ❌       | `12`                  | Maximum turns for interactive agent review   |
+| Input                   | Required | Default               | Description                                  |
+| ----------------------- | -------- | --------------------- | -------------------------------------------- |
+| `github_token`          | ✅       | `${{ github.token }}` | GitHub token for API access                  |
+| `model_provider`        | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
+| `model_name`            | ✅       | `gpt-4o`              | Model name (see examples below)              |
+| `openai_api_key`        | ⚠️       |                       | Required if using OpenAI                     |
+| `anthropic_api_key`     | ⚠️       |                       | Required if using Anthropic                  |
+| `gemini_api_key`        | ⚠️       |                       | Required if using Google                     |
+| `max_turns`             | ❌       | `12`                  | Maximum turns for interactive agent review   |
+| `update_pr_description` | ❌       | `true`                | Auto-generate PR descriptions for blank PRs  |
 
 ## Triggering Reviews
 
@@ -208,6 +210,63 @@ CodePress Review uses a sophisticated **two-pass review system** for enhanced co
 2. **Second Pass - Chunk Review**: Reviews each code chunk with context from the first pass
 
 This provides global awareness while maintaining focused, line-level feedback.
+
+## Automatic PR Description Generation
+
+CodePress Review can automatically generate well-structured PR descriptions for pull requests that don't already have one. This feature is **enabled by default** and helps maintain consistent documentation across your project.
+
+### How It Works
+
+When analyzing a PR, CodePress will:
+
+1. **Check Current Description**: Only updates PRs with blank or empty descriptions
+2. **Generate Content**: Creates a structured description including:
+   - Brief summary of what the PR accomplishes
+   - Bulleted list of key changes
+   - Notable considerations for reviewers
+   - Proper markdown formatting
+3. **Smart Updates**: Won't overwrite existing descriptions to preserve manual content
+
+### Example Generated Description
+
+```markdown
+## Add User Authentication Service
+
+This PR introduces a new authentication service to handle user login and session management.
+
+**Key Changes:**
+
+- Added AuthService class with JWT token handling
+- Integrated authentication middleware for protected routes
+- Added user session management and logout functionality
+- Updated API endpoints to require authentication
+
+**Review Notes:**
+
+- Please verify the JWT token validation logic
+- Ensure proper error handling for invalid credentials
+- Check that session cleanup works correctly on logout
+```
+
+### Configuration
+
+The feature is controlled by the `update_pr_description` parameter:
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    update_pr_description: "true" # Enable (default)
+    # update_pr_description: "false"  # Disable
+```
+
+### Custom Description Guidelines
+
+You can customize PR description generation by modifying the summary guidelines in your `custom-codepress-summary-prompt.md` file. The AI will use your custom instructions when generating descriptions.
 
 ## Custom Review Guidelines
 

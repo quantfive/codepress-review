@@ -83,6 +83,10 @@ export function getReviewConfig(): ReviewConfig {
     throw new Error("MAX_TURNS must be a positive number");
   }
 
+  // Parse updatePrDescription from environment variable, default to true
+  const updatePrDescriptionEnv = process.env.UPDATE_PR_DESCRIPTION || "true";
+  const updatePrDescription = updatePrDescriptionEnv.toLowerCase() === "true";
+
   return {
     diff,
     pr,
@@ -91,5 +95,6 @@ export function getReviewConfig(): ReviewConfig {
     githubToken,
     githubRepository: process.env.GITHUB_REPOSITORY!,
     maxTurns,
+    updatePrDescription,
   };
 }
