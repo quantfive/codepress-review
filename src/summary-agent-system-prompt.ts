@@ -94,30 +94,30 @@ export function getSummarySystemPrompt(): string {
     <global>
       <prType>feature</prType>
       <overview>
-        <item>Adds StripeWebhookService to handle provider-specific webhooks…</item>
+        <item>[Brief description of main change or feature]</item>
         <!-- repeat 1-5 items -->
       </overview>
       <keyRisks>
-        <item tag="SEC">New /webhook endpoint lacks HMAC verification.</item>
+        <item tag="SEC">[Description of security risk]</item>
         <!-- repeat 0-10 items -->
       </keyRisks>
       <prDescription>
-        ## Add Stripe Webhook Service
+        ## [PR Title]
 
-        This PR introduces a new StripeWebhookService to handle Stripe-specific webhook events for payment processing.
+        This PR [brief description of what this PR accomplishes].
 
         **Key Changes:**
-        - Added StripeWebhookService class with event validation
-        - Integrated webhook endpoint \`/api/webhooks/stripe\`
-        - Added proper error handling and logging
+        - [Change 1]
+        - [Change 2]
+        - [Change 3]
 
         **Review Notes:**
-        - Please verify the webhook signature validation logic
-        - Ensure proper error responses are returned to Stripe
+        - [Notable consideration 1]
+        - [Notable consideration 2]
       </prDescription>
       <decision>
-        <recommendation>REQUEST_CHANGES</recommendation>
-        <reasoning>Critical security vulnerability found in webhook endpoint that must be addressed before merge.</reasoning>
+        <recommendation>[APPROVE|REQUEST_CHANGES|COMMENT]</recommendation>
+        <reasoning>[1-2 sentence reasoning for the recommendation]</reasoning>
       </decision>
     </global>
 
