@@ -1,5 +1,4 @@
 import * as core from "@actions/core";
-import * as exec from "@actions/exec";
 import * as github from "@actions/github";
 import { writeFileSync } from "fs";
 import { resolve } from "path";
@@ -57,36 +56,30 @@ async function run(): Promise<void> {
     } else if (context.eventName === "workflow_dispatch") {
       core.info("Workflow dispatched manually. Finding PR from branch...");
       const branchName = context.ref.replace("refs/heads/", "");
-      let prNumberStr = "";
-      const options = {
-        listeners: {
-          stdout: (data: Buffer) => {
-            prNumberStr += data.toString();
-          },
-        },
-        ignoreReturnCode: true,
-      };
+      const octokit = github.getOctokit(githubToken);
 
-      await exec.exec(
-        "gh",
-        [
-          "pr",
-          "list",
-          "--head",
-          branchName,
-          "--json",
-          "number",
-          "--jq",
-          '.[0].number // ""',
-        ],
-        options,
-      );
+      try {
+        const { data: prs } = await octokit.rest.pulls.list({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          head: `${context.repo.owner}:${branchName}`,
+          state: "open",
+          sort: "updated",
+          direction: "desc",
+          per_page: 1,
+        });
 
-      if (prNumberStr && prNumberStr.trim()) {
-        prNumber = parseInt(prNumberStr.trim(), 10);
-      } else {
+        if (prs.length > 0) {
+          prNumber = prs[0].number;
+        } else {
+          core.setFailed(
+            `Could not find an open pull request for branch '${branchName}'.`,
+          );
+          return;
+        }
+      } catch (e: unknown) {
         core.setFailed(
-          `Could not find an open pull request for branch '${branchName}'.`,
+          `Failed to find PR for branch '${branchName}'. Error: ${e instanceof Error ? e.message : "Unknown"}`,
         );
         return;
       }
