@@ -64,3 +64,5 @@ jobs:
           force_orphan: true
           # The commit message for the build branch
           commit_message: "Build: Update dist folder from main@${{ github.sha }}"
+          # Don't exclude .github directory so our workflow files are preserved
+          exclude_assets: ""
