@@ -44,7 +44,13 @@ jobs:
           cp README.md publish/
           # Only copy the update-major-tag workflow to the build branch
           mkdir -p publish/.github/workflows
-          cp .github/workflows/update-major-tag.yml publish/.github/workflows/
+          if [ -f .github/workflows/update-major-tag.yml ]; then
+            cp .github/workflows/update-major-tag.yml publish/.github/workflows/
+            echo "✅ Copied update-major-tag.yml to build branch"
+          else
+            echo "❌ update-major-tag.yml not found!"
+            exit 1
+          fi
 
       - name: Deploy to build branch
         uses: peaceiris/actions-gh-pages@v4
