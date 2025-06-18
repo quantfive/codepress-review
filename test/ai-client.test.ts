@@ -260,16 +260,16 @@ describe("AI Client", () => {
 
       expect(result.prDescription).toBe(`## Add User Authentication Service
 
-    This PR introduces a new authentication service for user login and session management.
+This PR introduces a new authentication service for user login and session management.
 
-    **Key Changes:**
-    - Added AuthService class with JWT token handling
-    - Integrated authentication middleware for protected routes
-    - Added user session management and logout functionality
+**Key Changes:**
+- Added AuthService class with JWT token handling
+- Integrated authentication middleware for protected routes
+- Added user session management and logout functionality
 
-    **Review Notes:**
-    - Please verify the JWT token validation logic
-    - Ensure proper error handling for invalid credentials`);
+**Review Notes:**
+- Please verify the JWT token validation logic
+- Ensure proper error handling for invalid credentials`);
 
       expect(result.prType).toBe("feature");
       expect(result.decision).toEqual({
