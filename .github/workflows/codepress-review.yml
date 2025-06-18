@@ -15,13 +15,15 @@ permissions:
 jobs:
   ai-review:
     runs-on: ubuntu-latest
-    # Only run if it's a PR event OR if it's a comment that contains the trigger phrase
+    # Run on: PR events, manual triggers, or PR comments containing '@codepress/review'
     if: |
-      github.event_name == 'pull_request' || 
+      github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' && 
-       github.event.issue.pull_request && 
-       contains(github.event.comment.body, '@codepress/review'))
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '@codepress/review')
+      )
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

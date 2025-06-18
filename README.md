@@ -24,6 +24,7 @@ name: CodePress Review
 on:
   pull_request:
     types: [opened, reopened]
+  workflow_dispatch: # Allows manual triggering from the Actions tab
 
 permissions:
   pull-requests: write
@@ -75,7 +76,19 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ## Triggering Reviews
 
-Beyond the default behavior of reviewing new PRs, you can configure CodePress to run on-demand.
+Beyond the default behavior of reviewing new PRs, you can configure CodePress to run on-demand or on every push.
+
+### Review on Every Push (Optional)
+
+To trigger reviews whenever new commits are pushed to a PR, add `synchronize` to your trigger types:
+
+```yaml
+on:
+  pull_request:
+    types: [opened, reopened, synchronize] # Added synchronize
+```
+
+**Note:** This will run a review on every push to the PR branch, which may increase costs and generate more review comments. Consider your team's workflow and budget when enabling this.
 
 ### On-Demand via PR Comments
 
@@ -102,12 +115,15 @@ permissions:
 jobs:
   ai-review:
     runs-on: ubuntu-latest
-    # This condition ensures the action only runs for PRs, manual triggers,
-    # or comments on a PR containing a trigger phrase.
-    # You can customize the phrase '@codepress/review' to your liking.
+    # Run on: PR events, manual triggers, or PR comments containing '@codepress/review'
     if: |
-      github.event_name != 'issue_comment' ||
-      (github.event.issue.pull_request && contains(github.event.comment.body, '@codepress/review'))
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '@codepress/review')
+      )
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
