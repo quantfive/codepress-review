@@ -22,7 +22,7 @@ const RETRY_BASE_MS = 1000;
  * Normalizes indentation by removing common leading whitespace from all lines.
  * This prevents XML indentation from being interpreted as code blocks in markdown.
  */
-function normalizeIndentation(text: string): string {
+export function normalizeIndentation(text: string): string {
   const lines = text.split("\n");
 
   // Find non-empty lines to calculate minimum indentation
