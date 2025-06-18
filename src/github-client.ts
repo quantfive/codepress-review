@@ -147,7 +147,7 @@ class GitHubRateLimitHandler {
     if (rateLimitInfo.retryAfter) {
       // Use retry-after header if present
       waitTime = rateLimitInfo.retryAfter * 1000;
-      debugWarn(
+      console.warn(
         `Primary rate limit hit, waiting ${rateLimitInfo.retryAfter} seconds as specified by retry-after header`,
       );
     } else if (
@@ -158,13 +158,13 @@ class GitHubRateLimitHandler {
       const resetTime = rateLimitInfo.rateLimitReset * 1000;
       const currentTime = Date.now();
       waitTime = Math.max(0, resetTime - currentTime + 1000); // Add 1 second buffer
-      debugWarn(
+      console.warn(
         `Primary rate limit hit, waiting until reset time: ${new Date(resetTime).toISOString()}`,
       );
     } else {
       // Default to 1 minute if no specific guidance
       waitTime = 60000;
-      debugWarn(`Primary rate limit hit, waiting 1 minute (default)`);
+      console.warn(`Primary rate limit hit, waiting 1 minute (default)`);
     }
 
     await this.delay(waitTime);
@@ -187,7 +187,7 @@ class GitHubRateLimitHandler {
     const waitTime =
       baseWaitTime * Math.pow(2, this.secondaryRateLimitRetries - 1);
 
-    debugWarn(
+    console.warn(
       `Secondary rate limit (abuse detection) hit, attempt ${this.secondaryRateLimitRetries}/${this.maxRetries}, waiting ${waitTime / 1000} seconds`,
     );
 
