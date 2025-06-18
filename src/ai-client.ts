@@ -14,6 +14,7 @@ import { setTimeout } from "node:timers/promises";
 import { ProcessableChunk } from "./diff-parser";
 import { createModel } from "./model-factory";
 import { isCodePressReviewObject, isCodePressCommentObject } from "./constants";
+import { debugLog, debugWarn } from "./debug";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
@@ -74,7 +75,7 @@ export async function callWithRetry<T>(
         );
       }
       const wait = RETRY_BASE_MS * Math.pow(2, attempt);
-      console.warn(
+      debugWarn(
         `[Hunk ${hunkIdx}] Attempt ${attempt} failed: ${error}. Retrying in ${wait}ms...`,
       );
       await setTimeout(wait);
@@ -155,7 +156,7 @@ ${diffOverview}
     ],
   });
 
-  console.log("Diff Summary Raw Response:", text);
+  debugLog("Diff Summary Raw Response:", text);
 
   // Parse the XML response
   return parseSummaryResponse(text);
@@ -409,7 +410,7 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
     ],
   });
 
-  console.log("Findings Summary Raw Response:", text);
+  debugLog("Findings Summary Raw Response:", text);
 
   // Parse the response
   const result: {

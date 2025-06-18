@@ -44,6 +44,11 @@ inputs:
     required: false
     default: "true"
 
+  debug:
+    description: "Enable debug mode to show detailed console logs (true/false)"
+    required: false
+    default: "false"
+
 runs:
   using: "node20"
   main: "dist/index.js"

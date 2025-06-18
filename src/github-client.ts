@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { summarizeFindings } from "./ai-client";
 import { CODEPRESS_REVIEW_TAG } from "./constants";
+import { debugLog, debugWarn } from "./debug";
 
 /**
  * Formats a finding into a GitHub comment with appropriate styling.
@@ -273,15 +274,15 @@ export class GitHubClient {
 
         try {
           await makeRequest();
-          console.log(`✅ Updated PR #${prNumber} description`);
+          debugLog(`✅ Updated PR #${prNumber} description`);
           return true;
         } catch (error) {
           await this.rateLimitHandler.handleRateLimit(error, makeRequest);
-          console.log(`✅ Updated PR #${prNumber} description (after retry)`);
+          debugLog(`✅ Updated PR #${prNumber} description (after retry)`);
           return true;
         }
       } else {
-        console.log(
+        debugLog(
           `⏭️  PR #${prNumber} already has a description, skipping update`,
         );
         return false;
@@ -455,7 +456,7 @@ export class GitHubClient {
           this.modelConfig,
         );
       } catch (error) {
-        console.warn(
+        debugWarn(
           "Failed to generate finding summaries, falling back to detailed list:",
           error,
         );
@@ -533,7 +534,7 @@ export class GitHubClient {
           : reviewEvent === "REQUEST_CHANGES"
             ? "requested changes"
             : "commented on";
-      console.log(
+      debugLog(
         `✅ ${eventText.charAt(0).toUpperCase() + eventText.slice(1)} PR with ${findings.length} comments`,
       );
     } catch (error) {
@@ -544,7 +545,7 @@ export class GitHubClient {
           : reviewEvent === "REQUEST_CHANGES"
             ? "requested changes"
             : "commented on";
-      console.log(
+      debugLog(
         `✅ ${eventText.charAt(0).toUpperCase() + eventText.slice(1)} PR with ${findings.length} comments (after retry)`,
       );
     }
@@ -625,7 +626,7 @@ export class GitHubClient {
     await this.octokit.graphql(resolveThreadMutation, {
       threadId,
     });
-    console.log(`Successfully resolved review thread ${threadId}`);
+    debugLog(`Successfully resolved review thread ${threadId}`);
   }
 
   /**
@@ -652,7 +653,7 @@ export class GitHubClient {
         comment_id: commentId,
         body: resolvedBody,
       });
-      console.log(`Successfully updated review comment ${commentId}`);
+      debugLog(`Successfully updated review comment ${commentId}`);
 
       // Step 2: Find and resolve the actual review thread
       const targetThread = await this.findReviewThread(prNumber, commentId);

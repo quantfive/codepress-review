@@ -87,6 +87,10 @@ export function getReviewConfig(): ReviewConfig {
   const updatePrDescriptionEnv = process.env.UPDATE_PR_DESCRIPTION || "true";
   const updatePrDescription = updatePrDescriptionEnv.toLowerCase() === "true";
 
+  // Parse debug from environment variable, default to false
+  const debugEnv = process.env.DEBUG || "false";
+  const debug = debugEnv.toLowerCase() === "true";
+
   return {
     diff,
     pr,
@@ -96,5 +100,6 @@ export function getReviewConfig(): ReviewConfig {
     githubRepository: process.env.GITHUB_REPOSITORY!,
     maxTurns,
     updatePrDescription,
+    debug,
   };
 }
