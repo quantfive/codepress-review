@@ -148,6 +148,7 @@ describe("AI Client", () => {
             file: "src/example.ts",
             overview: "Refactored return value and added new function",
             risks: [{ tag: "TEST", description: "Missing test coverage" }],
+            issues: [],
             tests: [
               "Should test newFunction return value",
               "Should test backward compatibility",
@@ -160,6 +161,7 @@ describe("AI Client", () => {
             risks: [
               { tag: "STYLE", description: "Minor documentation update" },
             ],
+            issues: [],
             tests: ["Verify documentation accuracy"],
           },
         ],
@@ -377,6 +379,7 @@ This PR introduces a new authentication service for user login and session manag
               { tag: "SEC", description: "Potential security flaw" },
               { tag: "TEST", description: "No tests for new auth flow" },
             ],
+            issues: [],
             tests: [
               "Test valid credentials",
               "Test invalid credentials",
@@ -388,6 +391,7 @@ This PR introduces a new authentication service for user login and session manag
             file: "src/utils.ts",
             overview: "Added utility functions",
             risks: [{ tag: "PERF", description: "May impact performance" }],
+            issues: [],
             tests: ["Test utility function outputs"],
           },
         ],
@@ -434,6 +438,7 @@ This PR introduces a new authentication service for user login and session manag
             file: "src/bug.ts",
             overview: "Fixed the bug",
             risks: [],
+            issues: [],
             tests: [],
           },
         ],
@@ -751,6 +756,255 @@ This PR introduces a new authentication service for user login and session manag
         recommendation: "COMMENT", // Should fallback to default
         reasoning: "This should use fallback decision.",
       });
+    });
+
+    it("should parse issues in hunks correctly", async () => {
+      const xmlWithIssues = `
+<prType>feature</prType>
+<overview>
+  <item>Added new authentication module</item>
+</overview>
+<keyRisks></keyRisks>
+<hunks>
+  <hunk index="0">
+    <file>src/auth.ts</file>
+    <overview>New authentication logic</overview>
+    <risks></risks>
+    <issues>
+      <issue severity="high" kind="security">SQL injection vulnerability in login query</issue>
+      <issue severity="medium" kind="performance">Inefficient password hashing algorithm</issue>
+      <issue severity="low" kind="style">Missing JSDoc comments on public methods</issue>
+    </issues>
+    <tests></tests>
+  </hunk>
+</hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithIssues,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].issues).toEqual([
+        {
+          severity: "high",
+          kind: "security",
+          description: "SQL injection vulnerability in login query",
+        },
+        {
+          severity: "medium",
+          kind: "performance",
+          description: "Inefficient password hashing algorithm",
+        },
+        {
+          severity: "low",
+          kind: "style",
+          description: "Missing JSDoc comments on public methods",
+        },
+      ]);
+    });
+
+    it("should handle issues with missing attributes gracefully", async () => {
+      const xmlWithInvalidIssues = `
+<prType>feature</prType>
+<overview>
+  <item>Test summary</item>
+</overview>
+<keyRisks></keyRisks>
+<hunks>
+  <hunk index="0">
+    <file>src/test.ts</file>
+    <overview>Test overview</overview>
+    <risks></risks>
+    <issues>
+      <issue severity="high" kind="security">Valid issue with all attributes</issue>
+      <issue severity="medium">Missing kind attribute</issue>
+      <issue kind="performance">Missing severity attribute</issue>
+      <issue>Missing both severity and kind attributes</issue>
+    </issues>
+    <tests></tests>
+  </hunk>
+</hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithInvalidIssues,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.hunks).toHaveLength(1);
+      // Should only include the issue with all required attributes
+      expect(result.hunks[0].issues).toEqual([
+        {
+          severity: "high",
+          kind: "security",
+          description: "Valid issue with all attributes",
+        },
+      ]);
+    });
+
+    it("should handle multiple hunks with different issues", async () => {
+      const xmlWithMultipleHunksAndIssues = `
+<prType>refactor</prType>
+<overview>
+  <item>Refactored user management and database layer</item>
+</overview>
+<keyRisks></keyRisks>
+<hunks>
+  <hunk index="0">
+    <file>src/user.ts</file>
+    <overview>Refactored user validation</overview>
+    <risks></risks>
+    <issues>
+      <issue severity="critical" kind="security">Weak password validation allows dictionary attacks</issue>
+      <issue severity="high" kind="logic">Email validation regex doesn't handle edge cases</issue>
+    </issues>
+    <tests></tests>
+  </hunk>
+  <hunk index="1">
+    <file>src/database.ts</file>
+    <overview>Updated database connection handling</overview>
+    <risks></risks>
+    <issues>
+      <issue severity="medium" kind="performance">Connection pool size may be insufficient</issue>
+      <issue severity="low" kind="maintainability">Complex nested callbacks should use async/await</issue>
+    </issues>
+    <tests></tests>
+  </hunk>
+</hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithMultipleHunksAndIssues,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.hunks).toHaveLength(2);
+
+      expect(result.hunks[0].issues).toEqual([
+        {
+          severity: "critical",
+          kind: "security",
+          description: "Weak password validation allows dictionary attacks",
+        },
+        {
+          severity: "high",
+          kind: "logic",
+          description: "Email validation regex doesn't handle edge cases",
+        },
+      ]);
+
+      expect(result.hunks[1].issues).toEqual([
+        {
+          severity: "medium",
+          kind: "performance",
+          description: "Connection pool size may be insufficient",
+        },
+        {
+          severity: "low",
+          kind: "maintainability",
+          description: "Complex nested callbacks should use async/await",
+        },
+      ]);
+    });
+
+    it("should handle empty issues blocks", async () => {
+      const xmlWithEmptyIssues = `
+<prType>bugfix</prType>
+<overview>
+  <item>Fixed minor styling issue</item>
+</overview>
+<keyRisks></keyRisks>
+<hunks>
+  <hunk index="0">
+    <file>src/styles.css</file>
+    <overview>Updated margin values</overview>
+    <risks></risks>
+    <issues></issues>
+    <tests></tests>
+  </hunk>
+</hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithEmptyIssues,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.hunks).toHaveLength(1);
+      expect(result.hunks[0].issues).toEqual([]);
+    });
+
+    it("should handle hunks with both risks and issues", async () => {
+      const xmlWithBothRisksAndIssues = `
+<prType>feature</prType>
+<overview>
+  <item>Added payment processing module</item>
+</overview>
+<keyRisks></keyRisks>
+<hunks>
+  <hunk index="0">
+    <file>src/payment.ts</file>
+    <overview>New payment processing logic</overview>
+    <risks>
+      <item tag="SEC">Payment data handling needs security review</item>
+      <item tag="TEST">Missing integration tests for payment flows</item>
+    </risks>
+    <issues>
+      <issue severity="critical" kind="security">Credit card numbers stored in plain text</issue>
+      <issue severity="high" kind="compliance">PCI DSS compliance requirements not met</issue>
+      <issue severity="medium" kind="error-handling">Missing error handling for failed transactions</issue>
+    </issues>
+    <tests>
+      <item>Test successful payment processing</item>
+      <item>Test payment failure scenarios</item>
+    </tests>
+  </hunk>
+</hunks>`;
+
+      (generateText as jest.Mock).mockResolvedValue({
+        text: xmlWithBothRisksAndIssues,
+      });
+
+      const result = await summarizeDiff(mockChunks, mockModelConfig);
+
+      expect(result.hunks).toHaveLength(1);
+
+      // Verify both risks and issues are parsed correctly
+      expect(result.hunks[0].risks).toEqual([
+        {
+          tag: "SEC",
+          description: "Payment data handling needs security review",
+        },
+        {
+          tag: "TEST",
+          description: "Missing integration tests for payment flows",
+        },
+      ]);
+
+      expect(result.hunks[0].issues).toEqual([
+        {
+          severity: "critical",
+          kind: "security",
+          description: "Credit card numbers stored in plain text",
+        },
+        {
+          severity: "high",
+          kind: "compliance",
+          description: "PCI DSS compliance requirements not met",
+        },
+        {
+          severity: "medium",
+          kind: "error-handling",
+          description: "Missing error handling for failed transactions",
+        },
+      ]);
+
+      expect(result.hunks[0].tests).toEqual([
+        "Test successful payment processing",
+        "Test payment failure scenarios",
+      ]);
     });
   });
 });

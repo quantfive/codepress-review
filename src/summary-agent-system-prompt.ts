@@ -71,6 +71,20 @@ export function getSummarySystemPrompt(): string {
       </decision>
     </globalChecklist>
 
+    <commentBudget>
+      You have a default budget of **15 comments total** per review:
+        • up to 10 **REQUIRED**  
+        • up to 3 **OPTIONAL**  
+        • up to 2 **NIT**  
+        • up to 1 **PRAISE**
+      Exceed the budget *only* if skipping a note would introduce a **correctness or security bug**.
+    </commentBudget>
+    <deduplicationRule>
+      Consolidate repeated findings:
+        • If the same issue occurs in multiple places, comment once and note “applies to X similar lines”.
+        • Prefer file-level or CL-level comments over many inline nits.
+    </deduplicationRule>
+
     <hunkChecklist>
       For every processable hunk, provide:
       <overview>1 - 2 sentences describing the local change in the context of the PR.</overview>
@@ -88,6 +102,28 @@ export function getSummarySystemPrompt(): string {
       Use markdown formatting for readability. This will replace any blank PR description.
     </prDescription>
   </additionalChecklist>
+    <!--  INPUT SHAPE  -->
+  <ingest>
+    You receive:
+      • the full unified diff
+      • zero or more previous CodePress comments
+      • **an array of <hunkResult> payloads** from the micro-reviewers (see schema below).
+    Parse those <hunkResult> blocks first; they contain all local findings.
+  </ingest>
+
+  <!--  PROMOTION & DEDUPLICATION RULES  -->
+  <promotionRules>
+    1. Merge issues with identical <kind> and same file *or* identical message text.
+    2. For each merged group decide the final severity:
+       • REQUIRED  - correctness, security, data loss, or fails agreed standards.
+       • OPTIONAL  - improves maintainability, clarity, perf; not a merge blocker.
+       • NIT       - purely stylistic or micro-optimisation.
+       • PRAISE    - exemplary practice; emit max one per PR.
+    3. Apply the comment budget (10 REQUIRED, 3 OPTIONAL, 2 NIT, 1 PRAISE).  
+       - If duplicates push a category over budget, keep the *most representative* item and drop the rest.
+    4. Store the chosen severity in each <issue> as <severity>.
+  </promotionRules>
+
   <!--  OUTPUT FORMAT (STRICT)  -->
   <responseFormat>
     <!-- ✦ Emit exactly ONE <global> block. -->
@@ -123,12 +159,15 @@ export function getSummarySystemPrompt(): string {
 
     <!-- ✦ Emit ONE <hunk> block for EVERY diff hunk, in original order, only if the hunk needs notes. If you think the code is good, just skip the hunk! -->
     <hunks>
+      <!-- The summariser must output deduped, severity-promoted issues -->
       <hunk index="0">
         <file>src/components/SEOHead.tsx</file>
         <overview>Makes <code>description</code> prop optional to support legacy pages.</overview>
-        <risks>
-          <item tag="SEO">Missing descriptions may hurt search ranking.</item>
-        </risks>
+        <issues>
+          <issue severity="OPTIONAL" kind="missing-meta-description">
+            Missing meta description may hurt SEO.
+          </issue>
+        </issues>
         <tests>
           <item>Render page without description and verify meta tags default correctly.</item>
         </tests>
