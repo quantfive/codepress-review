@@ -49,6 +49,32 @@ inputs:
     required: false
     default: "false"
 
+  # Trigger configuration inputs
+  run_on_pr_opened:
+    description: "Run review when PR is opened (true/false)"
+    required: false
+    default: "true"
+
+  run_on_pr_reopened:
+    description: "Run review when PR is reopened (true/false)"
+    required: false
+    default: "true"
+
+  run_on_review_requested:
+    description: "Run review when re-review is requested from github-actions[bot] (true/false)"
+    required: false
+    default: "true"
+
+  run_on_comment_trigger:
+    description: "Run review when comments contain trigger phrase (true/false)"
+    required: false
+    default: "true"
+
+  comment_trigger_phrase:
+    description: "Phrase that triggers review in comments (e.g., '@codepress/review')"
+    required: false
+    default: "@codepress/review"
+
 runs:
   using: "node20"
   main: "dist/index.js"
