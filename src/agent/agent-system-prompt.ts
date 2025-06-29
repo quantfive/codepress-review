@@ -26,9 +26,9 @@ const DEFAULT_REVIEW_GUIDELINES = `
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
     <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. However, you now have TOOLS to fetch additional context when needed.</partialContext>
     <goodThings>Call out notable positives to reinforce good practices.</goodThings>
-    <solution>Think about how you would have solved the problem. If it’s different, why is that? Does your code handle more (edge) cases? Is it shorter/easier/cleaner/faster/safer yet functionally equivalent? Is there some underlying pattern you spotted that isn’t captured by the current code?</solution>
+    <solution>Think about how you would have solved the problem. If it's different, why is that? Does your code handle more (edge) cases? Is it shorter/easier/cleaner/faster/safer yet functionally equivalent? Is there some underlying pattern you spotted that isn't captured by the current code?</solution>
     <abstractions>Do you see potential for useful abstractions? Partially duplicated code often indicates that a more abstract or general piece of functionality can be extracted and then reused in different contexts.<abstractions>
-    <DRY>Think about libraries or existing product code. When someone re-implements existing functionality, more often than not it’s simply because they don’t know it already exists. Sometimes, code or functionality is duplicated on purpose, e.g., in order to avoid dependencies. In such cases, a code comment can clarify the intent. Is the introduced functionality already provided by an existing library?<DRY>
+    <DRY>Think about libraries or existing product code. When someone re-implements existing functionality, more often than not it's simply because they don’t know it already exists. Sometimes, code or functionality is duplicated on purpose, e.g., in order to avoid dependencies. In such cases, a code comment can clarify the intent. Is the introduced functionality already provided by an existing library?<DRY>
     <legibility>Think about your reading experience. Did you grasp the concepts in a reasonable amount of time? Was the flow sane and were variable and methods names easy to follow? Were you able to keep track through multiple files or functions? Were you put off by inconsistent naming?</legibility>
   </coverageChecklist>
 
@@ -45,12 +45,27 @@ const DEFAULT_REVIEW_GUIDELINES = `
     <courtesy>Be kind, address code not people, explain *why*.</courtesy>
     <labels>
       <required>Must fix before approval.</required>
-      <nit>Minor polish; author may ignore.</nit>
+      <nit>
+        Minor polish; author may ignore.
+        <caveat>
+          Don't nit that much, use sparingly
+        </caveat>
+      </nit>
       <optional>Worth considering; not mandatory.</optional>
       <fyi>Informational for future work.</fyi>
-      <praise>Praise the author for good work.</praise>
+      <praise>
+        Praise the author for good work.
+        <caveat>
+          Only use this if the change is really good, it should be RARE
+        </caveat>
+      </praise>
     </labels>
-    <balance>Point out problems; offer guidance or sample code only when helpful. Reinforce positives, too, but don't overdo it. Regular code doesn't need praise.</balance>
+    <balance>
+      Optimise for *developer attention*:
+        • Focus on issues that block merging or will bite us later.  
+        • Skip advice that is purely preferential if the code already meets style/consistency rules.  
+        • Use the comment budget to decide whether to surface lower-severity notes.
+    </balance>
   </commentGuidelines>
 
   <!--  5. CL DESCRIPTION FEEDBACK  -->

@@ -148,6 +148,7 @@ describe("AI Client", () => {
             file: "src/example.ts",
             overview: "Refactored return value and added new function",
             risks: [{ tag: "TEST", description: "Missing test coverage" }],
+            issues: [],
             tests: [
               "Should test newFunction return value",
               "Should test backward compatibility",
@@ -160,6 +161,7 @@ describe("AI Client", () => {
             risks: [
               { tag: "STYLE", description: "Minor documentation update" },
             ],
+            issues: [],
             tests: ["Verify documentation accuracy"],
           },
         ],
@@ -377,6 +379,7 @@ This PR introduces a new authentication service for user login and session manag
               { tag: "SEC", description: "Potential security flaw" },
               { tag: "TEST", description: "No tests for new auth flow" },
             ],
+            issues: [],
             tests: [
               "Test valid credentials",
               "Test invalid credentials",
@@ -388,6 +391,7 @@ This PR introduces a new authentication service for user login and session manag
             file: "src/utils.ts",
             overview: "Added utility functions",
             risks: [{ tag: "PERF", description: "May impact performance" }],
+            issues: [],
             tests: ["Test utility function outputs"],
           },
         ],
@@ -434,6 +438,7 @@ This PR introduces a new authentication service for user login and session manag
             file: "src/bug.ts",
             overview: "Fixed the bug",
             risks: [],
+            issues: [],
             tests: [],
           },
         ],

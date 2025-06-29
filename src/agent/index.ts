@@ -76,6 +76,16 @@ export async function reviewChunkWithAgent(
         contextLines.push("    </risks>");
       }
 
+      if (hunkSummary.issues.length > 0) {
+        contextLines.push("    <issues>");
+        hunkSummary.issues.forEach((issue) => {
+          contextLines.push(
+            `      <issue severity="${escapeXml(issue.severity)}" kind="${escapeXml(issue.kind)}">${escapeXml(issue.description)}</issue>`,
+          );
+        });
+        contextLines.push("    </issues>");
+      }
+
       if (hunkSummary.tests.length > 0) {
         contextLines.push("    <suggestedTests>");
         hunkSummary.tests.forEach((test) => {

@@ -3,6 +3,7 @@ import {
   ModelConfig,
   DiffSummary,
   RiskItem,
+  IssueItem,
   HunkSummary,
   PRType,
   RiskTag,
@@ -259,7 +260,7 @@ function parseSummaryResponse(text: string): DiffSummary {
           if (indexMatch && fileMatch && overviewMatch) {
             const index = parseInt(indexMatch[1]);
 
-            // Extract risks for this hunk
+            // Extract risks for this hunk (backward compatibility)
             const risks: RiskItem[] = [];
             const risksMatch = hunkMatch.match(/<risks>(.*?)<\/risks>/s);
             if (risksMatch) {
@@ -275,6 +276,31 @@ function parseSummaryResponse(text: string): DiffSummary {
                   if (tagMatch && contentMatch) {
                     risks.push({
                       tag: tagMatch[1] as RiskTag,
+                      description: contentMatch[1].trim(),
+                    });
+                  }
+                });
+              }
+            }
+
+            // Extract issues for this hunk (new format)
+            const issues: IssueItem[] = [];
+            const issuesMatch = hunkMatch.match(/<issues>(.*?)<\/issues>/s);
+            if (issuesMatch) {
+              const issueItemMatches = issuesMatch[1].match(
+                /<issue[^>]*>(.*?)<\/issue>/gs,
+              );
+              if (issueItemMatches) {
+                issueItemMatches.forEach((issueItem) => {
+                  const severityMatch = issueItem.match(/severity="([^"]+)"/);
+                  const kindMatch = issueItem.match(/kind="([^"]+)"/);
+                  const contentMatch = issueItem.match(
+                    /<issue[^>]*>(.*?)<\/issue>/s,
+                  );
+                  if (severityMatch && kindMatch && contentMatch) {
+                    issues.push({
+                      severity: severityMatch[1],
+                      kind: kindMatch[1],
                       description: contentMatch[1].trim(),
                     });
                   }
@@ -302,6 +328,7 @@ function parseSummaryResponse(text: string): DiffSummary {
               file: fileMatch[1].trim(),
               overview: overviewMatch[1].trim(),
               risks,
+              issues,
               tests,
             });
           }
