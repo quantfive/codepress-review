@@ -3,6 +3,108 @@ import * as github from "@actions/github";
 import { writeFileSync } from "fs";
 import { resolve } from "path";
 
+interface TriggerConfig {
+  runOnPrOpened: boolean;
+  runOnPrReopened: boolean;
+  runOnReviewRequested: boolean;
+  runOnCommentTrigger: boolean;
+  commentTriggerPhrase: string;
+}
+
+interface ShouldRunResult {
+  shouldRun: boolean;
+  reason: string;
+}
+
+function shouldRunAction(
+  context: typeof github.context,
+  config: TriggerConfig,
+): ShouldRunResult {
+  const eventName = context.eventName;
+  const action = context.payload.action;
+
+  // PR opened
+  if (eventName === "pull_request" && action === "opened") {
+    return {
+      shouldRun: config.runOnPrOpened,
+      reason: config.runOnPrOpened
+        ? "PR was opened"
+        : "PR opened trigger is disabled",
+    };
+  }
+
+  // PR reopened
+  if (eventName === "pull_request" && action === "reopened") {
+    return {
+      shouldRun: config.runOnPrReopened,
+      reason: config.runOnPrReopened
+        ? "PR was reopened"
+        : "PR reopened trigger is disabled",
+    };
+  }
+
+  // PR synchronized (new commits pushed)
+  if (eventName === "pull_request" && action === "synchronize") {
+    return {
+      shouldRun: true, // Always run on synchronize since user opted in by including the event
+      reason: "New commits pushed to PR",
+    };
+  }
+
+  // Review requested
+  if (eventName === "pull_request" && action === "review_requested") {
+    const requestedReviewer = context.payload.requested_reviewer;
+    if (requestedReviewer?.login === "github-actions[bot]") {
+      return {
+        shouldRun: config.runOnReviewRequested,
+        reason: config.runOnReviewRequested
+          ? "Re-review requested from github-actions[bot]"
+          : "Review requested trigger is disabled",
+      };
+    }
+    return {
+      shouldRun: false,
+      reason: "Review requested from user (not github-actions[bot])",
+    };
+  }
+
+  // Comment trigger
+  if (eventName === "issue_comment" && action === "created") {
+    const isPrComment = !!context.payload.issue?.pull_request;
+    const commentBody = context.payload.comment?.body || "";
+    const containsTrigger = commentBody.includes(config.commentTriggerPhrase);
+
+    if (isPrComment && containsTrigger) {
+      return {
+        shouldRun: config.runOnCommentTrigger,
+        reason: config.runOnCommentTrigger
+          ? `Comment contains trigger phrase: ${config.commentTriggerPhrase}`
+          : "Comment trigger is disabled",
+      };
+    }
+
+    return {
+      shouldRun: false,
+      reason: isPrComment
+        ? "Comment does not contain trigger phrase"
+        : "Comment is not on a PR",
+    };
+  }
+
+  // Manual workflow dispatch
+  if (eventName === "workflow_dispatch") {
+    return {
+      shouldRun: true,
+      reason: "Manual workflow dispatch",
+    };
+  }
+
+  return {
+    shouldRun: false,
+    reason: `Unsupported event: ${eventName} with action: ${action}`,
+  };
+}
+
 async function run(): Promise<void> {
   try {
     // Get inputs from action.yml
@@ -21,6 +123,31 @@ async function run(): Promise<void> {
 
     // Handle debug input
     const debug = core.getBooleanInput("debug");
+
+    // Get trigger configuration inputs
+    const runOnPrOpened = core.getBooleanInput("run_on_pr_opened");
+    const runOnPrReopened = core.getBooleanInput("run_on_pr_reopened");
+    const runOnReviewRequested = core.getBooleanInput(
+      "run_on_review_requested",
+    );
+    const runOnCommentTrigger = core.getBooleanInput("run_on_comment_trigger");
+    const commentTriggerPhrase = core.getInput("comment_trigger_phrase");
+
+    // Check if action should run based on trigger configuration
+    const shouldRun = shouldRunAction(github.context, {
+      runOnPrOpened,
+      runOnPrReopened,
+      runOnReviewRequested,
+      runOnCommentTrigger,
+      commentTriggerPhrase,
+    });
+
+    if (!shouldRun.shouldRun) {
+      core.info(`Skipping review: ${shouldRun.reason}`);
+      return;
+    }
+
+    core.info(`Running review: ${shouldRun.reason}`);
 
     // Validate required API key based on provider
     if (modelProvider === "openai" && !openaiApiKey) {
