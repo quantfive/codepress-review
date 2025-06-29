@@ -73,9 +73,10 @@ export function getSummarySystemPrompt(): string {
 
     <commentBudget>
       You have a default budget of **15 comments total** per review:
-        • up to 15 **REQUIRED**  
+        • up to 10 **REQUIRED**  
         • up to 3 **OPTIONAL**  
         • up to 2 **NIT**  
+        • up to 1 **PRAISE**
       Exceed the budget *only* if skipping a note would introduce a **correctness or security bug**.
     </commentBudget>
     <deduplicationRule>
