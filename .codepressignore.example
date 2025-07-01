@@ -1,0 +1,42 @@
+# .codepressignore
+# 
+# This file allows you to specify additional files/patterns to ignore during code review.
+# CodePress comes with sensible defaults for common files (lock files, node_modules, build artifacts, etc.)
+# 
+# You can add your own patterns here. Patterns follow the same syntax as .gitignore.
+# Lines starting with # are comments and will be ignored.
+
+# Examples of additional patterns you might want to ignore:
+
+# Specific files
+# README.md
+# CHANGELOG.md
+
+# Generated documentation
+# docs/api/
+# *.generated.ts
+
+# Test files (if you don't want them reviewed)
+# *.test.ts
+# *.spec.js
+# test/
+# __tests__/
+
+# Configuration files
+# webpack.config.js
+# rollup.config.js
+# *.config.ts
+
+# Large data files
+# *.json
+# *.csv
+# data/
+
+# Specific directories in your project
+# scripts/
+# tools/
+# migrations/
+
+# If you want to INCLUDE a file that's ignored by defaults, you can use ! prefix:
+# This forces review of package-lock.json even though lock files are ignored by default
+# !package-lock.json 

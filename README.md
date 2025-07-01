@@ -210,6 +210,76 @@ The action will automatically find the open pull request associated with that br
     gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
+## File Filtering and Ignore Patterns
+
+CodePress automatically ignores common files that don't need code review (like `node_modules/`, lock files, build artifacts, etc.) and also supports custom ignore patterns through a `.codepressignore` file.
+
+### Default Ignore Patterns
+
+CodePress ships with comprehensive default ignore patterns for all major programming languages and frameworks:
+
+**Frontend/JavaScript:**
+
+- `node_modules/`, `*.lock`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
+- `dist/`, `build/`, `.next/`, `.nuxt/`, `coverage/`
+- `*.min.js`, `*.min.css`, `*.bundle.js`, `*.chunk.js`
+
+**Backend Languages:**
+
+- **Python**: `__pycache__/`, `*.pyc`, `venv/`, `.venv/`, `*.egg-info/`, `.pytest_cache/`
+- **Java**: `*.class`, `*.jar`, `.gradle/`, `.mvn/`, `target/`
+- **C#/.NET**: `*.dll`, `*.exe`, `packages/`, `bin/`, `obj/`
+- **Ruby**: `*.gem`, `.bundle/`, `vendor/bundle/`
+- **Go**: `vendor/`, `*.test`, `go.sum`
+- **Rust**: `target/`, `Cargo.lock`
+
+**General:**
+
+- IDE files: `.vscode/`, `.idea/`, `*.swp`
+- Logs: `*.log`, `logs/`
+- Environment files: `.env`, `.env.*`
+- Cache and temp: `.cache/`, `.tmp/`, `.DS_Store`
+
+### Custom Ignore Patterns
+
+Create a `.codepressignore` file in your repository root to add your own ignore patterns:
+
+```gitignore
+# .codepressignore
+
+# Don't review generated API documentation
+docs/api/
+*.generated.ts
+
+# Skip test files if desired
+*.test.ts
+__tests__/
+
+# Large data files
+*.json
+data/
+
+# Specific files
+README.md
+CHANGELOG.md
+```
+
+### Include Previously Ignored Files
+
+Use the `!` prefix to force review of files that would otherwise be ignored by defaults:
+
+```gitignore
+# Force review of package-lock.json even though lock files are ignored by default
+!package-lock.json
+
+# Review specific config files
+!webpack.config.js
+```
+
+### Example `.codepressignore`
+
+We provide a [`.codepressignore.example`](.codepressignore.example) file showing common patterns you might want to add.
+
 ## Review Output Format
 
 CodePress Review uses a structured XML format for consistent, rich code review comments. Each finding includes:

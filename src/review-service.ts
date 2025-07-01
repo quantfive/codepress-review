@@ -210,15 +210,24 @@ export class ReviewService {
     const diffText = readFileSync(resolve(this.config.diff), "utf8");
     const chunks = splitDiff(diffText);
 
-    // Load ignore patterns
+    // Load ignore patterns - start with defaults, then add user patterns
     const ignoreFile = ".codepressignore";
-    const ignorePatterns = existsSync(ignoreFile)
+    const userIgnorePatterns = existsSync(ignoreFile)
       ? readFileSync(ignoreFile, "utf8")
           .split("\n")
           .filter((line) => line.trim() && !line.startsWith("#"))
       : [];
 
-    const ig = ignore().add(ignorePatterns);
+    // Import default patterns
+    const { DEFAULT_IGNORE_PATTERNS } = await import("./constants");
+
+    // Combine default patterns with user patterns (user patterns take precedence)
+    const allIgnorePatterns = [
+      ...DEFAULT_IGNORE_PATTERNS,
+      ...userIgnorePatterns,
+    ];
+
+    const ig = ignore().add(allIgnorePatterns);
 
     // Filter chunks by ignore patterns before summarization, preserving original indices
     const filteredChunks = chunks

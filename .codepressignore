@@ -1,2 +1,6 @@
+# This .codepressignore is for the CodePress repository itself
+# Users of CodePress don't need to copy this file
+
+# For this repo, we don't need to review these files
 dist/
 pnpm-lock.yaml
