@@ -23,7 +23,7 @@ name: CodePress Review
 
 on:
   pull_request:
-    types: [opened, reopened, review_requested] #synchronize]
+    types: [opened, reopened, review_requested] #synchronize
   issue_comment:
     types: [created]
   workflow_dispatch: # Allow manual triggering
