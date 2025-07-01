@@ -60,11 +60,18 @@ export interface RiskItem {
   description: string;
 }
 
+export interface IssueItem {
+  severity: string;
+  kind: string;
+  description: string;
+}
+
 export interface HunkSummary {
   index: number;
   file: string;
   overview: string;
-  risks: RiskItem[];
+  risks: RiskItem[]; // Keep for backward compatibility with keyRisks
+  issues: IssueItem[]; // New format for hunk-level issues
   tests: string[];
 }
 

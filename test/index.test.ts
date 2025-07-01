@@ -40,6 +40,8 @@ describe("GitHub Action main run function", () => {
           return "gpt-4o";
         case "openai_api_key":
           return "test-openai-key";
+        case "comment_trigger_phrase":
+          return "@codepress review";
         default:
           return "";
       }
@@ -54,6 +56,14 @@ describe("GitHub Action main run function", () => {
             return false;
           case "debug":
             return false;
+          case "run_on_pr_opened":
+            return true;
+          case "run_on_pr_reopened":
+            return true;
+          case "run_on_review_requested":
+            return true;
+          case "run_on_comment_trigger":
+            return true;
           default:
             return false;
         }
@@ -85,7 +95,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: 123 } },
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
@@ -107,7 +120,9 @@ describe("GitHub Action main run function", () => {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "issue_comment",
         payload: {
+          action: "created",
           issue: { number: 456, pull_request: {} },
+          comment: { body: "@codepress review" },
         },
         ref: "refs/heads/feature",
       },
@@ -177,7 +192,7 @@ describe("GitHub Action main run function", () => {
     );
   });
 
-  it("should fail for unsupported event types", async () => {
+  it("should skip for unsupported event types", async () => {
     Object.defineProperty(github, "context", {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
@@ -190,8 +205,8 @@ describe("GitHub Action main run function", () => {
 
     await run();
 
-    expect(core.setFailed).toHaveBeenCalledWith(
-      "This action must be run in the context of a pull request, a pull request comment, or a manual dispatch.",
+    expect(core.info).toHaveBeenCalledWith(
+      "Skipping review: Unsupported event: push with action: undefined",
     );
   });
 
@@ -200,7 +215,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: 123 } },
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
@@ -221,7 +239,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: "invalid" } },
+        payload: {
+          action: "opened",
+          pull_request: { number: "invalid" },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
@@ -239,7 +260,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: undefined } },
+        payload: {
+          action: "opened",
+          pull_request: { number: undefined },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
@@ -258,7 +282,9 @@ describe("GitHub Action main run function", () => {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "issue_comment",
         payload: {
+          action: "created",
           issue: { number: "not-a-number", pull_request: {} },
+          comment: { body: "@codepress review" },
         },
         ref: "refs/heads/feature",
       },
@@ -296,7 +322,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: 123 } },
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
@@ -321,9 +350,24 @@ describe("GitHub Action main run function", () => {
           return "gpt-4o";
         case "openai_api_key":
           return ""; // Missing API key
+        case "comment_trigger_phrase":
+          return "@codepress review";
         default:
           return "";
       }
+    });
+
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
     });
 
     await run();
@@ -344,9 +388,24 @@ describe("GitHub Action main run function", () => {
           return "claude-3-5-sonnet-20241022";
         case "anthropic_api_key":
           return ""; // Missing API key
+        case "comment_trigger_phrase":
+          return "@codepress review";
         default:
           return "";
       }
+    });
+
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
     });
 
     await run();
@@ -367,9 +426,24 @@ describe("GitHub Action main run function", () => {
           return "gemini-1.5-pro";
         case "gemini_api_key":
           return ""; // Missing API key
+        case "comment_trigger_phrase":
+          return "@codepress review";
         default:
           return "";
       }
+    });
+
+    Object.defineProperty(github, "context", {
+      value: {
+        repo: { owner: "test-owner", repo: "test-repo" },
+        eventName: "pull_request",
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
+        ref: "refs/heads/feature",
+      },
+      writable: true,
     });
 
     await run();
@@ -386,6 +460,14 @@ describe("GitHub Action main run function", () => {
           return true;
         case "update_pr_description":
           return false;
+        case "run_on_pr_opened":
+          return true;
+        case "run_on_pr_reopened":
+          return true;
+        case "run_on_review_requested":
+          return true;
+        case "run_on_comment_trigger":
+          return true;
         default:
           return false;
       }
@@ -395,7 +477,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: 123 } },
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
@@ -411,7 +496,10 @@ describe("GitHub Action main run function", () => {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
         eventName: "pull_request",
-        payload: { pull_request: { number: 123 } },
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
         ref: "refs/heads/feature",
       },
       writable: true,
