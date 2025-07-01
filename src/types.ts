@@ -5,7 +5,6 @@ export interface Finding {
   message: string;
   severity?: string;
   suggestion?: string;
-  code?: string;
 }
 
 export interface ReviewConfig {

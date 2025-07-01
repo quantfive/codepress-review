@@ -38,7 +38,6 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
       const suggestionMatch = commentContent.match(
         /<suggestion>([\s\S]*?)<\/suggestion>/s,
       );
-      const codeMatch = commentContent.match(/<code>([\s\S]*?)<\/code>/s);
 
       if (!fileMatch || !lineMatch || !messageMatch) {
         continue; // Skip incomplete comments
@@ -50,7 +49,6 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
       const suggestion = suggestionMatch
         ? suggestionMatch[1].trim()
         : undefined;
-      const code = codeMatch ? codeMatch[1].trim() : undefined;
       let lineToMatch: string | undefined;
 
       // The line content is used for matching, we need to strip the diff marker.
@@ -72,7 +70,6 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
         message: message,
         severity: severity,
         suggestion: suggestion,
-        code: code,
       });
     }
   }
@@ -138,7 +135,6 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
       const suggestionMatch = commentContent.match(
         /<suggestion>([\s\S]*?)<\/suggestion>/s,
       );
-      const codeMatch = commentContent.match(/<code>([\s\S]*?)<\/code>/s);
 
       if (!fileMatch || !lineMatch || !messageMatch) {
         continue; // Skip incomplete comments
@@ -150,7 +146,6 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
       const suggestion = suggestionMatch
         ? suggestionMatch[1].trim()
         : undefined;
-      const code = codeMatch ? codeMatch[1].trim() : undefined;
       let lineToMatch: string | undefined;
 
       // The line content is used for matching, we need to strip the diff marker.
@@ -172,7 +167,6 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
         message: message,
         severity: severity,
         suggestion: suggestion,
-        code: code,
       });
     }
   }
