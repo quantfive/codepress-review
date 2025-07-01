@@ -130,7 +130,7 @@ export function getSystemPrompt(): string {
 
       ✦ DO NOT include any other top-level text.
       ✦ Preserve the order in which issues appear in the diff.
-      ✦ Omit <suggestion> and/or <code> if you have nothing useful to add.
+      ✦ Omit <suggestion> if you have nothing useful to add.
     -->
     <comment>
       <!-- how serious is the issue?
@@ -158,17 +158,6 @@ export function getSystemPrompt(): string {
       <suggestion>
         +  description: string;
       </suggestion>
-
-      <!-- OPTIONAL: side-by-side fix or longer example (use fenced code
-          so GitHub renders it nicely)                                  -->
-      <code>
-        \`\`\`tsx
-        interface SEOProps {
-          title: string;
-          description: string; // required for correct meta tags
-        }
-        \`\`\`
-      </code>
     </comment>
 
     <!-- repeat additional <comment> blocks as needed -->

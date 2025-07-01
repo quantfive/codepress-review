@@ -174,7 +174,7 @@ export function getInteractiveSystemPrompt(): string {
       Your response should contain two main sections:
       1. <comments> - new review comments to post
         ✦ Preserve the order in which issues appear in the diff.
-        ✦ Omit <suggestion> and/or <code> if you have nothing useful to add.
+        ✦ Omit <suggestion> if you have nothing useful to add.
         ✦ If the comment already exists in the <existingCommentsContext>, do not post it again.
       2. <resolvedComments> - existing comments that are now resolved
 
@@ -206,21 +206,12 @@ export function getInteractiveSystemPrompt(): string {
           make the prop required and avoid missing-description bugs.
         </message>
 
-        <!-- OPTIONAL: concrete replacement or illustrative snippet        -->
+        <!-- OPTIONAL: We'll use this code block as a replacement for what is currently there. It uses 
+          Github's native code suggestion syntax, which a user can commit immediately. Therefore the code block generated
+          needs to be a 100% valid replacement for the current code that can be committed without modification. -->
         <suggestion>
-          +  description: string;
+          description: string;
         </suggestion>
-
-        <!-- OPTIONAL: side-by-side fix or longer example (use fenced code
-            so GitHub renders it nicely)                                  -->
-        <code>
-          \`\`\`tsx
-          interface SEOProps {
-            title: string;
-            description: string; // required for correct meta tags
-          }
-          \`\`\`
-        </code>
       </comment>
 
       <!-- repeat additional <comment> blocks as needed -->

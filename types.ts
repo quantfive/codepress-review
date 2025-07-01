@@ -4,5 +4,4 @@ export interface Finding {
   message: string; // comment body (may include ```suggestion blocks)
   severity?: string;
   suggestion?: string;
-  code?: string;
 }

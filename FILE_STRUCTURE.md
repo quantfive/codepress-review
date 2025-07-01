@@ -115,7 +115,6 @@ interface Finding {
   message: string; // Review message
   severity: string; // Severity level (required, optional, nit, fyi)
   suggestion?: string; // Optional code suggestion
-  code?: string; // Optional code snippet
 }
 ```
 
