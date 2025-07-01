@@ -23,29 +23,29 @@ name: CodePress Review
 
 on:
   pull_request:
-    types: [opened, reopened]
-  workflow_dispatch: # Allows manual triggering from the Actions tab
+    types: [opened, reopened, review_requested] #synchronize]
+  issue_comment:
+    types: [created]
+  workflow_dispatch: # Allow manual triggering
 
 permissions:
   pull-requests: write
   contents: read
+  issues: read
 
 jobs:
   ai-review:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: CodePress Review
-        uses: quantfive/codepress-review@v2
+        uses: quantfive/codepress-review@v2 # When published
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
-          model_name: "gpt-4o"
+          model_name: "o4-mini"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          # All trigger configurations use sensible defaults
+          # + synchronize event runs automatically when included in workflow
 ```
 
 ## Configuration
@@ -62,17 +62,22 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ### Input Parameters
 
-| Input                   | Required | Default               | Description                                  |
-| ----------------------- | -------- | --------------------- | -------------------------------------------- |
-| `github_token`          | ✅       | `${{ github.token }}` | GitHub token for API access                  |
-| `model_provider`        | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini` |
-| `model_name`            | ✅       | `gpt-4o`              | Model name (see examples below)              |
-| `openai_api_key`        | ⚠️       |                       | Required if using OpenAI                     |
-| `anthropic_api_key`     | ⚠️       |                       | Required if using Anthropic                  |
-| `gemini_api_key`        | ⚠️       |                       | Required if using Google                     |
-| `max_turns`             | ❌       | `12`                  | Maximum turns for interactive agent review   |
-| `update_pr_description` | ❌       | `true`                | Auto-generate PR descriptions for blank PRs  |
-| `debug`                 | ❌       | `false`               | Enable debug mode for detailed console logs  |
+| Input                     | Required | Default               | Description                                                  |
+| ------------------------- | -------- | --------------------- | ------------------------------------------------------------ |
+| `github_token`            | ✅       | `${{ github.token }}` | GitHub token for API access                                  |
+| `model_provider`          | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini`                 |
+| `model_name`              | ✅       | `gpt-4o`              | Model name (see examples below)                              |
+| `openai_api_key`          | ⚠️       |                       | Required if using OpenAI                                     |
+| `anthropic_api_key`       | ⚠️       |                       | Required if using Anthropic                                  |
+| `gemini_api_key`          | ⚠️       |                       | Required if using Google                                     |
+| `max_turns`               | ❌       | `12`                  | Maximum turns for interactive agent review                   |
+| `update_pr_description`   | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                  |
+| `debug`                   | ❌       | `false`               | Enable debug mode for detailed console logs                  |
+| `run_on_pr_opened`        | ❌       | `true`                | Run review when PR is opened                                 |
+| `run_on_pr_reopened`      | ❌       | `true`                | Run review when PR is reopened                               |
+| `run_on_review_requested` | ❌       | `true`                | Run review when re-review requested from github-actions[bot] |
+| `run_on_comment_trigger`  | ❌       | `true`                | Run review when comments contain trigger phrase              |
+| `comment_trigger_phrase`  | ❌       | `"@codepress/review"` | Phrase that triggers review in comments                      |
 
 ## Triggering Reviews
 
