@@ -37,6 +37,15 @@
 # tools/
 # migrations/
 
-# If you want to INCLUDE a file that's ignored by defaults, you can use ! prefix:
-# This forces review of package-lock.json even though lock files are ignored by default
-# !package-lock.json 
+# To INCLUDE a file that's ignored by defaults, use the ! prefix:
+# This forces review of yarn.lock even though lock files are ignored by default
+# !yarn.lock
+
+# You can unignore multiple lock files if needed:
+# !yarn.lock
+# !package-lock.json
+# !composer.lock
+
+# Or force review of specific config files:
+# !webpack.config.js
+# !rollup.config.js 
