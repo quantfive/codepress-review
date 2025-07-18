@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: CodePress Review
-        uses: quantfive/codepress-review@v2 # When published
+        uses: quantfive/codepress-review@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
