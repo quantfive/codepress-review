@@ -1,3 +1,5 @@
+<img width="90" height="33" alt="codepress-logo" src="https://github.com/user-attachments/assets/c85c9e09-d456-4c35-9b5f-522dc3f822e9" />
+
 # CodePress Review
 
 A turnkey GitHub Action for automatic, inline code review on every Pull Request using LLMs (OpenAI, Anthropic, Google Gemini, etc.).
