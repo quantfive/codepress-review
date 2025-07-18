@@ -100,9 +100,9 @@ on:
 
 ### On-Demand via PR Comments
 
-You can trigger a new review at any time by posting a comment on the pull request. This is useful when you've pushed new changes and want a fresh review without waiting for another automatic trigger.
+You can trigger a new review at any time by posting a comment containing `@codepress/review` on the pull request. This feature is **enabled by default** and works automatically when you include `issue_comment` triggers in your workflow.
 
-To enable comment triggers, use a workflow like this:
+**Basic setup with comment triggers:**
 
 ```yaml
 name: CodePress Review
@@ -110,7 +110,6 @@ name: CodePress Review
 on:
   pull_request:
     types: [opened, reopened]
-  # Add these new triggers
   issue_comment:
     types: [created]
   workflow_dispatch: # Allows manual triggering from the Actions tab
@@ -123,21 +122,11 @@ permissions:
 jobs:
   ai-review:
     runs-on: ubuntu-latest
-    # Run on: PR events, manual triggers, or PR comments containing '@codepress/review'
-    if: |
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@codepress/review')
-      )
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # This 'ref' is essential to checkout the correct code for comment-triggered runs
           ref: ${{ github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || github.ref }}
 
       - name: CodePress Review
@@ -147,6 +136,35 @@ jobs:
           model_provider: "openai"
           model_name: "gpt-4o"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          # Comment triggers are enabled by default
+          # run_on_comment_trigger: true  # Default
+          # comment_trigger_phrase: "@codepress/review"  # Default
+```
+
+**To disable comment triggers:**
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    run_on_comment_trigger: false  # Disable comment triggers
+```
+
+**To customize the trigger phrase:**
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    comment_trigger_phrase: "please review"  # Custom trigger phrase
 ```
 
 ### Manually from the Actions Tab
