@@ -13,12 +13,12 @@ inputs:
     default: ${{ github.token }}
 
   model_provider:
-    description: "AI model provider (openai, anthropic, gemini)"
+    description: "AI model provider (openai, anthropic, gemini, cohere, mistral, perplexity, fireworks, groq, xai, deepseek, etc.)"
     required: true
     default: "openai"
 
   model_name:
-    description: "AI model name (e.g., gpt-4o, claude-3-sonnet-20240229, gemini-1.5-pro)"
+    description: "AI model name (e.g., gpt-4o, claude-3-sonnet-20240229, gemini-1.5-pro, command-r-plus, etc.)"
     required: true
     default: "o4-mini"
 
@@ -31,7 +31,35 @@ inputs:
     required: false
 
   gemini_api_key:
-    description: "Google Gemini API key (required if using Gemini)"
+    description: "Google Gemini API key (required if using Gemini/Google)"
+    required: false
+
+  cohere_api_key:
+    description: "Cohere API key (required if using Cohere)"
+    required: false
+
+  mistral_api_key:
+    description: "Mistral API key (required if using Mistral)"
+    required: false
+
+  perplexity_api_key:
+    description: "Perplexity API key (required if using Perplexity)"
+    required: false
+
+  fireworks_api_key:
+    description: "Fireworks API key (required if using Fireworks)"
+    required: false
+
+  groq_api_key:
+    description: "Groq API key (required if using Groq)"
+    required: false
+
+  xai_api_key:
+    description: "xAI API key (required if using xAI)"
+    required: false
+
+  deepseek_api_key:
+    description: "DeepSeek API key (required if using DeepSeek)"
     required: false
 
   max_turns:

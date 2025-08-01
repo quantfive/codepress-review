@@ -373,7 +373,7 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
-      "openai_api_key is required when using OpenAI provider",
+      "openai_api_key is required when using openai provider",
     );
   });
 
@@ -411,7 +411,7 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
-      "anthropic_api_key is required when using Anthropic provider",
+      "anthropic_api_key is required when using anthropic provider",
     );
   });
 
@@ -449,7 +449,7 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
-      "gemini_api_key is required when using Gemini provider",
+      "gemini_api_key is required when using gemini provider",
     );
   });
 

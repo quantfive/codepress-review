@@ -169,7 +169,7 @@ describe("Configuration", () => {
       process.env.MODEL_NAME = "some-model";
 
       expect(() => getModelConfig()).toThrow(
-        "Unsupported MODEL_PROVIDER: unsupported",
+        "Unknown provider \"unsupported\"",
       );
     });
   });
