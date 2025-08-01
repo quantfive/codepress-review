@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Common Commands
 
-- **Build**: `npm run build` - Compiles TypeScript and packages with ncc
-- **Package**: `npm run package` - Alias for build command
-- **Lint**: `npm run lint` - ESLint with TypeScript support, must have 0 warnings
-- **Type Check**: `npm run type-check` - TypeScript compilation check without output
-- **Test**: `npm run test` - Runs build and package (no separate test suite)
-- **Manual Review**: `npm run review` - Runs ts-node on ai-review.ts for local testing
+- **Build**: `pnpm run build` - Compiles TypeScript and packages with ncc
+- **Package**: `pnpm run package` - Alias for build command
+- **Lint**: `pnpm run lint` - ESLint with TypeScript support, must have 0 warnings
+- **Type Check**: `pnpm run type-check` - TypeScript compilation check without output
+- **Test**: `pnpm run test` - Runs Jest test suite with full coverage
+- **Manual Review**: `pnpm run review` - Runs ts-node on ai-review.ts for local testing
 
 ## Architecture Overview
 

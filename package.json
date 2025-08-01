@@ -5,13 +5,13 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && ncc build dist/src/index.js -o dist --license licenses.txt --no-source-map-register && sed -i.bak 's/import\\.meta/({url: __filename})/g' dist/index.js && rm -f dist/index.js.bak",
-    "package": "npm run build",
+    "package": "pnpm run build",
     "review": "ts-node src/ai-review.ts",
     "lint": "eslint src/**/*.ts --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "NODE_ENV=test jest",
     "prepare": "husky",
-    "check-dist": "npm run build && git diff --exit-code dist/"
+    "check-dist": "pnpm run build && git diff --exit-code dist/"
   },
   "keywords": [],
   "author": "",
