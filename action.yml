@@ -13,7 +13,7 @@ inputs:
     default: ${{ github.token }}
 
   model_provider:
-    description: "AI model provider (openai, anthropic, gemini, cohere, mistral, perplexity, fireworks, groq, xai, deepseek, etc.)"
+    description: "AI model provider (openai, anthropic, gemini, cohere, mistral, perplexity, fireworks, groq, xai, deepseek, openai-compatible, ollama, etc.)"
     required: true
     default: "openai"
 
@@ -60,6 +60,22 @@ inputs:
 
   deepseek_api_key:
     description: "DeepSeek API key (required if using DeepSeek)"
+    required: false
+
+  openai_compatible_api_key:
+    description: "API key for OpenAI-compatible endpoints (required if using openai-compatible provider)"
+    required: false
+
+  openai_compatible_base_url:
+    description: "Base URL for OpenAI-compatible endpoints (required if using openai-compatible provider)"
+    required: false
+
+  ollama_api_key:
+    description: "Ollama API key (optional, often not needed for local Ollama instances)"
+    required: false
+
+  ollama_base_url:
+    description: "Ollama base URL (defaults to http://localhost:11434/v1)"
     required: false
 
   max_turns:

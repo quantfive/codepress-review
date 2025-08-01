@@ -123,6 +123,12 @@ async function run(): Promise<void> {
     const groqApiKey = core.getInput("groq_api_key");
     const xaiApiKey = core.getInput("xai_api_key");
     const deepseekApiKey = core.getInput("deepseek_api_key");
+    const openaiCompatibleApiKey = core.getInput("openai_compatible_api_key");
+    const ollamaApiKey = core.getInput("ollama_api_key");
+    
+    // Get base URLs for self-hosted endpoints
+    const openaiCompatibleBaseUrl = core.getInput("openai_compatible_base_url");
+    const ollamaBaseUrl = core.getInput("ollama_base_url");
 
     // Handle max_turns input
     const maxTurns = core.getInput("max_turns");
@@ -171,6 +177,8 @@ async function run(): Promise<void> {
       groq: groqApiKey,
       xai: xaiApiKey,
       deepseek: deepseekApiKey,
+      "openai-compatible": openaiCompatibleApiKey,
+      ollama: ollamaApiKey,
     };
 
     const providerKey = apiKeyMap[modelProvider.toLowerCase()];
@@ -200,6 +208,12 @@ async function run(): Promise<void> {
     process.env.GROQ_API_KEY = groqApiKey;
     process.env.XAI_API_KEY = xaiApiKey;
     process.env.DEEPSEEK_API_KEY = deepseekApiKey;
+    process.env.OPENAI_COMPATIBLE_API_KEY = openaiCompatibleApiKey;
+    process.env.OLLAMA_API_KEY = ollamaApiKey;
+    
+    // Set base URLs for self-hosted endpoints
+    process.env.OPENAI_COMPATIBLE_BASE_URL = openaiCompatibleBaseUrl;
+    process.env.OLLAMA_BASE_URL = ollamaBaseUrl;
     process.env.MAX_TURNS = maxTurns;
     process.env.UPDATE_PR_DESCRIPTION = updatePrDescription.toString();
     process.env.DEBUG = debug.toString();

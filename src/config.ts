@@ -35,6 +35,8 @@ const PROVIDER_API_KEY_MAP: Record<string, string> = {
   groq: "GROQ_API_KEY",
   xai: "XAI_API_KEY",
   deepseek: "DEEPSEEK_API_KEY",
+  "openai-compatible": "OPENAI_COMPATIBLE_API_KEY",
+  ollama: "OLLAMA_API_KEY", // Special case for Ollama (often no key needed)
 };
 
 export function getModelConfig(): ModelConfig {

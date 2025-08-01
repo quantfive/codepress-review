@@ -89,6 +89,31 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     },
     packageName: "@ai-sdk/deepseek",
   },
+  "openai-compatible": {
+    createFn: (options) => {
+      const { createOpenAI } = require("@ai-sdk/openai");
+      const baseURL = process.env.OPENAI_COMPATIBLE_BASE_URL;
+      if (!baseURL) {
+        throw new Error("OPENAI_COMPATIBLE_BASE_URL environment variable is required for openai-compatible provider");
+      }
+      return createOpenAI({
+        apiKey: options.apiKey || "dummy-key", // Some self-hosted models don't need real keys
+        baseURL: baseURL,
+      });
+    },
+    packageName: "@ai-sdk/openai",
+  },
+  ollama: {
+    createFn: (options) => {
+      const { createOpenAI } = require("@ai-sdk/openai");
+      const baseURL = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
+      return createOpenAI({
+        apiKey: options.apiKey || "ollama", // Ollama doesn't require real API keys
+        baseURL: baseURL,
+      });
+    },
+    packageName: "@ai-sdk/openai",
+  },
 };
 
 /**

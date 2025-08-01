@@ -15,6 +15,34 @@ jest.mock("../src/ai-review", () => ({
 }));
 
 describe("GitHub Action main run function", () => {
+  const setupValidPRContext = () => {
+    Object.defineProperty(github, "context", {
+      value: {
+        eventName: "pull_request",
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
+        repo: { owner: "test-owner", repo: "test-repo" },
+      },
+      writable: true,
+    });
+
+    mockGetBooleanInput.mockImplementation((name) => {
+      switch (name) {
+        case "run_on_pr_opened":
+          return true;
+        case "run_on_pr_reopened":
+          return true;
+        case "run_on_review_requested":
+          return true;
+        case "run_on_comment_trigger":
+          return true;
+        default:
+          return false;
+      }
+    });
+  };
   let mockGetInput: jest.SpyInstance;
   let mockGetBooleanInput: jest.SpyInstance;
   let mockGetOctokit: jest.SpyInstance;
@@ -451,6 +479,197 @@ describe("GitHub Action main run function", () => {
     expect(core.setFailed).toHaveBeenCalledWith(
       "gemini_api_key is required when using gemini provider",
     );
+  });
+
+  it("should handle API key validation for Cohere", async () => {
+    setupValidPRContext();
+    
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "cohere";
+        case "model_name":
+          return "command-r-plus";
+        case "cohere_api_key":
+          return ""; // Missing key
+        case "comment_trigger_phrase":
+          return "@codepress/review";
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "cohere_api_key is required when using cohere provider",
+    );
+  });
+
+  it("should handle API key validation for Groq", async () => {
+    setupValidPRContext();
+    
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "groq";
+        case "model_name":
+          return "llama-3.1-70b-versatile";
+        case "groq_api_key":
+          return ""; // Missing key
+        case "comment_trigger_phrase":
+          return "@codepress/review";
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "groq_api_key is required when using groq provider",
+    );
+  });
+
+  it("should handle API key validation for DeepSeek", async () => {
+    setupValidPRContext();
+    
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "deepseek";
+        case "model_name":
+          return "deepseek-chat";
+        case "deepseek_api_key":
+          return ""; // Missing key
+        case "comment_trigger_phrase":
+          return "@codepress/review";
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "deepseek_api_key is required when using deepseek provider",
+    );
+  });
+
+  it("should handle API key validation for OpenAI-compatible", async () => {
+    setupValidPRContext();
+    
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "openai-compatible";
+        case "model_name":
+          return "llama-3.1-70b-instruct";
+        case "openai_compatible_api_key":
+          return ""; // Missing key
+        case "comment_trigger_phrase":
+          return "@codepress/review";
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "openai-compatible_api_key is required when using openai-compatible provider",
+    );
+  });
+
+  it("should handle unknown provider gracefully", async () => {
+    setupValidPRContext();
+    
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "unknown-provider";
+        case "model_name":
+          return "some-model";
+        case "comment_trigger_phrase":
+          return "@codepress/review";
+        default:
+          return "";
+      }
+    });
+
+    await run();
+
+    expect(core.info).toHaveBeenCalledWith(
+      'Unknown provider "unknown-provider". Will attempt to use UNKNOWN-PROVIDER_API_KEY environment variable.',
+    );
+  });
+
+  it("should successfully validate when all required inputs are provided for new providers", async () => {
+    mockGetInput.mockImplementation((name) => {
+      switch (name) {
+        case "github_token":
+          return "test-token";
+        case "model_provider":
+          return "groq";
+        case "model_name":
+          return "llama-3.1-70b-versatile";
+        case "groq_api_key":
+          return "test-groq-key";
+        case "comment_trigger_phrase":
+          return "@codepress/review";
+        case "max_turns":
+          return "12";
+        default:
+          return "";
+      }
+    });
+
+    mockGetBooleanInput.mockImplementation((name) => {
+      switch (name) {
+        case "update_pr_description":
+          return true;
+        case "debug":
+          return false;
+        case "run_on_pr_opened":
+          return true;
+        case "run_on_pr_reopened":
+          return true;
+        case "run_on_review_requested":
+          return true;
+        case "run_on_comment_trigger":
+          return true;
+        default:
+          return false;
+      }
+    });
+
+    // Mock GitHub context for a valid PR
+    Object.defineProperty(github, "context", {
+      value: {
+        eventName: "pull_request",
+        payload: {
+          action: "opened",
+          pull_request: { number: 123 },
+        },
+        repo: { owner: "test-owner", repo: "test-repo" },
+      },
+      writable: true,
+    });
+
+    await run();
+
+    expect(core.setFailed).not.toHaveBeenCalled();
+    expect(core.info).toHaveBeenCalledWith("Running review: PR was opened");
   });
 
   it("should set DEBUG environment variable based on debug input", async () => {
