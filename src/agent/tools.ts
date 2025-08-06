@@ -290,14 +290,14 @@ export const findPatternsTool = tool({
   description: "Find similar code patterns or implementations in the codebase for a given domain or file type",
   parameters: z.object({
     domain: z.string().describe("Domain or feature area (e.g., 'components', 'auth', 'api')"),
-    filePattern: z.string().optional().describe("File pattern to match (e.g., '*.tsx', 'Button*')"),
+    filePattern: z.string().nullable().default("").describe("File pattern to match (e.g., '*.tsx', 'Button*'), or empty string for no pattern"),
     maxResults: z.number().int().min(1).max(10).default(5).describe("Maximum number of examples to return"),
   }),
   execute: async ({ domain, filePattern, maxResults }) => {
     const sourceFiles = getAllSourceFiles();
     
     let matchingFiles = sourceFiles.filter(file => {
-      if (filePattern) {
+      if (filePattern && filePattern.trim() !== "") {
         const pattern = filePattern.replace(/\*/g, '.*');
         const regex = new RegExp(pattern, 'i');
         return regex.test(file);
@@ -323,7 +323,7 @@ export const findPatternsTool = tool({
     }
     
     if (results.length === 0) {
-      return `No patterns found for domain "${domain}"${filePattern ? ` with pattern "${filePattern}"` : ''}`;
+      return `No patterns found for domain "${domain}"${filePattern && filePattern.trim() !== "" ? ` with pattern "${filePattern}"` : ''}`;
     }
     
     return `Found ${results.length} pattern examples:\n${results.join('\n')}`;
@@ -338,7 +338,7 @@ export const findUtilitiesTool = tool({
   description: "Find available utility functions, hooks, or services that might be relevant to the current changes",
   parameters: z.object({
     category: z.string().describe("Category to search for (e.g., 'validation', 'formatting', 'api', 'hooks')"),
-    keyword: z.string().optional().describe("Optional keyword to filter results"),
+    keyword: z.string().nullable().default("").describe("Optional keyword to filter results, or empty string for no keyword filter"),
   }),
   execute: async ({ category, keyword }) => {
     const sourceFiles = getAllSourceFiles();
@@ -352,7 +352,7 @@ export const findUtilitiesTool = tool({
         lowerFile.includes('hook') ||
         lowerFile.includes('service') ||
         lowerFile.includes(category.toLowerCase()) ||
-        (keyword && lowerFile.includes(keyword.toLowerCase()))
+        (keyword && keyword.trim() !== "" && lowerFile.includes(keyword.toLowerCase()))
       );
     }).slice(0, 8);
     
@@ -395,7 +395,7 @@ export const findUtilitiesTool = tool({
     }
     
     if (utilities.length === 0) {
-      return `No utilities found for category "${category}"${keyword ? ` with keyword "${keyword}"` : ''}`;
+      return `No utilities found for category "${category}"${keyword && keyword.trim() !== "" ? ` with keyword "${keyword}"` : ''}`;
     }
     
     return `Found ${utilities.length} relevant utilities:\n${utilities.join('\n')}`;
@@ -412,7 +412,7 @@ export const analyzeArchitectureTool = tool({
     filePaths: z.array(z.string()).describe("Array of file paths to analyze"),
     depth: z.number().int().min(1).max(3).default(2).describe("Depth of analysis"),
   }),
-  execute: async ({ filePaths, depth }) => {
+  execute: async ({ filePaths }) => {
     const results: string[] = [];
     
     for (const filePath of filePaths.slice(0, 5)) { // Limit to avoid overwhelming

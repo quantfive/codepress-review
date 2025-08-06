@@ -151,7 +151,7 @@ export function getInteractiveSystemPrompt(): string {
       <parameters>
         {
           "domain": "string - domain or feature area (e.g., 'components', 'auth', 'api')",
-          "filePattern": "string (optional) - file pattern to match (e.g., '*.tsx', 'Button*')",
+          "filePattern": "string - file pattern to match (e.g., '*.tsx', 'Button*'), or empty string for no pattern",
           "maxResults": "integer - maximum examples to return (1-10, default 5)"
         }
       </parameters>
@@ -162,7 +162,7 @@ export function getInteractiveSystemPrompt(): string {
       <parameters>
         {
           "category": "string - category to search for (e.g., 'validation', 'formatting', 'api', 'hooks')",
-          "keyword": "string (optional) - optional keyword to filter results"
+          "keyword": "string - optional keyword to filter results, or empty string for no keyword filter"
         }
       </parameters>
     </tool>
