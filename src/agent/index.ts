@@ -123,11 +123,29 @@ export async function reviewChunkWithAgent(
     existingCommentsContext = contextLines.join("\n");
   }
 
+  // Extract feature intent from the diff summary for contextual review
+  let featureContext = "";
+  if (diffSummary) {
+    featureContext = `
+<featureContext>
+  <intent>${escapeXml(diffSummary.prType || "Code changes")}</intent>
+  <summary>${escapeXml(diffSummary.summaryPoints.join(". ") || "No summary available")}</summary>
+  <prDescription>${escapeXml(diffSummary.prDescription || "No description provided")}</prDescription>
+  ${diffSummary.keyRisks.length > 0 ? `
+  <risks>
+    ${diffSummary.keyRisks.map(risk => `<risk tag="${escapeXml(risk.tag)}">${escapeXml(risk.description)}</risk>`).join('\n    ')}
+  </risks>` : ''}
+</featureContext>`;
+  }
+
   const initialMessage = `
 <reviewRequest>
   <repositoryFiles>
     ${escapeXml(fileList)}
   </repositoryFiles>
+  
+  ${featureContext}
+  
   <diffAnalysisContext>
     ${escapeXml(summaryContext)}
   </diffAnalysisContext>
@@ -139,7 +157,24 @@ export async function reviewChunkWithAgent(
   </diffChunk>
 
   <instruction>
-    Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments:\n  1. Avoid creating duplicate or similar comments unless you have significantly different insights.\n  2. Analyze whether any existing comments have been addressed by the changes in this diff.\n  3. If you find that an existing comment has been resolved by the code changes, include it in the <resolvedComments> section with a clear explanation of how it was addressed." : ""}
+    Review this diff chunk like a human team member would:
+    
+    1. **Understand the Intent**: What is this change trying to accomplish? Use the feature context above.
+    
+    2. **Gather Context**: Use the available tools to understand:
+       - How similar features are implemented in this codebase
+       - What utilities or patterns are available that might be relevant
+       - How these files fit into the broader architecture
+       
+    3. **Focus on Architecture**: Does this follow established patterns? Are they using the right abstractions?
+    
+    4. **Quality Review**: Look for maintainability, edge cases, and consistency with team conventions.
+    
+    5. **Prioritize Impact**: Focus on issues that would genuinely help the developer improve the codebase.
+    
+    ${existingComments.length > 0 ? "Special attention to existing comments:\n    - Avoid creating duplicate or similar comments unless you have significantly different insights\n    - Analyze whether any existing comments have been addressed by the changes\n    - If existing comments are resolved by the code changes, include them in the <resolvedComments> section" : ""}
+    
+    Take your time to gather the right context before providing feedback. Use the tools strategically to understand patterns and best practices in this codebase.
   </instruction>
 </reviewRequest>`;
 

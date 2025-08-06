@@ -282,4 +282,218 @@ export const depGraphTool = tool({
   },
 });
 
-export const allTools = [fetchFileTool, fetchSnippetTool, depGraphTool];
+/**
+ * Tool to find similar patterns in the codebase
+ */
+export const findPatternsTool = tool({
+  name: "find_patterns",
+  description: "Find similar code patterns or implementations in the codebase for a given domain or file type",
+  parameters: z.object({
+    domain: z.string().describe("Domain or feature area (e.g., 'components', 'auth', 'api')"),
+    filePattern: z.string().optional().describe("File pattern to match (e.g., '*.tsx', 'Button*')"),
+    maxResults: z.number().int().min(1).max(10).default(5).describe("Maximum number of examples to return"),
+  }),
+  execute: async ({ domain, filePattern, maxResults }) => {
+    const sourceFiles = getAllSourceFiles();
+    
+    let matchingFiles = sourceFiles.filter(file => {
+      if (filePattern) {
+        const pattern = filePattern.replace(/\*/g, '.*');
+        const regex = new RegExp(pattern, 'i');
+        return regex.test(file);
+      }
+      return file.toLowerCase().includes(domain.toLowerCase());
+    });
+
+    matchingFiles = matchingFiles.slice(0, maxResults);
+    
+    const results: string[] = [];
+    for (const file of matchingFiles) {
+      try {
+        const absolutePath = resolve(process.cwd(), file);
+        if (existsSync(absolutePath)) {
+          const content = readFileSync(absolutePath, 'utf-8');
+          // Get first 50 lines for pattern analysis
+          const preview = content.split('\n').slice(0, 50).join('\n');
+          results.push(`\n=== ${file} ===\n${preview}\n`);
+        }
+      } catch {
+        results.push(`\n=== ${file} ===\nError reading file\n`);
+      }
+    }
+    
+    if (results.length === 0) {
+      return `No patterns found for domain "${domain}"${filePattern ? ` with pattern "${filePattern}"` : ''}`;
+    }
+    
+    return `Found ${results.length} pattern examples:\n${results.join('\n')}`;
+  },
+});
+
+/**
+ * Tool to find available utilities in the codebase
+ */
+export const findUtilitiesTool = tool({
+  name: "find_utilities",
+  description: "Find available utility functions, hooks, or services that might be relevant to the current changes",
+  parameters: z.object({
+    category: z.string().describe("Category to search for (e.g., 'validation', 'formatting', 'api', 'hooks')"),
+    keyword: z.string().optional().describe("Optional keyword to filter results"),
+  }),
+  execute: async ({ category, keyword }) => {
+    const sourceFiles = getAllSourceFiles();
+    
+    // Look for utility files
+    const utilityFiles = sourceFiles.filter(file => {
+      const lowerFile = file.toLowerCase();
+      return (
+        lowerFile.includes('util') ||
+        lowerFile.includes('helper') ||
+        lowerFile.includes('hook') ||
+        lowerFile.includes('service') ||
+        lowerFile.includes(category.toLowerCase()) ||
+        (keyword && lowerFile.includes(keyword.toLowerCase()))
+      );
+    }).slice(0, 8);
+    
+    const utilities: string[] = [];
+    
+    for (const file of utilityFiles) {
+      try {
+        const absolutePath = resolve(process.cwd(), file);
+        if (existsSync(absolutePath)) {
+          const content = readFileSync(absolutePath, 'utf-8');
+          
+          // Extract exported functions/constants
+          const exportMatches = [
+            ...content.matchAll(/export\s+(function|const|class)\s+(\w+)/g),
+            ...content.matchAll(/export\s*{\s*([^}]+)\s*}/g),
+          ];
+          
+          if (exportMatches.length > 0) {
+            const exports = exportMatches.map(match => {
+              if (match[1] === 'function' || match[1] === 'const' || match[1] === 'class') {
+                return match[2];
+              } else {
+                // Parse export list
+                return match[1].split(',').map(exp => exp.trim()).join(', ');
+              }
+            }).join(', ');
+            
+            // Get JSDoc comment if available
+            const commentMatch = content.match(/\/\*\*([\s\S]*?)\*\//);
+            const description = commentMatch 
+              ? commentMatch[1].replace(/\s*\*\s?/g, ' ').trim().slice(0, 100)
+              : '';
+            
+            utilities.push(`\n=== ${file} ===\nExports: ${exports}\n${description ? `Description: ${description}` : ''}`);
+          }
+        }
+      } catch {
+        // Skip files we can't read
+      }
+    }
+    
+    if (utilities.length === 0) {
+      return `No utilities found for category "${category}"${keyword ? ` with keyword "${keyword}"` : ''}`;
+    }
+    
+    return `Found ${utilities.length} relevant utilities:\n${utilities.join('\n')}`;
+  },
+});
+
+/**
+ * Tool to analyze architectural context
+ */
+export const analyzeArchitectureTool = tool({
+  name: "analyze_architecture", 
+  description: "Analyze the architectural context and relationships for changed files",
+  parameters: z.object({
+    filePaths: z.array(z.string()).describe("Array of file paths to analyze"),
+    depth: z.number().int().min(1).max(3).default(2).describe("Depth of analysis"),
+  }),
+  execute: async ({ filePaths, depth }) => {
+    const results: string[] = [];
+    
+    for (const filePath of filePaths.slice(0, 5)) { // Limit to avoid overwhelming
+      if (!existsSync(resolve(process.cwd(), filePath))) {
+        results.push(`\n=== ${filePath} ===\nFile not found`);
+        continue;
+      }
+      
+      // Get dependency information for the file
+      const { imports } = extractDependencies(filePath);
+      const importedBy = findImporters(filePath, getAllSourceFiles());
+      
+      let depGraph = `Dependencies: ${imports.length > 0 ? imports.join(', ') : 'None'}`;
+      depGraph += `\nImported by: ${importedBy.length > 0 ? importedBy.join(', ') : 'None'}`;
+      
+      // Analyze the file type and purpose
+      const fileType = inferFileType(filePath);
+      const purpose = await inferFilePurpose(filePath);
+      
+      results.push(`\n=== ${filePath} ===`);
+      results.push(`Type: ${fileType}`);
+      results.push(`Purpose: ${purpose}`);
+      results.push(`Dependencies:`);
+      results.push(depGraph);
+    }
+    
+    return results.join('\n');
+  },
+});
+
+// Helper functions for the new tools
+
+function inferFileType(filePath: string): string {
+  const ext = extname(filePath);
+  const dir = dirname(filePath);
+  const name = filePath.toLowerCase();
+  
+  if (name.includes('component') || name.includes('page') || ext === '.tsx') {
+    return 'React Component';
+  }
+  if (name.includes('hook')) return 'Custom Hook';
+  if (name.includes('util') || name.includes('helper')) return 'Utility';
+  if (name.includes('service') || name.includes('api')) return 'Service';
+  if (name.includes('type') || name.includes('interface')) return 'Type Definition';
+  if (name.includes('test') || name.includes('spec')) return 'Test';
+  if (dir.includes('store') || name.includes('reducer')) return 'State Management';
+  
+  return 'Module';
+}
+
+async function inferFilePurpose(filePath: string): Promise<string> {
+  try {
+    const content = readFileSync(resolve(process.cwd(), filePath), 'utf-8');
+    
+    // Look for JSDoc comments at the top
+    const docMatch = content.match(/\/\*\*([\s\S]*?)\*\//);
+    if (docMatch) {
+      const doc = docMatch[1].replace(/\s*\*\s?/g, ' ').trim();
+      if (doc.length > 10) {
+        return doc.slice(0, 100) + (doc.length > 100 ? '...' : '');
+      }
+    }
+    
+    // Look for single-line comments
+    const commentMatch = content.match(/^\/\/\s*(.+)/m);
+    if (commentMatch) {
+      return commentMatch[1].trim().slice(0, 100);
+    }
+    
+    // Infer from exports
+    if (content.includes('export default')) {
+      const defaultExport = content.match(/export default\s+(\w+)/);
+      if (defaultExport) {
+        return `Exports ${defaultExport[1]}`;
+      }
+    }
+    
+    return 'Purpose not documented';
+  } catch {
+    return 'Could not analyze';
+  }
+}
+
+export const allTools = [fetchFileTool, fetchSnippetTool, depGraphTool, findPatternsTool, findUtilitiesTool, analyzeArchitectureTool];

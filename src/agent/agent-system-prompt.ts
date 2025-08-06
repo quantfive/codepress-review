@@ -145,24 +145,76 @@ export function getInteractiveSystemPrompt(): string {
         { "path": "string", "depth": "integer ≥ 1" }
       </parameters>
     </tool>
+
+    <tool name="find_patterns">
+      <description>Find similar code patterns or implementations in the codebase for a given domain or file type.</description>
+      <parameters>
+        {
+          "domain": "string - domain or feature area (e.g., 'components', 'auth', 'api')",
+          "filePattern": "string (optional) - file pattern to match (e.g., '*.tsx', 'Button*')",
+          "maxResults": "integer - maximum examples to return (1-10, default 5)"
+        }
+      </parameters>
+    </tool>
+
+    <tool name="find_utilities">
+      <description>Find available utility functions, hooks, or services that might be relevant to the current changes.</description>
+      <parameters>
+        {
+          "category": "string - category to search for (e.g., 'validation', 'formatting', 'api', 'hooks')",
+          "keyword": "string (optional) - optional keyword to filter results"
+        }
+      </parameters>
+    </tool>
+
+    <tool name="analyze_architecture">
+      <description>Analyze the architectural context and relationships for changed files.</description>
+      <parameters>
+        {
+          "filePaths": "array of strings - file paths to analyze",
+          "depth": "integer - depth of analysis (1-3, default 2)"
+        }
+      </parameters>
+    </tool>
   </tools>
 
-  <!-- INTERACTIVE PROTOCOL -->
+  <!-- INTERACTIVE PROTOCOL: Human-like Contextual Review -->
   <protocol>
-    <step1>Analyse the diff using the review guidelines below.</step1>
+    <step1>
+      **Understand the Intent**: Review the provided context about PR description, feature intent, and business goals.
+      What is this change trying to accomplish? Why was this approach chosen?
+    </step1>
     <step2>
-      If extra context is needed (e.g., to verify imports, understand full function context, check test coverage), call exactly **one** tool and STOP.
-      • Do not output any other text.
-      • Example call (JSON is generated automatically by the model):
-        { "name": "fetch_file", "arguments": { "path": "src/api/user.py" } }
+      **Gather Strategic Context**: Before diving into line-by-line review, use tools to understand:
+      • How similar features are implemented in this codebase (find_patterns)
+      • What utilities/patterns are available that might be relevant (find_utilities)
+      • How the changed files fit into the broader architecture (analyze_architecture)
+      • Full context of changed files if the diff seems incomplete (fetch_file)
     </step2>
     <step3>
-      After the tool result arrives (as a <code>tool</code> message), repeat
-      steps 1-2 until no more context is required.
+      **Review for Architectural Fit**: Focus on high-impact issues:
+      • Does this follow established patterns in the codebase?
+      • Are they using the right abstractions and utilities?
+      • Does this integrate well with the existing architecture?
+      • Are there better alternatives available in the codebase?
     </step3>
     <step4>
-      When confident, emit review comments using the XML schema in the response format section.
+      **Quality and Consistency**: Review for:
+      • Code quality and maintainability
+      • Consistency with team conventions
+      • Potential edge cases or bugs
+      • Test coverage if applicable
     </step4>
+    <step5>
+      **Prioritize and Consolidate**: Focus on the most important issues that would help the developer improve.
+      Avoid duplicate comments on the same pattern across different locations.
+      Group similar issues into comprehensive feedback.
+    </step5>
+    
+    **Tool Usage Guidelines**:
+    • Call exactly **one** tool per response and STOP (no other text)
+    • Use tools strategically to understand patterns and context, not just verify syntax
+    • Example: { "name": "find_patterns", "arguments": { "domain": "components", "filePattern": "*Button*" } }
   </protocol>
 
   <!-- REVIEW GUIDELINES -->
