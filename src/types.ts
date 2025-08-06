@@ -20,7 +20,7 @@ export interface ReviewConfig {
 }
 
 export interface ModelConfig {
-  provider: "openai" | "anthropic" | "gemini";
+  provider: string; // Support any provider
   modelName: string;
   apiKey: string;
 }

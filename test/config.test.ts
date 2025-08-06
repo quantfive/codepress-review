@@ -164,12 +164,203 @@ describe("Configuration", () => {
       expect(() => getModelConfig()).toThrow("GEMINI_API_KEY is required");
     });
 
+    // Tests for all new providers
+    it("should get Cohere config correctly", () => {
+      process.env.MODEL_PROVIDER = "cohere";
+      process.env.MODEL_NAME = "command-r-plus";
+      process.env.COHERE_API_KEY = "test-cohere-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "cohere",
+        modelName: "command-r-plus",
+        apiKey: "test-cohere-key",
+      });
+    });
+
+    it("should get Mistral config correctly", () => {
+      process.env.MODEL_PROVIDER = "mistral";
+      process.env.MODEL_NAME = "mistral-large-latest";
+      process.env.MISTRAL_API_KEY = "test-mistral-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "mistral",
+        modelName: "mistral-large-latest",
+        apiKey: "test-mistral-key",
+      });
+    });
+
+    it("should get Perplexity config correctly", () => {
+      process.env.MODEL_PROVIDER = "perplexity";
+      process.env.MODEL_NAME = "llama-3.1-sonar-large-128k-online";
+      process.env.PERPLEXITY_API_KEY = "test-perplexity-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "perplexity",
+        modelName: "llama-3.1-sonar-large-128k-online",
+        apiKey: "test-perplexity-key",
+      });
+    });
+
+    it("should get Fireworks config correctly", () => {
+      process.env.MODEL_PROVIDER = "fireworks";
+      process.env.MODEL_NAME = "accounts/fireworks/models/llama-v3p1-70b-instruct";
+      process.env.FIREWORKS_API_KEY = "test-fireworks-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "fireworks",
+        modelName: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+        apiKey: "test-fireworks-key",
+      });
+    });
+
+    it("should get Groq config correctly", () => {
+      process.env.MODEL_PROVIDER = "groq";
+      process.env.MODEL_NAME = "llama-3.1-70b-versatile";
+      process.env.GROQ_API_KEY = "test-groq-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "groq",
+        modelName: "llama-3.1-70b-versatile",
+        apiKey: "test-groq-key",
+      });
+    });
+
+    it("should get xAI config correctly", () => {
+      process.env.MODEL_PROVIDER = "xai";
+      process.env.MODEL_NAME = "grok-beta";
+      process.env.XAI_API_KEY = "test-xai-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "xai",
+        modelName: "grok-beta",
+        apiKey: "test-xai-key",
+      });
+    });
+
+    it("should get DeepSeek config correctly", () => {
+      process.env.MODEL_PROVIDER = "deepseek";
+      process.env.MODEL_NAME = "deepseek-chat";
+      process.env.DEEPSEEK_API_KEY = "test-deepseek-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "deepseek",
+        modelName: "deepseek-chat",
+        apiKey: "test-deepseek-key",
+      });
+    });
+
+    it("should get OpenAI-compatible config correctly", () => {
+      process.env.MODEL_PROVIDER = "openai-compatible";
+      process.env.MODEL_NAME = "llama-3.1-70b-instruct";
+      process.env.OPENAI_COMPATIBLE_API_KEY = "test-compatible-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "openai-compatible",
+        modelName: "llama-3.1-70b-instruct",
+        apiKey: "test-compatible-key",
+      });
+    });
+
+    it("should get Ollama config correctly", () => {
+      process.env.MODEL_PROVIDER = "ollama";
+      process.env.MODEL_NAME = "llama3.1:70b";
+      process.env.OLLAMA_API_KEY = "test-ollama-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "ollama",
+        modelName: "llama3.1:70b",
+        apiKey: "test-ollama-key",
+      });
+    });
+
+    it("should handle google as alias for gemini", () => {
+      process.env.MODEL_PROVIDER = "google";
+      process.env.MODEL_NAME = "gemini-1.5-pro";
+      process.env.GEMINI_API_KEY = "test-gemini-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "google",
+        modelName: "gemini-1.5-pro",
+        apiKey: "test-gemini-key",
+      });
+    });
+
+    // Error tests for new providers
+    it("should throw error if COHERE_API_KEY is missing", () => {
+      process.env.MODEL_PROVIDER = "cohere";
+      process.env.MODEL_NAME = "command-r-plus";
+
+      expect(() => getModelConfig()).toThrow("COHERE_API_KEY is required");
+    });
+
+    it("should throw error if MISTRAL_API_KEY is missing", () => {
+      process.env.MODEL_PROVIDER = "mistral";
+      process.env.MODEL_NAME = "mistral-large-latest";
+
+      expect(() => getModelConfig()).toThrow("MISTRAL_API_KEY is required");
+    });
+
+    it("should throw error if GROQ_API_KEY is missing", () => {
+      process.env.MODEL_PROVIDER = "groq";
+      process.env.MODEL_NAME = "llama-3.1-70b-versatile";
+
+      expect(() => getModelConfig()).toThrow("GROQ_API_KEY is required");
+    });
+
+    it("should throw error if DEEPSEEK_API_KEY is missing", () => {
+      process.env.MODEL_PROVIDER = "deepseek";
+      process.env.MODEL_NAME = "deepseek-chat";
+
+      expect(() => getModelConfig()).toThrow("DEEPSEEK_API_KEY is required");
+    });
+
+    it("should throw error if OPENAI_COMPATIBLE_API_KEY is missing", () => {
+      process.env.MODEL_PROVIDER = "openai-compatible";
+      process.env.MODEL_NAME = "llama-3.1-70b-instruct";
+
+      expect(() => getModelConfig()).toThrow("OPENAI_COMPATIBLE_API_KEY is required");
+    });
+
+    it("should handle unknown provider with fallback pattern", () => {
+      process.env.MODEL_PROVIDER = "newprovider";
+      process.env.MODEL_NAME = "some-model";
+      process.env.NEWPROVIDER_API_KEY = "test-key";
+
+      const result = getModelConfig();
+
+      expect(result).toEqual({
+        provider: "newprovider",
+        modelName: "some-model",
+        apiKey: "test-key",
+      });
+    });
+
     it("should throw error for unsupported provider", () => {
       process.env.MODEL_PROVIDER = "unsupported";
       process.env.MODEL_NAME = "some-model";
 
       expect(() => getModelConfig()).toThrow(
-        "Unsupported MODEL_PROVIDER: unsupported",
+        "Unknown provider \"unsupported\"",
       );
     });
   });

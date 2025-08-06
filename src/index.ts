@@ -111,9 +111,24 @@ async function run(): Promise<void> {
     const githubToken = core.getInput("github_token", { required: true });
     const modelProvider = core.getInput("model_provider", { required: true });
     const modelName = core.getInput("model_name", { required: true });
+    
+    // Get all possible API keys
     const openaiApiKey = core.getInput("openai_api_key");
     const anthropicApiKey = core.getInput("anthropic_api_key");
     const geminiApiKey = core.getInput("gemini_api_key");
+    const cohereApiKey = core.getInput("cohere_api_key");
+    const mistralApiKey = core.getInput("mistral_api_key");
+    const perplexityApiKey = core.getInput("perplexity_api_key");
+    const fireworksApiKey = core.getInput("fireworks_api_key");
+    const groqApiKey = core.getInput("groq_api_key");
+    const xaiApiKey = core.getInput("xai_api_key");
+    const deepseekApiKey = core.getInput("deepseek_api_key");
+    const openaiCompatibleApiKey = core.getInput("openai_compatible_api_key");
+    const ollamaApiKey = core.getInput("ollama_api_key");
+    
+    // Get base URLs for self-hosted endpoints
+    const openaiCompatibleBaseUrl = core.getInput("openai_compatible_base_url");
+    const ollamaBaseUrl = core.getInput("ollama_base_url");
 
     // Handle max_turns input
     const maxTurns = core.getInput("max_turns");
@@ -150,18 +165,28 @@ async function run(): Promise<void> {
     core.info(`Running review: ${shouldRun.reason}`);
 
     // Validate required API key based on provider
-    if (modelProvider === "openai" && !openaiApiKey) {
-      core.setFailed("openai_api_key is required when using OpenAI provider");
-      return;
-    }
-    if (modelProvider === "anthropic" && !anthropicApiKey) {
-      core.setFailed(
-        "anthropic_api_key is required when using Anthropic provider",
-      );
-      return;
-    }
-    if (modelProvider === "gemini" && !geminiApiKey) {
-      core.setFailed("gemini_api_key is required when using Gemini provider");
+    const apiKeyMap: Record<string, string | undefined> = {
+      openai: openaiApiKey,
+      anthropic: anthropicApiKey,
+      gemini: geminiApiKey,
+      google: geminiApiKey, // Alias for gemini
+      cohere: cohereApiKey,
+      mistral: mistralApiKey,
+      perplexity: perplexityApiKey,
+      fireworks: fireworksApiKey,
+      groq: groqApiKey,
+      xai: xaiApiKey,
+      deepseek: deepseekApiKey,
+      "openai-compatible": openaiCompatibleApiKey,
+      ollama: ollamaApiKey,
+    };
+
+    const providerKey = apiKeyMap[modelProvider.toLowerCase()];
+    if (providerKey === undefined) {
+      // For unknown providers, we'll let the config.ts handle the validation
+      core.info(`Unknown provider "${modelProvider}". Will attempt to use ${modelProvider.toUpperCase()}_API_KEY environment variable.`);
+    } else if (!providerKey) {
+      core.setFailed(`${modelProvider.toLowerCase()}_api_key is required when using ${modelProvider} provider`);
       return;
     }
 
@@ -171,9 +196,24 @@ async function run(): Promise<void> {
     process.env.GITHUB_TOKEN = githubToken;
     process.env.MODEL_PROVIDER = modelProvider;
     process.env.MODEL_NAME = modelName;
+    
+    // Set all API keys as environment variables
     process.env.OPENAI_API_KEY = openaiApiKey;
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
     process.env.GEMINI_API_KEY = geminiApiKey;
+    process.env.COHERE_API_KEY = cohereApiKey;
+    process.env.MISTRAL_API_KEY = mistralApiKey;
+    process.env.PERPLEXITY_API_KEY = perplexityApiKey;
+    process.env.FIREWORKS_API_KEY = fireworksApiKey;
+    process.env.GROQ_API_KEY = groqApiKey;
+    process.env.XAI_API_KEY = xaiApiKey;
+    process.env.DEEPSEEK_API_KEY = deepseekApiKey;
+    process.env.OPENAI_COMPATIBLE_API_KEY = openaiCompatibleApiKey;
+    process.env.OLLAMA_API_KEY = ollamaApiKey;
+    
+    // Set base URLs for self-hosted endpoints
+    process.env.OPENAI_COMPATIBLE_BASE_URL = openaiCompatibleBaseUrl;
+    process.env.OLLAMA_BASE_URL = ollamaBaseUrl;
     process.env.MAX_TURNS = maxTurns;
     process.env.UPDATE_PR_DESCRIPTION = updatePrDescription.toString();
     process.env.DEBUG = debug.toString();

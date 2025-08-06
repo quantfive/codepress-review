@@ -3,15 +3,15 @@
 # CodePress Review
 
 
-A turnkey GitHub Action for automatic, inline code review on every Pull Request using LLMs (OpenAI, Anthropic, Google Gemini, etc.).
+A turnkey GitHub Action for automatic, inline code review on every Pull Request using LLMs (OpenAI, Anthropic, Google Gemini, Cohere, Mistral, Groq, DeepSeek, and more).
 
 ## Features
 
-- 🤖 **AI-Powered Reviews**: Use GPT-4, Claude, or Gemini to power your PRs
+- 🤖 **AI-Powered Reviews**: Use GPT-4, Claude, Gemini, Groq, DeepSeek, and more to power your PRs
 - 🔑 **BYOK + OS**: 100% open source. Install as a github action, and use your own key
 - 💬 **Inline Comments**: Posts line-level feedback directly on PRs
 - 📄 **Smart PR Descriptions**: Automatically generates structured PR descriptions for blank PRs
-- 🔄 **Provider Agnostic**: Easily switch between OpenAI, Anthropic, Google
+- 🔄 **Provider Agnostic**: Easily switch between 11+ LLM providers including self-hosted models
 - 📝 **Smart Chunking**: Handles large diffs efficiently
 - 🛡️ **Robust**: Built-in retries, rate limiting, and error handling
 - ⚡ **Zero Setup**: Just add to your github action workflows
@@ -55,24 +55,44 @@ jobs:
 
 ### Required Secrets
 
-Add these to your repository's **Settings → Secrets and variables → Actions**:
+Add these to your repository's **Settings → Secrets and variables → Actions** (only add the ones for providers you plan to use):
 
-| Secret              | Provider  | Description            |
-| ------------------- | --------- | ---------------------- |
-| `OPENAI_API_KEY`    | OpenAI    | Your OpenAI API key    |
-| `ANTHROPIC_API_KEY` | Anthropic | Your Anthropic API key |
-| `GEMINI_API_KEY`    | Google    | Your Google AI API key |
+| Secret                        | Provider           | Description                                    |
+| ----------------------------- | ------------------ | ---------------------------------------------- |
+| `OPENAI_API_KEY`              | OpenAI             | Your OpenAI API key                            |
+| `ANTHROPIC_API_KEY`           | Anthropic          | Your Anthropic API key                         |
+| `GEMINI_API_KEY`              | Google/Gemini      | Your Google AI API key                         |
+| `COHERE_API_KEY`              | Cohere             | Your Cohere API key                            |
+| `MISTRAL_API_KEY`             | Mistral            | Your Mistral API key                           |
+| `PERPLEXITY_API_KEY`          | Perplexity         | Your Perplexity API key                        |
+| `FIREWORKS_API_KEY`           | Fireworks          | Your Fireworks API key                         |
+| `GROQ_API_KEY`                | Groq               | Your Groq API key                              |
+| `XAI_API_KEY`                 | xAI                | Your xAI API key                               |
+| `DEEPSEEK_API_KEY`            | DeepSeek           | Your DeepSeek API key                          |
+| `OPENAI_COMPATIBLE_API_KEY`   | OpenAI-Compatible  | API key for self-hosted OpenAI-compatible APIs |
+| `OLLAMA_API_KEY`              | Ollama             | API key for Ollama (often not needed)         |
 
 ### Input Parameters
 
-| Input                     | Required | Default               | Description                                                  |
-| ------------------------- | -------- | --------------------- | ------------------------------------------------------------ |
-| `github_token`            | ✅       | `${{ github.token }}` | GitHub token for API access                                  |
-| `model_provider`          | ✅       | `openai`              | AI provider: `openai`, `anthropic`, `gemini`                 |
-| `model_name`              | ✅       | `gpt-4o`              | Model name (see examples below)                              |
-| `openai_api_key`          | ⚠️       |                       | Required if using OpenAI                                     |
-| `anthropic_api_key`       | ⚠️       |                       | Required if using Anthropic                                  |
-| `gemini_api_key`          | ⚠️       |                       | Required if using Google                                     |
+| Input                        | Required | Default               | Description                                                  |
+| ---------------------------- | -------- | --------------------- | ------------------------------------------------------------ |
+| `github_token`               | ✅       | `${{ github.token }}` | GitHub token for API access                                  |
+| `model_provider`             | ✅       | `openai`              | AI provider (see [Supported Providers](#supported-providers)) |
+| `model_name`                 | ✅       | `gpt-4o`              | Model name (see examples below)                              |
+| `openai_api_key`             | ⚠️       |                       | Required if using OpenAI                                     |
+| `anthropic_api_key`          | ⚠️       |                       | Required if using Anthropic                                  |
+| `gemini_api_key`             | ⚠️       |                       | Required if using Google/Gemini                              |
+| `cohere_api_key`             | ⚠️       |                       | Required if using Cohere                                     |
+| `mistral_api_key`            | ⚠️       |                       | Required if using Mistral                                    |
+| `perplexity_api_key`         | ⚠️       |                       | Required if using Perplexity                                 |
+| `fireworks_api_key`          | ⚠️       |                       | Required if using Fireworks                                  |
+| `groq_api_key`               | ⚠️       |                       | Required if using Groq                                       |
+| `xai_api_key`                | ⚠️       |                       | Required if using xAI                                        |
+| `deepseek_api_key`           | ⚠️       |                       | Required if using DeepSeek                                   |
+| `openai_compatible_api_key`  | ⚠️       |                       | Required if using OpenAI-compatible provider                 |
+| `openai_compatible_base_url` | ⚠️       |                       | Required if using OpenAI-compatible provider                 |
+| `ollama_api_key`             | ❌       |                       | API key for Ollama (optional, often not needed)             |
+| `ollama_base_url`            | ❌       | `localhost:11434/v1`  | Base URL for Ollama instance                                 |
 | `max_turns`               | ❌       | `12`                  | Maximum turns for interactive agent review                   |
 | `update_pr_description`   | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                  |
 | `debug`                   | ❌       | `false`               | Enable debug mode for detailed console logs                  |
@@ -178,6 +198,32 @@ With `workflow_dispatch` enabled in your workflow file (as shown above), you can
 
 The action will automatically find the open pull request associated with that branch and run the review.
 
+## Supported Providers
+
+CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction), including self-hosted options:
+
+### Cloud Providers
+
+| Provider    | Models Available | Notes |
+| ----------- | ---------------- | ----- |
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o1-preview`, `o1-mini` | Most popular, reliable |
+| **Anthropic** | `claude-3-5-sonnet-20241022`, `claude-3-haiku-20240307` | Excellent for code review |
+| **Google** | `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash-exp` | Fast and cost-effective |
+| **Cohere** | `command-r-plus`, `command-r` | Strong reasoning capabilities |
+| **Mistral** | `mistral-large-latest`, `mistral-small-latest` | European AI alternative |
+| **Perplexity** | `llama-3.1-sonar-large-128k-online` | Web-connected models |
+| **Fireworks** | `llama-v3p1-70b-instruct`, `mixtral-8x7b-instruct` | Fast inference |
+| **Groq** | `llama-3.1-70b-versatile`, `mixtral-8x7b-32768` | Ultra-fast inference |
+| **xAI** | `grok-beta` | Elon Musk's AI company |
+| **DeepSeek** | `deepseek-chat`, `deepseek-coder` | Specialized coding models |
+
+### Self-Hosted Options
+
+| Option | Description | Configuration |
+| ------ | ----------- | ------------- |
+| **OpenAI-Compatible** | Any API that follows OpenAI's format | Requires `openai_compatible_base_url` |
+| **Ollama** | Local LLM instances | Defaults to `localhost:11434/v1` |
+
 ## Examples
 
 ### OpenAI GPT-4o
@@ -188,9 +234,150 @@ The action will automatically find the open pull request associated with that br
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "o4-mini"
+    model_name: "gpt-4o"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
+
+### Anthropic Claude
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "anthropic"
+    model_name: "claude-3-5-sonnet-20241022"
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+### Google Gemini
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "gemini"
+    model_name: "gemini-1.5-pro"
+    gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+```
+
+### Groq (Ultra-Fast)
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "groq"
+    model_name: "llama-3.1-70b-versatile"
+    groq_api_key: ${{ secrets.GROQ_API_KEY }}
+```
+
+### DeepSeek (Coding Specialist)
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "deepseek"
+    model_name: "deepseek-coder"
+    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+```
+
+### Cohere Command R+
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "cohere"
+    model_name: "command-r-plus"
+    cohere_api_key: ${{ secrets.COHERE_API_KEY }}
+```
+
+### Self-Hosted OpenAI-Compatible API
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai-compatible"
+    model_name: "llama-3.1-70b-instruct"
+    openai_compatible_api_key: ${{ secrets.OPENAI_COMPATIBLE_API_KEY }}
+    openai_compatible_base_url: "https://your-api-endpoint.com/v1"
+```
+
+### Local Ollama Instance
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "ollama"
+    model_name: "llama3.1:70b"
+    # ollama_base_url: "http://localhost:11434/v1"  # Default
+    # ollama_api_key: ""  # Often not needed for local instances
+```
+
+### All Other Providers
+
+<details>
+<summary>Click to expand examples for Mistral, Perplexity, Fireworks, and xAI</summary>
+
+#### Mistral
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "mistral"
+    model_name: "mistral-large-latest"
+    mistral_api_key: ${{ secrets.MISTRAL_API_KEY }}
+```
+
+#### Perplexity (Web-Connected)
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "perplexity"
+    model_name: "llama-3.1-sonar-large-128k-online"
+    perplexity_api_key: ${{ secrets.PERPLEXITY_API_KEY }}
+```
+
+#### Fireworks (Fast Inference)
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "fireworks"
+    model_name: "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    fireworks_api_key: ${{ secrets.FIREWORKS_API_KEY }}
+```
+
+#### xAI Grok
+
+```yaml
+- name: CodePress Review
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "xai"
+    model_name: "grok-beta"
+    xai_api_key: ${{ secrets.XAI_API_KEY }}
+```
+
+</details>
 
 ### With Debug Mode Enabled
 
@@ -205,30 +392,6 @@ The action will automatically find the open pull request associated with that br
     debug: true
     max_turns: 20
     update_pr_description: false
-```
-
-### Anthropic Claude
-
-```yaml
-- name: CodePress Review
-  uses: quantfive/codepress-review@v2
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    model_provider: "anthropic"
-    model_name: "claude-4-sonnet-20250514"
-    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-```
-
-### Google Gemini
-
-```yaml
-- name: CodePress Review
-  uses: quantfive/codepress-review@v2
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    model_provider: "gemini"
-    model_name: "gemini-2.5-pro-preview-06-05"
-    gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
 ## File Filtering and Ignore Patterns
@@ -656,8 +819,10 @@ uses: quantfive/codepress-review@v1
 
 ## Technical Architecture
 
-This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai` package) for all LLM providers. The system:
+This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai` package) for **universal LLM provider support**. The system:
 
+- **Universal Provider Support**: 11+ LLM providers through unified AI SDK interface
+- **Self-Hosted Compatibility**: Support for OpenAI-compatible APIs and Ollama instances
 - **Clean TypeScript Functions**: System prompts managed in `src/system-prompt.ts`
 - **Proper Message Structure**: Uses system prompt for guidelines + user prompt for diff content
 - **Preserved Response Format**: Always includes XML `<responseFormat>` regardless of custom prompts
@@ -667,3 +832,4 @@ This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai
 - **Line Resolution**: Handles line number mapping from diff context
 - **File-Based Customization**: Custom review guidelines from `custom-codepress-review-prompt.md` and summary guidelines from `custom-codepress-summary-prompt.md`
 - **Interactive Agent Tools** (v2): `fetch_file`, `fetch_snippet`, and `dep_graph` for enhanced context gathering
+- **Provider Configuration**: Automatic API key detection and provider-specific configuration
