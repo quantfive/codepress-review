@@ -16,6 +16,7 @@ A turnkey GitHub Action for automatic, inline code review on every Pull Request 
 - 🛡️ **Robust**: Built-in retries, rate limiting, and error handling
 - ⚡ **Zero Setup**: Just add to your github action workflows
 - 🎯 **Customizable**: Use custom review guidelines via configuration file
+- 🚨 **Blocking-Only Mode**: Focus only on critical issues that must be fixed before approval
 
 ## Quick Start
 
@@ -95,6 +96,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `ollama_base_url`            | ❌       | `localhost:11434/v1`  | Base URL for Ollama instance                                 |
 | `max_turns`               | ❌       | `12`                  | Maximum turns for interactive agent review                   |
 | `update_pr_description`   | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                  |
+| `blocking_only`           | ❌       | `false`               | Only generate comments for critical/blocking issues          |
 | `debug`                   | ❌       | `false`               | Enable debug mode for detailed console logs                  |
 | `run_on_pr_opened`        | ❌       | `true`                | Run review when PR is opened                                 |
 | `run_on_pr_reopened`      | ❌       | `true`                | Run review when PR is reopened                               |
@@ -394,6 +396,35 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
     update_pr_description: false
 ```
 
+### Blocking-Only Mode (Critical Issues Only)
+
+For high-velocity teams or repositories that only want comments on truly blocking issues, you can enable `blocking_only` mode:
+
+```yaml
+- name: CodePress Review (Blocking Only)
+  uses: quantfive/codepress-review@v2
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "gpt-4o"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    blocking_only: true
+```
+
+**What Blocking-Only Mode Does:**
+
+- ✅ **Only generates "required" severity comments** for critical issues that must be fixed before approval
+- ❌ **Skips all non-blocking feedback** (praise, optional suggestions, nits, informational notes)
+- 🎯 **Focuses on:** Security vulnerabilities, bugs, critical performance issues, breaking changes
+- 📉 **Reduces noise** for teams that want minimal, high-signal feedback
+- ⚡ **Faster reviews** with fewer API calls and lower costs
+
+**Perfect for:**
+- High-velocity development teams
+- Code bases with established style and patterns
+- Repositories where you primarily want to catch critical issues
+- Cost-conscious environments wanting minimal token usage
+
 ## File Filtering and Ignore Patterns
 
 CodePress automatically ignores common files that don't need code review (like `node_modules/`, lock files, build artifacts, etc.) and also supports custom ignore patterns through a `.codepressignore` file.
@@ -468,7 +499,7 @@ We provide a [`.codepressignore.example`](.codepressignore.example) file showing
 
 CodePress Review uses a structured XML format for consistent, rich code review comments. Each finding includes:
 
-- **Severity**: `required`, `optional`, `nit`, or `fyi`
+- **Severity**: `required`, `optional`, `nit`, or `fyi` (in blocking-only mode, only `required` comments are generated)
 - **Inline Comments**: Posted directly on the relevant line
 - **Suggestions**: Optional code improvements with syntax highlighting
 - **Examples**: Optional code blocks demonstrating best practices
