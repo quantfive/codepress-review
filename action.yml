@@ -119,6 +119,11 @@ inputs:
     required: false
     default: "@codepress/review"
 
+  blocking_only:
+    description: "Only output blocking/required comments, filter out optional/nit/fyi/praise comments (true/false)"
+    required: false
+    default: "false"
+
 runs:
   using: "node20"
   main: "dist/index.js"

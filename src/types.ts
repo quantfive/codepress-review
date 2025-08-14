@@ -17,6 +17,7 @@ export interface ReviewConfig {
   maxTurns: number;
   updatePrDescription: boolean;
   debug: boolean;
+  blockingOnly: boolean;
 }
 
 export interface ModelConfig {

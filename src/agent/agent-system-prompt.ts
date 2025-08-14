@@ -81,9 +81,10 @@ const DEFAULT_REVIEW_GUIDELINES = `
  * Checks for custom-codepress-review-prompt.md file and uses it if available,
  * otherwise uses the default guidelines.
  *
+ * @param blockingOnly If true, instructs the LLM to only generate "required" severity comments
  * @returns Complete system prompt with tools and response format
  */
-export function getInteractiveSystemPrompt(): string {
+export function getInteractiveSystemPrompt(blockingOnly: boolean = false): string {
   // Check for custom prompt file
   const customPromptPath = join(
     process.cwd(),
@@ -190,7 +191,9 @@ export function getInteractiveSystemPrompt(): string {
             • praise    - praise the author for good work
             • optional  - nice improvement but not mandatory
             • nit       - tiny style/polish issue
-            • fyi       - informational note               -->
+            • fyi       - informational note               -->${blockingOnly ? `
+        
+        <!-- BLOCKING-ONLY MODE: Only generate "required" severity comments. Skip all optional, nit, fyi, and praise comments. -->` : ''}
         <severity>required</severity>
 
         <!-- repository-relative path exactly as it appears in the diff -->

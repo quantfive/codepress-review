@@ -74,6 +74,7 @@ describe("ReviewService", () => {
       maxTurns: 20,
       updatePrDescription: false,
       debug: false,
+      blockingOnly: false,
     });
 
     // Mock the dependencies
@@ -797,6 +798,7 @@ describe("PR Description Generation", () => {
       maxTurns: 20,
       updatePrDescription: true, // Feature enabled
       debug: false,
+      blockingOnly: false,
     });
 
     // Mock the dependencies
@@ -879,6 +881,7 @@ describe("PR Description Generation", () => {
       maxTurns: 20,
       updatePrDescription: false, // Feature disabled
       debug: false,
+      blockingOnly: false,
     });
 
     // Mock the dependencies
@@ -957,6 +960,7 @@ describe("PR Description Generation", () => {
       maxTurns: 20,
       updatePrDescription: true, // Feature enabled
       debug: false,
+      blockingOnly: false,
     });
 
     // Mock the dependencies
@@ -1035,6 +1039,7 @@ describe("PR Description Generation", () => {
       maxTurns: 20,
       updatePrDescription: true, // Feature enabled
       debug: false,
+      blockingOnly: false,
     });
 
     // Mock the dependencies

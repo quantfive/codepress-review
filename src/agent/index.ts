@@ -19,13 +19,14 @@ export async function reviewChunkWithAgent(
   repoFilePaths: string[],
   existingComments: any[] = [],
   maxTurns: number = 20,
+  blockingOnly: boolean = false,
 ): Promise<AgentResponse> {
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
     model: aisdk(model),
     name: "InteractiveReviewAgent",
-    instructions: getInteractiveSystemPrompt(),
+    instructions: getInteractiveSystemPrompt(blockingOnly),
     tools: allTools,
   });
 
@@ -178,6 +179,7 @@ export async function reviewChunkWithAgentLegacy(
   repoFilePaths: string[],
   existingComments: any[] = [],
   maxTurns: number = 20,
+  blockingOnly: boolean = false,
 ): Promise<Finding[]> {
   const response = await reviewChunkWithAgent(
     diffChunk,
@@ -187,6 +189,7 @@ export async function reviewChunkWithAgentLegacy(
     repoFilePaths,
     existingComments,
     maxTurns,
+    blockingOnly,
   );
   return response.findings;
 }

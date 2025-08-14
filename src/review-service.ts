@@ -108,6 +108,7 @@ export class ReviewService {
             this.repoFilePaths,
             relevantComments,
             this.config.maxTurns,
+            this.config.blockingOnly,
           ),
         chunkIndex + 1,
       );
@@ -348,9 +349,21 @@ export class ReviewService {
 
     // Wait for all chunks to be processed
     const allResults = await Promise.all(promises);
-    const allFindings: Finding[] = [];
+    let allFindings: Finding[] = [];
     for (const findings of allResults) {
       allFindings.push(...findings);
+    }
+
+    // Filter findings based on blocking_only setting
+    if (this.config.blockingOnly) {
+      const originalCount = allFindings.length;
+      allFindings = allFindings.filter((finding) => 
+        finding.severity === "required"
+      );
+      const filteredCount = originalCount - allFindings.length;
+      if (filteredCount > 0) {
+        debugLog(`🔽 Blocking-only mode: Filtered out ${filteredCount} non-blocking comments (${allFindings.length} remaining)`);
+      }
     }
 
     // Create a review - either with findings or just the summary decision
