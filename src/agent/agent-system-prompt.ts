@@ -282,7 +282,7 @@ export function getInteractiveSystemPrompt(
           Github's native code suggestion syntax, which a user can commit immediately. Therefore the code block generated
           needs to be a 100% valid replacement for the current code that can be committed without modification. -->
         <suggestion>
-          +  description: string;
+          description: string;
         </suggestion>
       </comment>
 
