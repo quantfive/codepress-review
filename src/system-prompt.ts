@@ -34,6 +34,7 @@ const DEFAULT_SYSTEM_PROMPT = `
     <documentation>Update READMEs, reference docs, build/test/release instructions affected by the change.</documentation>
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
     <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. Do NOT suggest missing imports or dependencies unless you can clearly see they are absent from the provided context.</partialContext>
+    <lockfilePolicy>IMPORTANT: Lock files (package-lock.json, pnpm-lock.yaml, yarn.lock, etc.) are automatically filtered out of reviews to reduce noise. Do NOT warn about missing lock file updates when you see package.json changes - assume they have been properly updated but are hidden from view.</lockfilePolicy>
     <goodThings>Call out notable positives to reinforce good practices.</goodThings>
     <commentBudget>
       You have a default budget of **15 comments total** per review:
