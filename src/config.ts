@@ -114,6 +114,10 @@ export function getReviewConfig(): ReviewConfig {
   const debugEnv = process.env.DEBUG || "false";
   const debug = debugEnv.toLowerCase() === "true";
 
+  // Parse blockingOnly from environment variable, default to false
+  const blockingOnlyEnv = process.env.BLOCKING_ONLY || "false";
+  const blockingOnly = blockingOnlyEnv.toLowerCase() === "true";
+
   return {
     diff,
     pr,
@@ -124,5 +128,6 @@ export function getReviewConfig(): ReviewConfig {
     maxTurns,
     updatePrDescription,
     debug,
+    blockingOnly,
   };
 }

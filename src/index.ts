@@ -139,6 +139,9 @@ async function run(): Promise<void> {
     // Handle debug input
     const debug = core.getBooleanInput("debug");
 
+    // Handle blocking_only input
+    const blockingOnly = core.getBooleanInput("blocking_only");
+
     // Get trigger configuration inputs
     const runOnPrOpened = core.getBooleanInput("run_on_pr_opened");
     const runOnPrReopened = core.getBooleanInput("run_on_pr_reopened");
@@ -217,6 +220,7 @@ async function run(): Promise<void> {
     process.env.MAX_TURNS = maxTurns;
     process.env.UPDATE_PR_DESCRIPTION = updatePrDescription.toString();
     process.env.DEBUG = debug.toString();
+    process.env.BLOCKING_ONLY = blockingOnly.toString();
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
 

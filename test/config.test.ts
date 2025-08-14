@@ -438,6 +438,7 @@ describe("Configuration", () => {
         maxTurns: 10,
         updatePrDescription: true,
         debug: false,
+        blockingOnly: false,
       });
     });
 
