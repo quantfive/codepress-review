@@ -223,19 +223,19 @@ export function getInteractiveSystemPrompt(
     </balance>
   </commentGuidelines>
 
-  <!-- INTERACTIVE RESPONSE FORMAT -->
-  <!--
-      The response must use tool calls OR immediate comments, but not both.
-      
-      If you need to fetch additional context:
-      1. Call fetch_file or fetch_file_range tools to get more information  
-      2. Analyze the additional context
-      3. In a follow-up response, provide the final review comments using the format below
-      
-      If you have sufficient context from the initial diff:
-      - Provide review comments directly using the format below
+  <!-- RESPONSE FORMAT -->
+  <responseFormat>
+    <!--
+      Your response should contain two main sections:
+      1. <comments> - new review comments to post
+        ✦ Preserve the order in which issues appear in the diff.
+        ✦ Omit <suggestion> if you have nothing useful to add.
+        ✦ If the comment already exists in the <existingCommentsContext>, do not post it again.
+      2. <resolvedComments> - existing comments that are now resolved
+      If there are existing comments in the context, analyze whether the diff
+      changes address those comments. If so, mark them as resolved.
     -->
-    
+
     <comments>
       <!-- Emit one <comment> element for every NEW issue you want to post -->
       <comment>`;
