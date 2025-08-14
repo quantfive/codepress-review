@@ -170,31 +170,77 @@ export const fetchFileTool = tool({
 });
 
 /**
- * Tool to fetch a snippet from a file.
+ * Tool to fetch a snippet from a file by searching for specific text.
  */
 export const fetchSnippetTool = tool({
   name: "fetch_snippet",
-  description: "Return a specific line range (inclusive) from a file path.",
+  description:
+    "Search for and return code snippets containing specific text patterns from a file path. Returns the found text with surrounding context lines for better understanding.",
   parameters: z.object({
     path: z.string().describe("Repo-relative file path"),
-    start: z.number().int().positive().describe("1-based start line"),
-    end: z.number().int().positive().describe("1-based end line"),
+    searchText: z
+      .string()
+      .describe(
+        "Text pattern to search for (can be partial function names, variable names, or code snippets)",
+      ),
+    contextLines: z
+      .number()
+      .int()
+      .min(0)
+      .default(25)
+      .describe(
+        "Number of lines before and after the match to include (default: 25)",
+      ),
   }),
-  execute: async ({ path, start, end }) => {
+  execute: async ({ path, searchText, contextLines = 5 }) => {
     const absolutePath = resolve(process.cwd(), path);
     if (!existsSync(absolutePath)) {
       return `Error: File not found at ${path}`;
     }
-    if (start > end) {
-      return `Error: Start line must be less than or equal to end line.`;
-    }
     try {
       const content = readFileSync(absolutePath, "utf-8");
       const lines = content.split("\n");
-      if (start > lines.length) {
-        return `Error: Start line ${start} is beyond file length of ${lines.length} lines.`;
+      const matches: Array<{ lineNumber: number; snippet: string }> = [];
+
+      // Search for the text in each line
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(searchText)) {
+          const startLine = Math.max(0, i - contextLines);
+          const endLine = Math.min(lines.length - 1, i + contextLines);
+
+          const snippet = lines
+            .slice(startLine, endLine + 1)
+            .map((line, index) => {
+              const actualLineNumber = startLine + index + 1;
+              const isMatchLine = actualLineNumber === i + 1;
+              const prefix = isMatchLine ? ">>> " : "    ";
+              return `${prefix}${actualLineNumber.toString().padStart(4)}: ${line}`;
+            })
+            .join("\n");
+
+          matches.push({
+            lineNumber: i + 1,
+            snippet,
+          });
+        }
       }
-      return lines.slice(start - 1, end).join("\n");
+
+      if (matches.length === 0) {
+        return `No matches found for "${searchText}" in ${path}`;
+      }
+
+      if (matches.length === 1) {
+        return `Found 1 match for "${searchText}" in ${path}:\n\n${matches[0].snippet}`;
+      }
+
+      // Multiple matches - show all with separators
+      const results = matches
+        .map((match, index) => {
+          return `=== Match ${index + 1} (line ${match.lineNumber}) ===\n${match.snippet}`;
+        })
+        .join("\n\n");
+
+      return `Found ${matches.length} matches for "${searchText}" in ${path}:\n\n${results}`;
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       return `Error reading file: ${errorMessage}`;

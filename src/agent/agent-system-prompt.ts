@@ -128,15 +128,16 @@ export function getInteractiveSystemPrompt(
         }
       </parameters>
     </tool>
-    <tool name="fetch_file_range">
+    <tool name="fetch_snippet">
       <description>
-        Return a specific line range (inclusive) from <code>path</code>.
+        Search for and return code snippets containing specific text patterns from <code>path</code>.
+        Returns the found text with surrounding context lines for better understanding.
       </description>
       <parameters>
         {
           "path": "string",
-          "startLine": "number",
-          "endLine": "number"
+          "searchText": "string - Text pattern to search for (can be partial function names, variable names, or code snippets)",
+          "contextLines": "integer - Number of lines before and after the match to include (default: 25)"
         }
       </parameters>
     </tool>
@@ -157,8 +158,10 @@ export function getInteractiveSystemPrompt(
     <step2>
       If extra context is needed (e.g., to verify imports, understand full function context, check test coverage), call exactly **one** tool and STOP.
       • Do not output any other text.
-      • Example call (JSON is generated automatically by the model):
+      • Example calls (JSON is generated automatically by the model):
         { "name": "fetch_file", "arguments": { "path": "src/api/user.py" } }
+        { "name": "fetch_snippet", "arguments": { "path": "src/utils/helpers.js", "searchText": "function validateEmail", "contextLines": 25 } }
+        { "name": "dep_graph", "arguments": { "path": "src/components/Button.tsx", "depth": 1 } }
     </step2>
     <step3>
       After the tool result arrives (as a <code>tool</code> message), repeat
@@ -276,8 +279,8 @@ export function getInteractiveSystemPrompt(
         </message>
 
         <!-- OPTIONAL: We'll use this code block as a replacement for what is currently there. It uses 
-         the same indentation as that line, but starts with a "+". You can use this
-         to fix the issue. -->
+          Github's native code suggestion syntax, which a user can commit immediately. Therefore the code block generated
+          needs to be a 100% valid replacement for the current code that can be committed without modification. -->
         <suggestion>
           +  description: string;
         </suggestion>
