@@ -261,9 +261,20 @@ export class GitHubClient {
 
       const currentDescription = prInfo.data.body;
 
+      debugLog(`🔍 PR #${prNumber} current description: "${currentDescription}"`);
+      debugLog(`🔍 Current description type: ${typeof currentDescription}`);
+      debugLog(`🔍 Current description === null: ${currentDescription === null}`);
+      debugLog(`🔍 Current description === "": ${currentDescription === ""}`);
+      debugLog(`🔍 Current description?.trim() === "": ${currentDescription?.trim() === ""}`);
+      debugLog(`🔍 Generated description length: ${description.length} characters`);
+
       // Only update if the description is blank, null, or just whitespace
-      if (!currentDescription || currentDescription.trim() === "") {
+      const isBlank = !currentDescription || currentDescription.trim() === "";
+      debugLog(`🔍 Should update (is blank): ${isBlank}`);
+
+      if (isBlank) {
         const makeRequest = async () => {
+          debugLog(`🔄 Making GitHub API request to update PR description...`);
           await this.octokit.pulls.update({
             owner: this.config.owner,
             repo: this.config.repo,
@@ -274,21 +285,38 @@ export class GitHubClient {
 
         try {
           await makeRequest();
-          debugLog(`✅ Updated PR #${prNumber} description`);
+          debugLog(`✅ Updated PR #${prNumber} description successfully`);
           return true;
-        } catch (error) {
-          await this.rateLimitHandler.handleRateLimit(error, makeRequest);
-          debugLog(`✅ Updated PR #${prNumber} description (after retry)`);
-          return true;
+        } catch (error: any) {
+          debugLog(`⚠️ Initial request failed:`, error?.message || error);
+          debugLog(`🔍 Error status:`, error?.status);
+          debugLog(`🔍 Error response:`, error?.response?.data);
+          
+          // Check for common permission issues
+          if (error?.status === 403) {
+            console.error(`❌ Permission denied updating PR description. Check that your GITHUB_TOKEN has 'pull_requests: write' permission.`);
+            return false;
+          }
+          
+          try {
+            await this.rateLimitHandler.handleRateLimit(error, makeRequest);
+            debugLog(`✅ Updated PR #${prNumber} description (after retry)`);
+            return true;
+          } catch (retryError) {
+            debugLog(`❌ Retry also failed:`, retryError);
+            throw retryError;
+          }
         }
       } else {
         debugLog(
           `⏭️  PR #${prNumber} already has a description, skipping update`,
         );
+        debugLog(`📝 Current description: "${currentDescription}"`);
         return false;
       }
     } catch (error) {
       console.error(`❌ Failed to update PR #${prNumber} description:`, error);
+      debugLog(`🔍 Full error object:`, JSON.stringify(error, null, 2));
       return false;
     }
   }

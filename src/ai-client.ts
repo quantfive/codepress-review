@@ -246,6 +246,13 @@ function parseSummaryResponse(text: string): DiffSummary {
       ? normalizeIndentation(prDescriptionMatch[1])
       : undefined;
 
+    debugLog(`🔍 PR Description parsing:`, {
+      foundMatch: !!prDescriptionMatch,
+      rawMatch: prDescriptionMatch?.[1]?.substring(0, 100) + "...",
+      normalizedLength: prDescription?.length || 0,
+      normalized: prDescription?.substring(0, 100) + "..."
+    });
+
     // Extract hunks
     const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
     const hunks: HunkSummary[] = [];
