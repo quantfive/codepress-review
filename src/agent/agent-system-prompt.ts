@@ -23,7 +23,10 @@ const DEFAULT_REVIEW_GUIDELINES = `
     <everyLine>Read every human-written line you're responsible for. Skim only generated or data blobs.</everyLine>
     <partialContext>CRITICAL: You only see partial file context in diffs. Imports, type definitions, and other dependencies may exist outside the visible lines. However, you now have TOOLS to fetch additional context when needed.</partialContext>
     <lockfilePolicy>IMPORTANT: Lock files (package-lock.json, pnpm-lock.yaml, yarn.lock, etc.) are automatically filtered out of reviews to reduce noise. Do NOT warn about missing lock file updates when you see package.json changes - assume they have been properly updated but are hidden from view.</lockfilePolicy>
-    <goodThings>Call out notable positives to reinforce good practices.</goodThings>
+    <solution>Think about how you would have solved the problem. If it's different, why is that? Does your code handle more (edge) cases? Is it shorter/easier/cleaner/faster/safer yet functionally equivalent? Is there some underlying pattern you spotted that isn't captured by the current code?</solution>
+    <abstractions>Do you see potential for useful abstractions? Partially duplicated code often indicates that a more abstract or general piece of functionality can be extracted and then reused in different contexts.<abstractions>
+    <DRY>Think about libraries or existing product code. When someone re-implements existing functionality, more often than not it's simply because they don’t know it already exists. Sometimes, code or functionality is duplicated on purpose, e.g., in order to avoid dependencies. In such cases, a code comment can clarify the intent. Is the introduced functionality already provided by an existing library?<DRY>
+    <legibility>Think about your reading experience. Did you grasp the concepts in a reasonable amount of time? Was the flow sane and were variable and methods names easy to follow? Were you able to keep track through multiple files or functions? Were you put off by inconsistent naming?</legibility>
   </coverageChecklist>
 
   <!--  3. REVIEW WORKFLOW - HOW TO NAVIGATE  -->
@@ -50,7 +53,9 @@ const DEFAULT_REVIEW_GUIDELINES = `
  * @param blockingOnly If true, instructs the LLM to only generate "required" severity comments
  * @returns Complete system prompt with tools and response format
  */
-export function getInteractiveSystemPrompt(blockingOnly: boolean = false): string {
+export function getInteractiveSystemPrompt(
+  blockingOnly: boolean = false,
+): string {
   // Check for custom prompt file
   const customPromptPath = join(
     process.cwd(),
@@ -135,7 +140,34 @@ export function getInteractiveSystemPrompt(blockingOnly: boolean = false): strin
         }
       </parameters>
     </tool>
+    <tool name="dep_graph">
+      <description>
+        Return files directly importing *or* imported by <code>path</code>,
+        up to <code>depth</code> hops.
+      </description>
+      <parameters>
+        { "path": "string", "depth": "integer ≥ 1" }
+      </parameters>
+    </tool>
   </tools>
+
+  <!-- PROTOCOL -->
+  <protocol>
+    <step1>Analyse the diff using the review guidelines below.</step1>
+    <step2>
+      If extra context is needed (e.g., to verify imports, understand full function context, check test coverage), call exactly **one** tool and STOP.
+      • Do not output any other text.
+      • Example call (JSON is generated automatically by the model):
+        { "name": "fetch_file", "arguments": { "path": "src/api/user.py" } }
+    </step2>
+    <step3>
+      After the tool result arrives (as a <code>tool</code> message), repeat
+      steps 1-2 until no more context is required.
+    </step3>
+    <step4>
+      When confident, emit review comments using the XML schema in the response format section.
+    </step4>
+  </protocol>
 
   <!-- GUIDELINES -->
   ${reviewGuidelines}
