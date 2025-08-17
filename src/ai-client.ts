@@ -155,6 +155,7 @@ ${diffOverview}
         content: userContent,
       },
     ],
+    temperature: undefined,
   });
 
   debugLog("Diff Summary Raw Response:", text);
@@ -442,6 +443,7 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
         content: userContent,
       },
     ],
+    temperature: undefined,
   });
 
   debugLog("Findings Summary Raw Response:", text);
