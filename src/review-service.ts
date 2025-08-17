@@ -310,6 +310,10 @@ export class ReviewService {
           "Failed to generate diff summary, proceeding without context:",
           error.message,
         );
+        debugError("Full error details:", error);
+        if (error.stack) {
+          debugError("Stack trace:", error.stack);
+        }
         this.diffSummary = undefined;
       }
     }
