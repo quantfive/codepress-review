@@ -254,6 +254,11 @@ function parseSummaryResponse(text: string): DiffSummary {
       normalized: prDescription?.substring(0, 100) + "..."
     });
 
+    // Log full response if no prDescription was found for debugging
+    if (!prDescriptionMatch) {
+      debugLog("🔍 Full AI Response (no prDescription found):", text);
+    }
+
     // Extract hunks
     const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
     const hunks: HunkSummary[] = [];
