@@ -146,17 +146,25 @@ ${diffOverview}
   </diffChunks>
 </summaryRequest>`.trim();
 
-  const { text } = await generateText({
-    model,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userContent,
-      },
-    ],
-    temperature: undefined,
-  });
+  let text: string;
+  try {
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userContent,
+        },
+      ],
+      temperature: undefined,
+    });
+    text = result.text;
+    debugLog("✅ AI call succeeded for diff summary");
+  } catch (error) {
+    debugLog("❌ AI call failed for diff summary:", error);
+    throw error;
+  }
 
   debugLog("Diff Summary Raw Response:", text);
 
@@ -439,17 +447,25 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
 </summaryResponse>
 </findingsSummaryRequest>`;
 
-  const { text } = await generateText({
-    model,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userContent,
-      },
-    ],
-    temperature: undefined,
-  });
+  let text: string;
+  try {
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userContent,
+        },
+      ],
+      temperature: undefined,
+    });
+    text = result.text;
+    debugLog("✅ AI call succeeded for findings summary");
+  } catch (error) {
+    debugLog("❌ AI call failed for findings summary:", error);
+    throw error;
+  }
 
   debugLog("Findings Summary Raw Response:", text);
 
