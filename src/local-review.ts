@@ -65,7 +65,7 @@ class LocalGithubClient {
 
 function makeMinimalDiff(targetFile: string): string {
   // A tiny unified diff that touches an existing file in this repo
-  // Using src/ai-client.ts so fetch_snippet/fetch_file can succeed locally
+  // Using src/ai-client.ts so fetch_snippet/fetch_files can succeed locally
   return [
     `diff --git a/${targetFile} b/${targetFile}`,
     "index 0000000..0000001 100644",

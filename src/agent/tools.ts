@@ -147,25 +147,34 @@ function getAllSourceFiles(): string[] {
 }
 
 /**
- * Tool to fetch the full content of a file.
+ * Tool to fetch the full contents of multiple files.
  */
-export const fetchFileTool = tool({
-  name: "fetch_file",
-  description: "Return the full contents of a file path.",
+export const fetchFilesTool = tool({
+  name: "fetch_files",
+  description: "Return the full contents of multiple file paths.",
   parameters: z.object({
-    path: z.string().describe("Repo-relative file path"),
+    paths: z
+      .array(z.string())
+      .nonempty()
+      .describe("Array of repo-relative file paths"),
   }),
-  execute: async ({ path }) => {
-    const absolutePath = resolve(process.cwd(), path);
-    if (!existsSync(absolutePath)) {
-      return `Error: File not found at ${path}`;
+  execute: async ({ paths }) => {
+    const outputs: string[] = [];
+    for (const path of paths) {
+      const absolutePath = resolve(process.cwd(), path);
+      if (!existsSync(absolutePath)) {
+        outputs.push(`=== ${path} ===\nError: File not found at ${path}`);
+        continue;
+      }
+      try {
+        const content = readFileSync(absolutePath, "utf-8");
+        outputs.push(`=== ${path} ===\n${content}`);
+      } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        outputs.push(`=== ${path} ===\nError reading file: ${errorMessage}`);
+      }
     }
-    try {
-      return readFileSync(absolutePath, "utf-8");
-    } catch (e: unknown) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      return `Error reading file: ${errorMessage}`;
-    }
+    return outputs.join("\n\n");
   },
 });
 
@@ -328,4 +337,4 @@ export const depGraphTool = tool({
   },
 });
 
-export const allTools = [fetchFileTool, fetchSnippetTool, depGraphTool];
+export const allTools = [fetchFilesTool, fetchSnippetTool, depGraphTool];

@@ -122,7 +122,7 @@ export function getSummarySystemPrompt(blockingOnly: boolean = false): string {
       Use markdown formatting for readability. This will replace any blank PR description.
     </prDescription>
   </additionalChecklist>
-    <!--  INPUT SHAPE  -->
+  <!--  INPUT SHAPE  -->
   <ingest>
     You receive:
       • the full unified diff

@@ -120,16 +120,18 @@ export function getInteractiveSystemPrompt(
     You start with a unified DIFF and a list of all repository file paths.
     When the diff alone is insufficient, you may call one of the *tools*
     listed below to retrieve additional context **before** emitting review
-    comments.
+    comments. Before making a comment like "this variable is unused", or "make sure you install the dependencies",
+    just call a fetch_files or fetch_snippet tool to read the files you need to read. If you are unsure of why the user made a change,
+    call the fetch_files tool first to read the files to understand context.
   </interactiveRole>
 
   <!-- TOOLS AVAILABLE -->
   <tools>
-    <tool name="fetch_file">
-      <description>Return the full contents of <code>path</code>.</description>
+    <tool name="fetch_files">
+      <description>Return the full contents of the provided <code>paths</code>.</description>
       <parameters>
         {
-          "path": "string"
+          "paths": "string[]"
         }
       </parameters>
     </tool>
