@@ -862,5 +862,5 @@ This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai
 - **Hunk-Based Processing**: Each diff hunk processed individually for focused reviews
 - **Line Resolution**: Handles line number mapping from diff context
 - **File-Based Customization**: Custom review guidelines from `custom-codepress-review-prompt.md` and summary guidelines from `custom-codepress-summary-prompt.md`
-- **Interactive Agent Tools** (v2): `fetch_file`, `fetch_snippet`, and `dep_graph` for enhanced context gathering
+- **Interactive Agent Tools** (v2): `fetch_files` (multi-file), `fetch_snippet`, and `dep_graph` for enhanced context gathering
 - **Provider Configuration**: Automatic API key detection and provider-specific configuration
