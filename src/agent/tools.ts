@@ -1,7 +1,35 @@
 import { tool } from "@openai/agents";
 import { z } from "zod";
 import { readFileSync, existsSync, readdirSync, statSync } from "fs";
+import { spawnSync } from "child_process";
 import { resolve, dirname, join, extname, relative } from "path";
+import { rgPath as vscodeRipgrepPath } from "@vscode/ripgrep";
+import ignore from "ignore";
+import { DEFAULT_IGNORE_PATTERNS } from "../constants";
+
+/**
+ * Resolve a working ripgrep binary path.
+ * - Prefer @vscode/ripgrep's downloaded binary if it exists
+ * - Fallback to system 'rg' if available
+ */
+function resolveRipgrepBinary(): string | null {
+  try {
+    if (vscodeRipgrepPath && existsSync(vscodeRipgrepPath)) {
+      return vscodeRipgrepPath;
+    }
+  } catch {
+    // ignore and probe for system rg
+  }
+  try {
+    const probe = spawnSync("rg", ["--version"], { encoding: "utf-8" });
+    if (!probe.error && (probe.status === 0 || probe.status === 1)) {
+      return "rg";
+    }
+  } catch {
+    // no system rg
+  }
+  return null;
+}
 
 /**
  * Resolves a relative import path to an absolute file path
@@ -147,6 +175,149 @@ function getAllSourceFiles(): string[] {
 }
 
 /**
+ * Collects repository files filtered by extension and optional path scopes
+ */
+function getAllSearchableFiles(
+  extensions?: string[],
+  paths?: string[],
+  ig?: ReturnType<typeof ignore>,
+): string[] {
+  const files: string[] = [];
+
+  function walkDir(dir: string) {
+    try {
+      const entries = readdirSync(dir);
+      for (const entry of entries) {
+        const fullPath = join(dir, entry);
+        const stat = statSync(fullPath);
+
+        if (stat.isDirectory()) {
+          if (
+            !["node_modules", ".git", "dist", "build", ".next"].includes(entry)
+          ) {
+            walkDir(fullPath);
+          }
+        } else if (stat.isFile()) {
+          if (!extensions || extensions.length === 0) {
+            const rel = relative(process.cwd(), fullPath);
+            if (!ig || !ig.ignores(rel)) {
+              files.push(rel);
+            }
+          } else if (extensions.includes(extname(entry))) {
+            const rel = relative(process.cwd(), fullPath);
+            if (!ig || !ig.ignores(rel)) {
+              files.push(rel);
+            }
+          }
+        }
+      }
+    } catch {
+      // Skip directories we can't read
+    }
+  }
+
+  if (paths && paths.length > 0) {
+    for (const p of paths) {
+      try {
+        const full = resolve(process.cwd(), p);
+        const s = statSync(full);
+        if (s.isDirectory()) {
+          walkDir(full);
+        } else if (s.isFile()) {
+          if (
+            !extensions ||
+            extensions.length === 0 ||
+            extensions.includes(extname(p))
+          ) {
+            const rel = relative(process.cwd(), full);
+            if (!ig || !ig.ignores(rel)) {
+              files.push(rel);
+            }
+          }
+        }
+      } catch {
+        // Skip unreadable paths
+      }
+    }
+  } else {
+    walkDir(process.cwd());
+  }
+
+  return files;
+}
+
+/**
+ * Find all .codepressignore files under provided paths or repo root.
+ */
+function findCodepressIgnoreFiles(paths?: string[] | null): string[] {
+  const results: string[] = [];
+  function walkDir(dir: string) {
+    try {
+      const entries = readdirSync(dir);
+      for (const entry of entries) {
+        const fullPath = join(dir, entry);
+        const stat = statSync(fullPath);
+        if (stat.isDirectory()) {
+          if (
+            !["node_modules", ".git", "dist", "build", ".next"].includes(entry)
+          ) {
+            walkDir(fullPath);
+          }
+        } else if (stat.isFile() && entry === ".codepressignore") {
+          results.push(relative(process.cwd(), fullPath));
+        }
+      }
+    } catch {
+      // skip unreadable
+    }
+  }
+  if (paths && paths.length > 0) {
+    for (const p of paths) {
+      try {
+        const full = resolve(process.cwd(), p);
+        const s = statSync(full);
+        if (s.isDirectory()) {
+          walkDir(full);
+        } else if (s.isFile() && full.endsWith(".codepressignore")) {
+          results.push(relative(process.cwd(), full));
+        }
+      } catch {
+        // skip
+      }
+    }
+  } else {
+    walkDir(process.cwd());
+  }
+  return results;
+}
+
+/**
+ * Build ignore matcher from default patterns + all discovered .codepressignore files.
+ */
+function buildIgnoreMatcher(ignoreFiles: string[]): ReturnType<typeof ignore> {
+  const ig = ignore();
+  ig.add(DEFAULT_IGNORE_PATTERNS);
+  for (const relPath of ignoreFiles) {
+    try {
+      const absolute = resolve(process.cwd(), relPath);
+      const content = readFileSync(absolute, "utf-8");
+      const dir = dirname(relPath);
+      const patterns = content
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("#"));
+      for (const pat of patterns) {
+        const rebased = pat.startsWith("/") ? join(dir, pat) : join(dir, pat);
+        ig.add(rebased.replace(/\\/g, "/"));
+      }
+    } catch {
+      // skip bad ignore file
+    }
+  }
+  return ig;
+}
+
+/**
  * Tool to fetch the full contents of multiple files.
  */
 export const fetchFilesTool = tool({
@@ -196,9 +367,9 @@ export const fetchSnippetTool = tool({
       .number()
       .int()
       .min(0)
-      .default(25)
+      .default(5)
       .describe(
-        "Number of lines before and after the match to include (default: 25)",
+        "Number of lines before and after the match to include (default: 5)",
       ),
   }),
   execute: async ({ path, searchText, contextLines = 5 }) => {
@@ -337,4 +508,279 @@ export const depGraphTool = tool({
   },
 });
 
-export const allTools = [fetchFilesTool, fetchSnippetTool, depGraphTool];
+/**
+ * Tool to search the repository for a plain-text query across common text/code files.
+ */
+export async function runSearchRepo(params: {
+  query: string;
+  caseSensitive?: boolean | null;
+  extensions?: string[] | null;
+  paths?: string[] | null;
+  contextLines?: number;
+  maxResults?: number;
+}): Promise<string> {
+  const {
+    query,
+    caseSensitive = null,
+    extensions = null,
+    paths = null,
+    contextLines = 5,
+    maxResults = 200,
+  } = params;
+
+  // Build ignore set from .codepressignore and defaults
+  const codepressIgnoreFiles = findCodepressIgnoreFiles(paths);
+  const ig = buildIgnoreMatcher(codepressIgnoreFiles);
+
+  // Prefer ripgrep if available. It respects .gitignore and is fast.
+  try {
+    const args: string[] = ["-n", "--json", "-F"]; // -F: fixed-strings
+    const isCaseSensitive = caseSensitive === true;
+    if (!isCaseSensitive) args.push("-i");
+
+    // Optional extension globs
+    if (Array.isArray(extensions) && extensions.length > 0) {
+      for (const ext of extensions) {
+        const pattern = ext.startsWith(".") ? `*${ext}` : `*.${ext}`;
+        args.push("-g", pattern);
+      }
+    }
+
+    // Pattern
+    args.push(query);
+
+    // Paths scope or default to current directory
+    if (Array.isArray(paths) && paths.length > 0) {
+      for (const p of paths) args.push(p);
+    } else {
+      args.push(".");
+    }
+
+    const rgBinary = resolveRipgrepBinary();
+    if (!rgBinary) {
+      throw new Error("ripgrep not available");
+    }
+    // Add .codepressignore files to ripgrep as additional ignore files
+    for (const f of codepressIgnoreFiles) {
+      args.push("--ignore-file", f);
+    }
+    const rg = spawnSync(rgBinary, args, {
+      cwd: process.cwd(),
+      encoding: "utf-8",
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    if (rg.error || (typeof rg.status === "number" && rg.status === 2)) {
+      throw rg.error || new Error("ripgrep execution failed");
+    }
+
+    const stdout = rg.stdout || "";
+    const lines = stdout.split("\n");
+
+    interface MatchRec {
+      path: string;
+      lineNumber: number;
+    }
+
+    const matchesByFile = new Map<string, MatchRec[]>();
+    let total = 0;
+    for (const line of lines) {
+      if (!line) continue;
+      let obj: any;
+      try {
+        obj = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (obj.type === "match") {
+        const filePath: string | undefined = obj.data?.path?.text;
+        const lineNum: number | undefined = obj.data?.line_number;
+        if (!filePath || typeof lineNum !== "number") continue;
+        const arr = matchesByFile.get(filePath) || [];
+        arr.push({ path: filePath, lineNumber: lineNum });
+        matchesByFile.set(filePath, arr);
+        total++;
+        if (total >= maxResults) break;
+      }
+    }
+
+    if (total === 0) {
+      return `No matches found for "${query}"`;
+    }
+
+    // Build output with context by reading files once
+    const outputs: string[] = [];
+    for (const [file, recs] of matchesByFile.entries()) {
+      const absolutePath = resolve(process.cwd(), file);
+      if (!existsSync(absolutePath)) continue;
+      let content = "";
+      try {
+        content = readFileSync(absolutePath, "utf-8");
+      } catch {
+        continue;
+      }
+      const fileLines = content.split("\n");
+      outputs.push(
+        `=== ${file} (${recs.length} match${recs.length === 1 ? "" : "es"}) ===`,
+      );
+      const snippets: string[] = [];
+      for (let i = 0; i < recs.length; i++) {
+        const rec = recs[i];
+        const idx = rec.lineNumber - 1;
+        const start = Math.max(0, idx - contextLines);
+        const end = Math.min(fileLines.length - 1, idx + contextLines);
+        const snippet = fileLines
+          .slice(start, end + 1)
+          .map((lineText, j) => {
+            const lineNo = start + j + 1;
+            const isMatch = lineNo === rec.lineNumber;
+            const prefix = isMatch ? ">>> " : "    ";
+            return `${prefix}${lineNo.toString().padStart(4)}: ${lineText}`;
+          })
+          .join("\n");
+        snippets.push(
+          `--- Match ${i + 1} (line ${rec.lineNumber}) ---\n${snippet}`,
+        );
+      }
+      outputs.push(snippets.join("\n\n"));
+    }
+
+    return outputs.join("\n\n");
+  } catch {
+    // Fallback to in-process search if ripgrep is unavailable
+    const files = getAllSearchableFiles(
+      extensions ?? undefined,
+      paths ?? undefined,
+      ig,
+    );
+
+    const isCaseSensitive = caseSensitive === true;
+    const needle = isCaseSensitive ? query : query.toLowerCase();
+    let total = 0;
+    let truncated = false;
+    const outputs: string[] = [];
+
+    for (const file of files) {
+      if (total >= maxResults) break;
+      const absolutePath = resolve(process.cwd(), file);
+      if (!existsSync(absolutePath)) continue;
+
+      let content: string;
+      try {
+        content = readFileSync(absolutePath, "utf-8");
+      } catch {
+        continue;
+      }
+
+      const lines = content.split("\n");
+      const matches: Array<{ lineNumber: number; snippet: string }> = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const hay = isCaseSensitive ? lines[i] : lines[i].toLowerCase();
+        if (hay.includes(needle)) {
+          const start = Math.max(0, i - contextLines);
+          const end = Math.min(lines.length - 1, i + contextLines);
+          const snippet = lines
+            .slice(start, end + 1)
+            .map((line, idx) => {
+              const lineNo = start + idx + 1;
+              const isMatch = lineNo === i + 1;
+              const prefix = isMatch ? ">>> " : "    ";
+              return `${prefix}${lineNo.toString().padStart(4)}: ${line}`;
+            })
+            .join("\n");
+
+          matches.push({ lineNumber: i + 1, snippet });
+          total++;
+          if (total >= maxResults) break;
+        }
+      }
+
+      if (matches.length > 0) {
+        outputs.push(
+          `=== ${file} (${matches.length} match${matches.length === 1 ? "" : "es"}) ===`,
+        );
+        if (matches.length === 1) {
+          outputs.push(matches[0].snippet);
+        } else {
+          outputs.push(
+            matches
+              .map(
+                (m, idx) =>
+                  `--- Match ${idx + 1} (line ${m.lineNumber}) ---\n${m.snippet}`,
+              )
+              .join("\n\n"),
+          );
+        }
+      }
+
+      if (total >= maxResults) {
+        truncated = true;
+        break;
+      }
+    }
+
+    if (outputs.length === 0) {
+      return `No matches found for "${query}"`;
+    }
+
+    if (truncated) {
+      outputs.push(`\n[Truncated after ${maxResults} matches]`);
+    }
+
+    return outputs.join("\n\n");
+  }
+}
+
+export const searchRepoTool = tool({
+  name: "search_repo",
+  description:
+    "Search the repository (respects .gitignore) for a plain-text query using ripgrep when available. Returns file paths and matching line snippets with context.",
+  parameters: z.object({
+    query: z
+      .string()
+      .describe("Plain-text query to search for (case-insensitive by default)"),
+    caseSensitive: z
+      .boolean()
+      .nullish()
+      .describe(
+        "If true, perform a case-sensitive search (null = default insensitive)",
+      ),
+    extensions: z
+      .array(z.string())
+      .nullish()
+      .describe(
+        "Optional list of file extensions to include (e.g., ['.py','.go','.rb','.md']). Defaults to all files when null",
+      ),
+    paths: z
+      .array(z.string())
+      .nullish()
+      .describe(
+        "Optional repo-relative directories or files to scope the search",
+      ),
+    contextLines: z
+      .number()
+      .int()
+      .min(0)
+      .default(5)
+      .describe(
+        "Number of lines before and after each match to include (default: 5)",
+      ),
+    maxResults: z
+      .number()
+      .int()
+      .min(1)
+      .max(5000)
+      .default(200)
+      .describe(
+        "Maximum total matches to return across all files (default: 200)",
+      ),
+  }),
+  execute: runSearchRepo,
+});
+
+export const allTools = [
+  fetchFilesTool,
+  fetchSnippetTool,
+  depGraphTool,
+  searchRepoTool,
+];

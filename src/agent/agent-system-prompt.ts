@@ -121,8 +121,10 @@ export function getInteractiveSystemPrompt(
     When the diff alone is insufficient, you may call one of the *tools*
     listed below to retrieve additional context **before** emitting review
     comments. Before making a comment like "this variable is unused", or "make sure you install the dependencies",
-    just call a fetch_files or fetch_snippet tool to read the files you need to read. If you are unsure of why the user made a change,
-    call the fetch_files tool first to read the files to understand context.
+    call the tools to verify first:
+    • Use <code>fetch_files</code> / <code>fetch_snippet</code> to inspect specific files.
+    • Use <code>search_repo</code> to verify repo-wide claims (e.g., API renames, lingering references, tests/docs updates). If search shows no matches, do not warn.
+    If you are unsure of why the author made a change, call <code>fetch_files</code> or <code>search_repo</code> first to read the surrounding context.
   </interactiveRole>
 
   <!-- TOOLS AVAILABLE -->
@@ -155,6 +157,22 @@ export function getInteractiveSystemPrompt(
       </description>
       <parameters>
         { "path": "string", "depth": "integer ≥ 1" }
+      </parameters>
+    </tool>
+    <tool name="search_repo">
+      <description>
+        Search the repository for a plain-text <code>query</code> across common text/code files. Returns file paths and matching line snippets with context.
+        Use this to validate rename/usage assertions across the repo (code, tests, docs) before commenting.
+      </description>
+      <parameters>
+        {
+          "query": "string",
+          "caseSensitive": "boolean (optional)",
+          "extensions": "string[] (optional)",
+          "paths": "string[] (optional)",
+          "contextLines": "integer (default 2)",
+          "maxResults": "integer (default 200)"
+        }
       </parameters>
     </tool>
   </tools>
