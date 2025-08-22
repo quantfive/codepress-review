@@ -152,25 +152,13 @@ export function getInteractiveSystemPrompt(
     </tool>
   </tools>
 
-  <!-- PROTOCOL -->
-  <protocol>
-    <step1>Analyse the diff using the review guidelines below.</step1>
-    <step2>
-      If extra context is needed (e.g., to verify imports, understand full function context, check test coverage), call exactly **one** tool and STOP.
-      • Do not output any other text.
-      • Example calls (JSON is generated automatically by the model):
-        { "name": "fetch_file", "arguments": { "path": "src/api/user.py" } }
-        { "name": "fetch_snippet", "arguments": { "path": "src/utils/helpers.js", "searchText": "function validateEmail", "contextLines": 25 } }
-        { "name": "dep_graph", "arguments": { "path": "src/components/Button.tsx", "depth": 1 } }
-    </step2>
-    <step3>
-      After the tool result arrives (as a <code>tool</code> message), repeat
-      steps 1-2 until no more context is required.
-    </step3>
-    <step4>
-      When confident, emit review comments using the XML schema in the response format section.
-    </step4>
-  </protocol>
+  <!--  3. REVIEW WORKFLOW - HOW TO NAVIGATE  -->
+  <workflow>
+    <step1>Read the CL description. Does the change make sense? If fundamentally misguided, politely reject and suggest direction.</step1>
+    <step2>Inspect the most critical files first to uncover high-impact design issues early.</step2>
+    <step3>Review remaining files logically (often tool order). Optionally read tests first.</step3>
+    <step4>BEFORE flagging missing imports/types/dependencies: Use your tools to fetch the full file or relevant snippets to verify if the code actually exists outside the diff context.</step4>
+  </workflow>
 
   <!-- GUIDELINES -->
   ${reviewGuidelines}
