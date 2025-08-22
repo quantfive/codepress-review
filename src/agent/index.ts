@@ -5,7 +5,6 @@ import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
 import { createModel } from "../model-factory";
 import { aisdk } from "@openai/agents-extensions";
-import { escapeXml } from "../xml-utils";
 import { debugLog, debugError } from "../debug";
 
 /**
@@ -39,12 +38,12 @@ export async function reviewChunkWithAgent(
     const contextLines: string[] = [];
 
     contextLines.push("<diffContext>");
-    contextLines.push(`  <prType>${escapeXml(prType)}</prType>`);
+    contextLines.push(`  <prType>${prType}</prType>`);
 
     if (summaryPoints.length > 0) {
       contextLines.push("  <overview>");
       summaryPoints.forEach((item: string) => {
-        contextLines.push(`    <item>${escapeXml(item)}</item>`);
+        contextLines.push(`    <item>${item}</item>`);
       });
       contextLines.push("  </overview>");
     }
@@ -53,7 +52,7 @@ export async function reviewChunkWithAgent(
       contextLines.push("  <keyRisks>");
       keyRisks.forEach((risk) => {
         contextLines.push(
-          `    <item tag="${escapeXml(risk.tag)}">${escapeXml(risk.description)}</item>`,
+          `    <item tag="${risk.tag}">${risk.description}</item>`,
         );
       });
       contextLines.push("  </keyRisks>");
@@ -63,15 +62,13 @@ export async function reviewChunkWithAgent(
     const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
     if (hunkSummary) {
       contextLines.push("  <chunkSpecific>");
-      contextLines.push(
-        `    <overview>${escapeXml(hunkSummary.overview)}</overview>`,
-      );
+      contextLines.push(`    <overview>${hunkSummary.overview}</overview>`);
 
       if (hunkSummary.risks.length > 0) {
         contextLines.push("    <risks>");
         hunkSummary.risks.forEach((risk) => {
           contextLines.push(
-            `      <item tag="${escapeXml(risk.tag)}">${escapeXml(risk.description)}</item>`,
+            `      <item tag="${risk.tag}">${risk.description}</item>`,
           );
         });
         contextLines.push("    </risks>");
@@ -81,7 +78,7 @@ export async function reviewChunkWithAgent(
         contextLines.push("    <issues>");
         hunkSummary.issues.forEach((issue) => {
           contextLines.push(
-            `      <issue severity="${escapeXml(issue.severity)}" kind="${escapeXml(issue.kind)}">${escapeXml(issue.description)}</issue>`,
+            `      <issue severity="${issue.severity}" kind="${issue.kind}">${issue.description}</issue>`,
           );
         });
         contextLines.push("    </issues>");
@@ -90,7 +87,7 @@ export async function reviewChunkWithAgent(
       if (hunkSummary.tests.length > 0) {
         contextLines.push("    <suggestedTests>");
         hunkSummary.tests.forEach((test) => {
-          contextLines.push(`      <item>${escapeXml(test)}</item>`);
+          contextLines.push(`      <item>${test}</item>`);
         });
         contextLines.push("    </suggestedTests>");
       }
@@ -114,9 +111,9 @@ export async function reviewChunkWithAgent(
     existingComments.forEach((comment) => {
       if (comment.path && comment.line && comment.body) {
         contextLines.push(
-          `  <comment id="${escapeXml(String(comment.id || `${comment.path}:${comment.line}`))}" path="${escapeXml(comment.path)}" line="${escapeXml(String(comment.line))}" createdAt="${escapeXml(comment.created_at) || "unknown"}">`,
+          `  <comment id="${String(comment.id || `${comment.path}:${comment.line}`)}" path="${comment.path}" line="${String(comment.line)}" createdAt="${comment.created_at || "unknown"}">`,
         );
-        contextLines.push(`    ${escapeXml(comment.body)}`);
+        contextLines.push(`    ${comment.body}`);
         contextLines.push(`  </comment>`);
       }
     });
@@ -127,16 +124,16 @@ export async function reviewChunkWithAgent(
   const initialMessage = `
 <reviewRequest>
   <repositoryFiles>
-    ${escapeXml(fileList)}
+    ${fileList}
   </repositoryFiles>
   <diffAnalysisContext>
-    ${escapeXml(summaryContext)}
+    ${summaryContext}
   </diffAnalysisContext>
   <existingCommentsContext>
     ${existingCommentsContext}
   </existingCommentsContext>
   <diffChunk>
-    ${escapeXml(diffChunk)}
+    ${diffChunk}
   </diffChunk>
 
   <instruction>
