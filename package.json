@@ -33,6 +33,7 @@
     "@octokit/rest": "^22.0.0",
     "@openai/agents": "^0.0.17",
     "@openai/agents-extensions": "^0.0.17",
+    "@vscode/ripgrep": "^1.15.14",
     "ai": "^4.3.19",
     "diff": "^8.0.2",
     "ignore": "^7.0.5",
