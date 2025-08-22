@@ -261,12 +261,20 @@ export class GitHubClient {
 
       const currentDescription = prInfo.data.body;
 
-      debugLog(`🔍 PR #${prNumber} current description: "${currentDescription}"`);
+      debugLog(
+        `🔍 PR #${prNumber} current description: "${currentDescription}"`,
+      );
       debugLog(`🔍 Current description type: ${typeof currentDescription}`);
-      debugLog(`🔍 Current description === null: ${currentDescription === null}`);
+      debugLog(
+        `🔍 Current description === null: ${currentDescription === null}`,
+      );
       debugLog(`🔍 Current description === "": ${currentDescription === ""}`);
-      debugLog(`🔍 Current description?.trim() === "": ${currentDescription?.trim() === ""}`);
-      debugLog(`🔍 Generated description length: ${description.length} characters`);
+      debugLog(
+        `🔍 Current description?.trim() === "": ${currentDescription?.trim() === ""}`,
+      );
+      debugLog(
+        `🔍 Generated description length: ${description.length} characters`,
+      );
 
       // Only update if the description is blank, null, or just whitespace
       const isBlank = !currentDescription || currentDescription.trim() === "";
@@ -291,13 +299,15 @@ export class GitHubClient {
           debugLog(`⚠️ Initial request failed:`, error?.message || error);
           debugLog(`🔍 Error status:`, error?.status);
           debugLog(`🔍 Error response:`, error?.response?.data);
-          
+
           // Check for common permission issues
           if (error?.status === 403) {
-            console.error(`❌ Permission denied updating PR description. Check that your GITHUB_TOKEN has 'pull_requests: write' permission.`);
+            console.error(
+              `❌ Permission denied updating PR description. Check that your GITHUB_TOKEN has 'pull_requests: write' permission.`,
+            );
             return false;
           }
-          
+
           try {
             await this.rateLimitHandler.handleRateLimit(error, makeRequest);
             debugLog(`✅ Updated PR #${prNumber} description (after retry)`);

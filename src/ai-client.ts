@@ -146,17 +146,23 @@ ${diffOverview}
   </diffChunks>
 </summaryRequest>`.trim();
 
-  const { text } = await generateText({
-    model,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userContent,
-      },
-    ],
-    temperature: undefined,
-  });
+  debugLog("🔍 User content:", userContent);
+  debugLog("🔍 System prompt:", systemPrompt);
+
+  let text: string;
+  try {
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      prompt: userContent,
+    });
+
+    text = result.text;
+    debugLog("✅ AI call succeeded for diff summary", result);
+  } catch (error) {
+    debugLog("❌ AI call failed for diff summary:", error);
+    throw error;
+  }
 
   debugLog("Diff Summary Raw Response:", text);
 
@@ -251,8 +257,13 @@ function parseSummaryResponse(text: string): DiffSummary {
       foundMatch: !!prDescriptionMatch,
       rawMatch: prDescriptionMatch?.[1]?.substring(0, 100) + "...",
       normalizedLength: prDescription?.length || 0,
-      normalized: prDescription?.substring(0, 100) + "..."
+      normalized: prDescription?.substring(0, 100) + "...",
     });
+
+    // Log full response if no prDescription was found for debugging
+    if (!prDescriptionMatch) {
+      debugLog("🔍 Full AI Response (no prDescription found):", text);
+    }
 
     // Extract hunks
     const hunksMatch = text.match(/<hunks>(.*?)<\/hunks>/s);
@@ -434,17 +445,20 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
 </summaryResponse>
 </findingsSummaryRequest>`;
 
-  const { text } = await generateText({
-    model,
-    system: systemPrompt,
-    messages: [
-      {
-        role: "user",
-        content: userContent,
-      },
-    ],
-    temperature: undefined,
-  });
+  let text: string;
+  try {
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      prompt: userContent,
+      temperature: undefined,
+    });
+    text = result.text;
+    debugLog("✅ AI call succeeded for findings summary");
+  } catch (error) {
+    debugLog("❌ AI call failed for findings summary:", error);
+    throw error;
+  }
 
   debugLog("Findings Summary Raw Response:", text);
 
