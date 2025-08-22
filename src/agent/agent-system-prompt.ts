@@ -305,11 +305,14 @@ export function getInteractiveSystemPrompt(
   <!-- CONSTRAINTS -->
   <constraints>
     <noMixed>
-      Never mix tool calls with &lt;comment&gt; blocks in the same response.
+      Never mix tool calls with <comment> blocks in the same response.
     </noMixed>
     <finalize>
       Always return <comments> and <resolvedComments>. If none, leave them empty:
-      <comments></comments><resolvedComments></resolvedComments>
+      <comments>
+      </comments>
+      <resolvedComments>
+      </resolvedComments>
     </finalize>
     <economy>
       Request the smallest context that unblocks you; avoid full-repo fetches.

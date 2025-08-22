@@ -50,7 +50,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           debug: true
-          blocking_only: true
+          blocking_only: false
           # All trigger configurations use sensible defaults:
           # - run_on_pr_opened: true
           # - run_on_pr_reopened: true
