@@ -157,12 +157,16 @@ ${diffOverview}
       messages: [
         {
           role: "user",
-          content: userContent,
+
+          parts: [{
+            type: 'text',
+            text: userContent
+          }]
         },
       ],
     });
 
-    text = result.text;
+    text = result.text.text;
     debugLog("✅ AI call succeeded for diff summary", result);
   } catch (error) {
     debugLog("❌ AI call failed for diff summary:", error);
@@ -223,7 +227,7 @@ function parseSummaryResponse(text: string): DiffSummary {
     const decisionMatch = globalContent.match(/<decision>(.*?)<\/decision>/s);
     let decision = {
       recommendation: "COMMENT" as ReviewDecision,
-      reasoning: "No specific reasoning provided",
+      reasoningText: "No specific reasoning provided",
     };
 
     if (decisionMatch) {
@@ -246,7 +250,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       }
 
       if (reasoningMatch) {
-        decision.reasoning = reasoningMatch[1].trim();
+        decision.reasoningText = reasoningMatch[1].trim();
       }
     }
 
@@ -377,7 +381,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       hunks: [],
       decision: {
         recommendation: "COMMENT",
-        reasoning: "Failed to parse summary response",
+        reasoningText: "Failed to parse summary response",
       },
       prDescription: undefined,
     };
@@ -458,12 +462,16 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
       messages: [
         {
           role: "user",
-          content: userContent,
+
+          parts: [{
+            type: 'text',
+            text: userContent
+          }]
         },
       ],
       temperature: undefined,
     });
-    text = result.text;
+    text = result.text.text;
     debugLog("✅ AI call succeeded for findings summary");
   } catch (error) {
     debugLog("❌ AI call failed for findings summary:", error);

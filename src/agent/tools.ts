@@ -152,7 +152,7 @@ function getAllSourceFiles(): string[] {
 export const fetchFileTool = tool({
   name: "fetch_file",
   description: "Return the full contents of a file path.",
-  parameters: z.object({
+  inputSchema: z.object({
     path: z.string().describe("Repo-relative file path"),
   }),
   execute: async ({ path }) => {
@@ -176,7 +176,7 @@ export const fetchSnippetTool = tool({
   name: "fetch_snippet",
   description:
     "Search for and return code snippets containing specific text patterns from a file path. Returns the found text with surrounding context lines for better understanding.",
-  parameters: z.object({
+  inputSchema: z.object({
     path: z.string().describe("Repo-relative file path"),
     searchText: z
       .string()
@@ -255,7 +255,7 @@ export const depGraphTool = tool({
   name: "dep_graph",
   description:
     "Return files directly importing or imported by path, up to depth hops.",
-  parameters: z.object({
+  inputSchema: z.object({
     path: z.string().describe("Repo-relative file path"),
     depth: z.number().int().min(1).describe("Depth of the graph to traverse"),
   }),

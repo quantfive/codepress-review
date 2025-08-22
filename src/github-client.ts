@@ -447,7 +447,7 @@ export class GitHubClient {
             : "COMMENT";
 
       summaryParts.push(`**${decisionEmoji} Decision: ${decisionText}**`);
-      summaryParts.push(`${decision.reasoning}\n`);
+      summaryParts.push(`${decision.reasoningText}\n`);
     } else {
       // Fallback when no decision is available
       if (required.length > 0) {

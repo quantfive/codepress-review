@@ -84,7 +84,7 @@ export interface DiffSummary {
   hunks: HunkSummary[];
   decision: {
     recommendation: ReviewDecision;
-    reasoning: string;
+    reasoningText: string;
   };
   prDescription?: string;
 }
