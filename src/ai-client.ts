@@ -146,6 +146,9 @@ ${diffOverview}
   </diffChunks>
 </summaryRequest>`.trim();
 
+  debugLog("🔍 User content:", userContent);
+  debugLog("🔍 System prompt:", systemPrompt);
+
   let text: string;
   try {
     const result = await generateText({
@@ -157,10 +160,10 @@ ${diffOverview}
           content: userContent,
         },
       ],
-      temperature: undefined,
     });
+
     text = result.text;
-    debugLog("✅ AI call succeeded for diff summary");
+    debugLog("✅ AI call succeeded for diff summary", result);
   } catch (error) {
     debugLog("❌ AI call failed for diff summary:", error);
     throw error;
@@ -259,7 +262,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       foundMatch: !!prDescriptionMatch,
       rawMatch: prDescriptionMatch?.[1]?.substring(0, 100) + "...",
       normalizedLength: prDescription?.length || 0,
-      normalized: prDescription?.substring(0, 100) + "..."
+      normalized: prDescription?.substring(0, 100) + "...",
     });
 
     // Log full response if no prDescription was found for debugging
