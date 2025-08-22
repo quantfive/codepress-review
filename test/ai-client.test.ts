@@ -175,14 +175,9 @@ describe("AI Client", () => {
       expect(generateText).toHaveBeenCalledWith({
         model: "mock-openai-model",
         system: "Mock summary system prompt",
-        messages: [
-          {
-            role: "user",
-            content: expect.stringContaining(
-              '<chunk index="0" file="src/example.ts">',
-            ),
-          },
-        ],
+        prompt: expect.stringContaining(
+          '<chunk index="0" file="src/example.ts">',
+        ),
       });
     });
 
