@@ -60,7 +60,7 @@ describe("ReviewService", () => {
       hunks: [],
       decision: {
         recommendation: "APPROVE",
-        reasoningText: "Code looks good overall",
+        reasoning: "Code looks good overall",
       },
     });
 
@@ -130,7 +130,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "COMMENT",
-            reasoningText: "No specific reasoning provided",
+            reasoning: "No specific reasoning provided",
           },
         });
       }
@@ -172,7 +172,7 @@ describe("ReviewService", () => {
       expect.objectContaining({
         decision: expect.objectContaining({
           recommendation: "COMMENT",
-          reasoningText: "No specific reasoning provided",
+          reasoning: "No specific reasoning provided",
         }),
       }),
     );
@@ -201,7 +201,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "COMMENT",
-            reasoningText: "No specific reasoning provided",
+            reasoning: "No specific reasoning provided",
           },
         });
       } else {
@@ -246,7 +246,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: expect.objectContaining({
           recommendation: expect.any(String),
-          reasoningText: expect.any(String),
+          reasoning: expect.any(String),
         }),
       }),
     );
@@ -285,7 +285,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "COMMENT",
-            reasoningText: "No specific reasoning provided",
+            reasoning: "No specific reasoning provided",
           },
         });
       } else if (hunkIdx === 1) {
@@ -340,7 +340,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: expect.objectContaining({
           recommendation: expect.any(String),
-          reasoningText: expect.any(String),
+          reasoning: expect.any(String),
         }),
       }),
     );
@@ -372,7 +372,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "REQUEST_CHANGES",
-            reasoningText: "Issues found that need attention",
+            reasoning: "Issues found that need attention",
           },
         });
       } else {
@@ -413,7 +413,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: expect.objectContaining({
           recommendation: expect.any(String),
-          reasoningText: expect.any(String),
+          reasoning: expect.any(String),
         }),
       }),
     );
@@ -439,7 +439,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText: "Code looks good overall",
+            reasoning: "Code looks good overall",
           },
         });
       } else {
@@ -480,7 +480,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: {
           recommendation: "APPROVE",
-          reasoningText: "Code looks good overall",
+          reasoning: "Code looks good overall",
         },
       }),
     );
@@ -524,7 +524,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText: "No specific reasoning provided",
+            reasoning: "No specific reasoning provided",
           },
         });
       } else {
@@ -572,7 +572,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: expect.objectContaining({
           recommendation: expect.any(String),
-          reasoningText: expect.any(String),
+          reasoning: expect.any(String),
         }),
       }),
     );
@@ -600,7 +600,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "REQUEST_CHANGES",
-            reasoningText:
+            reasoning:
               "Critical security vulnerabilities must be addressed before merge",
           },
         });
@@ -643,7 +643,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: {
           recommendation: "REQUEST_CHANGES",
-          reasoningText:
+          reasoning:
             "Critical security vulnerabilities must be addressed before merge",
         },
       }),
@@ -690,7 +690,7 @@ describe("ReviewService", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText:
+            reasoning:
               "Minor suggestions don't block merge. Code quality is good overall and functionality is sound.",
           },
         });
@@ -739,7 +739,7 @@ describe("ReviewService", () => {
         hunks: [],
         decision: {
           recommendation: "APPROVE", // Should approve despite having findings
-          reasoningText:
+          reasoning:
             "Minor suggestions don't block merge. Code quality is good overall and functionality is sound.",
         },
       }),
@@ -778,7 +778,7 @@ describe("PR Description Generation", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText: "Code looks good",
+            reasoning: "Code looks good",
           },
           prDescription:
             "## Add Authentication Service\n\nThis PR adds user authentication.",
@@ -862,7 +862,7 @@ describe("PR Description Generation", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText: "Code looks good",
+            reasoning: "Code looks good",
           },
           prDescription:
             "## Add Authentication Service\n\nThis PR adds user authentication.",
@@ -942,7 +942,7 @@ describe("PR Description Generation", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText: "Code looks good",
+            reasoning: "Code looks good",
           },
           prDescription: undefined, // No description generated
         });
@@ -1021,7 +1021,7 @@ describe("PR Description Generation", () => {
           hunks: [],
           decision: {
             recommendation: "APPROVE",
-            reasoningText: "Code looks good",
+            reasoning: "Code looks good",
           },
           prDescription: "   \n  \t  \n   ", // Empty/whitespace description
         });

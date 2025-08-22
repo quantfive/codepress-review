@@ -167,7 +167,7 @@ describe("AI Client", () => {
         ],
         decision: {
           recommendation: "COMMENT",
-          reasoningText: "No specific reasoning provided",
+          reasoning: "No specific reasoning provided",
         },
         prDescription: undefined,
       });
@@ -276,7 +276,7 @@ This PR introduces a new authentication service for user login and session manag
       expect(result.prType).toBe("feature");
       expect(result.decision).toEqual({
         recommendation: "APPROVE",
-        reasoningText: "Authentication implementation looks solid",
+        reasoning: "Authentication implementation looks solid",
       });
     });
 
@@ -397,7 +397,7 @@ This PR introduces a new authentication service for user login and session manag
         ],
         decision: {
           recommendation: "COMMENT",
-          reasoningText: "No specific reasoning provided",
+          reasoning: "No specific reasoning provided",
         },
         prDescription: undefined,
       });
@@ -444,7 +444,7 @@ This PR introduces a new authentication service for user login and session manag
         ],
         decision: {
           recommendation: "COMMENT",
-          reasoningText: "No specific reasoning provided",
+          reasoning: "No specific reasoning provided",
         },
         prDescription: undefined,
       });
@@ -489,7 +489,7 @@ This PR introduces a new authentication service for user login and session manag
         hunks: [],
         decision: {
           recommendation: "COMMENT",
-          reasoningText: "No specific reasoning provided",
+          reasoning: "No specific reasoning provided",
         },
         prDescription: undefined,
       });
@@ -512,7 +512,7 @@ This PR introduces a new authentication service for user login and session manag
         hunks: [],
         decision: {
           recommendation: "COMMENT",
-          reasoningText: "No specific reasoning provided",
+          reasoning: "No specific reasoning provided",
         },
         prDescription: undefined,
       });
@@ -549,7 +549,7 @@ This PR introduces a new authentication service for user login and session manag
         hunks: [],
         decision: {
           recommendation: "COMMENT",
-          reasoningText: "Failed to parse summary response",
+          reasoning: "Failed to parse summary response",
         },
         prDescription: undefined,
       });
@@ -696,7 +696,7 @@ This PR introduces a new authentication service for user login and session manag
 
       expect(result.decision).toEqual({
         recommendation: "REQUEST_CHANGES",
-        reasoningText: "Critical security issues found that must be addressed.",
+        reasoning: "Critical security issues found that must be addressed.",
       });
     });
 
@@ -726,7 +726,7 @@ This PR introduces a new authentication service for user login and session manag
 
         expect(result.decision).toEqual({
           recommendation: decisionType,
-          reasoningText: `Test reasoning for ${decisionType}.`,
+          reasoning: `Test reasoning for ${decisionType}.`,
         });
       }
     });
@@ -754,7 +754,7 @@ This PR introduces a new authentication service for user login and session manag
 
       expect(result.decision).toEqual({
         recommendation: "COMMENT", // Should fallback to default
-        reasoningText: "This should use fallback decision.",
+        reasoning: "This should use fallback decision.",
       });
     });
 

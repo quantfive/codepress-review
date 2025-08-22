@@ -154,19 +154,10 @@ ${diffOverview}
     const result = await generateText({
       model,
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-
-          parts: [{
-            type: 'text',
-            text: userContent
-          }]
-        },
-      ],
+      prompt: userContent,
     });
 
-    text = result.text.text;
+    text = result.text;
     debugLog("✅ AI call succeeded for diff summary", result);
   } catch (error) {
     debugLog("❌ AI call failed for diff summary:", error);
@@ -227,7 +218,7 @@ function parseSummaryResponse(text: string): DiffSummary {
     const decisionMatch = globalContent.match(/<decision>(.*?)<\/decision>/s);
     let decision = {
       recommendation: "COMMENT" as ReviewDecision,
-      reasoningText: "No specific reasoning provided",
+      reasoning: "No specific reasoning provided",
     };
 
     if (decisionMatch) {
@@ -250,7 +241,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       }
 
       if (reasoningMatch) {
-        decision.reasoningText = reasoningMatch[1].trim();
+        decision.reasoning = reasoningMatch[1].trim();
       }
     }
 
@@ -381,7 +372,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       hunks: [],
       decision: {
         recommendation: "COMMENT",
-        reasoningText: "Failed to parse summary response",
+        reasoning: "Failed to parse summary response",
       },
       prDescription: undefined,
     };
@@ -459,19 +450,10 @@ ${others.length > 0 ? "<othersSummary>Write a paragraph summarizing the optional
     const result = await generateText({
       model,
       system: systemPrompt,
-      messages: [
-        {
-          role: "user",
-
-          parts: [{
-            type: 'text',
-            text: userContent
-          }]
-        },
-      ],
+      prompt: userContent,
       temperature: undefined,
     });
-    text = result.text.text;
+    text = result.text;
     debugLog("✅ AI call succeeded for findings summary");
   } catch (error) {
     debugLog("❌ AI call failed for findings summary:", error);
