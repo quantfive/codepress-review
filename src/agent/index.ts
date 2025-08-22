@@ -24,7 +24,7 @@ export async function reviewChunkWithAgent(
 
   const agent = new Agent({
     model: aisdk(model),
-    name: "InteractiveReviewAgent",
+    name: "CodePressReviewAgent",
     instructions: getInteractiveSystemPrompt(blockingOnly),
     tools: allTools,
   });
