@@ -102,7 +102,12 @@ export function getInteractiveSystemPrompt(
     • Code that violates fundamental architectural principles
     • Breaking changes or API contract violations
     
-    When in doubt, DON'T comment. Focus only on blocking issues.
+    Rules:
+    • Only emit comments with <severity>required</severity>.
+    • Do not emit praise/optional/nit/fyi.
+    • If there are NO blocking issues, output exactly:
+      <comments></comments><resolvedComments></resolvedComments>
+    • Always return the final XML even when empty.
   </blockingOnlyMode>`;
   }
 
@@ -201,7 +206,7 @@ export function getInteractiveSystemPrompt(
       In BLOCKING-ONLY MODE:
         • ONLY comment on critical issues that absolutely block merging
         • Skip ALL non-critical feedback (style, optimizations, suggestions, praise)
-        • When uncertain if something is blocking, err on the side of NOT commenting`;
+        • When uncertain if something is blocking, err on the side of generating an empty comment`;
   } else {
     prompt += `
       Optimise for *developer attention*:
@@ -302,6 +307,10 @@ export function getInteractiveSystemPrompt(
     <noMixed>
       Never mix tool calls with &lt;comment&gt; blocks in the same response.
     </noMixed>
+    <finalize>
+      Always return <comments> and <resolvedComments>. If none, leave them empty:
+      <comments></comments><resolvedComments></resolvedComments>
+    </finalize>
     <economy>
       Request the smallest context that unblocks you; avoid full-repo fetches.
     </economy>

@@ -94,6 +94,7 @@ export async function summarizeDiff(
   modelConfig: ModelConfig,
   existingReviews: any[] = [],
   existingComments: any[] = [],
+  blockingOnly: boolean = false,
 ): Promise<DiffSummary> {
   const model = await createModel(modelConfig);
 
@@ -137,7 +138,7 @@ export async function summarizeDiff(
     }
   }
 
-  const systemPrompt = getSummarySystemPrompt();
+  const systemPrompt = getSummarySystemPrompt(blockingOnly);
 
   const userContent = `
 <summaryRequest>

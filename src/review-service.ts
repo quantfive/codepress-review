@@ -260,6 +260,7 @@ export class ReviewService {
               modelConfig,
               existingReviews,
               existingCommentsData,
+              this.config.blockingOnly,
             ),
           0, // Use 0 as a special index for the summary step
         );
