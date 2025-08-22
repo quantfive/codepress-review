@@ -190,7 +190,7 @@ describe("AI Client", () => {
 
       expect(
         require("../src/summary-agent-system-prompt").getSummarySystemPrompt,
-      ).toHaveBeenCalledWith();
+      ).toHaveBeenCalledWith(false);
     });
 
     it("should handle API errors gracefully", async () => {

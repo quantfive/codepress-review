@@ -37,7 +37,7 @@ const DEFAULT_SUMMARY_SYSTEM_PROMPT = `
  *
  * @returns Complete summary system prompt
  */
-export function getSummarySystemPrompt(): string {
+export function getSummarySystemPrompt(blockingOnly: boolean = false): string {
   // Check for custom summary prompt file
   const customPromptPath = join(
     process.cwd(),
@@ -49,10 +49,26 @@ export function getSummarySystemPrompt(): string {
     summaryGuidelines = readFileSync(customPromptPath, "utf8");
   }
 
+  const blockingOnlySection = blockingOnly
+    ? `
+  <!-- ⚠️  BLOCKING-ONLY MODE ACTIVE ⚠️  -->
+  <blockingOnlyMode>
+    In BLOCKING-ONLY MODE you must optimise for merge-blocking correctness, security, data-loss, major perf regressions, and breaking changes.
+    • Only promote issues to REQUIRED severity when they are clearly blocking.
+    • OPTIONAL/NIT/PRAISE should be omitted entirely.
+    • Decision policy:
+      - REQUEST_CHANGES only if you enumerate at least one concrete blocking issue
+        (either an <issue severity="REQUIRED"> in <hunks> or a <keyRisks> item tagged [SEC]/[PERF]/[ARCH] that clearly blocks merge).
+      - If no blocking issues are identified with high confidence, prefer APPROVE or COMMENT.
+    • Always return the final XML even when some sections are empty.
+  </blockingOnlyMode>`
+    : "";
+
   const summaryGuidelinesWithInstructions = `
 <!--  SYSTEM PROMPT : AI CODE-REVIEW - GLOBAL-DIFF SUMMARISER  -->
 <systemPrompt>
   ${summaryGuidelines}
+  ${blockingOnlySection}
   <additionalChecklist>
     <!--  2. WHAT TO EXTRACT  -->
     <globalChecklist>
@@ -67,7 +83,11 @@ export function getSummarySystemPrompt(): string {
         - COMMENT: No recommendation, just a comment on the PR
         Include 1-2 sentence reasoning for your decision.
 
-        Request changes if you wouldn't want the code merged as is, approve otherwise. You can have some comments that disagree with the code direction but still approve the PR as a whole.
+        ${
+          blockingOnly
+            ? `In BLOCKING-ONLY MODE: Only REQUEST_CHANGES if you enumerate at least one blocking issue. Do not request changes for nits, stylistic preferences, or optional improvements.`
+            : `Request changes if you wouldn't want the code merged as is; approve otherwise.`
+        }
       </decision>
     </globalChecklist>
 
