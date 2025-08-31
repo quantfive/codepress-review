@@ -170,7 +170,7 @@ export function getInteractiveSystemPrompt(
           "caseSensitive": "boolean (optional)",
           "extensions": "string[] (optional)",
           "paths": "string[] (optional)",
-          "contextLines": "integer (default 2)",
+          "contextLines": "integer (default 5)",
           "maxResults": "integer (default 200)"
         }
       </parameters>
