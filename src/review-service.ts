@@ -113,57 +113,16 @@ export class ReviewService {
    * Enforce simple service-level budgets per severity.
    */
   private enforceBudgets(findings: Finding[]): Finding[] {
-    // Allow the planner to override budgets if available
-    const plannerBudget = this.diffSummary?.plan?.globalBudget;
-    let requiredLeft =
-      typeof plannerBudget?.required === "number"
-        ? plannerBudget.required
-        : ReviewService.REQUIRED_BUDGET;
-    let optionalLeft =
-      typeof plannerBudget?.optional === "number"
-        ? plannerBudget.optional
-        : ReviewService.OPTIONAL_BUDGET;
-    let nitLeft =
-      typeof plannerBudget?.nit === "number"
-        ? plannerBudget.nit
-        : ReviewService.NIT_BUDGET;
-
+    // No hard caps: rely on agent guidance; keep high-signal items.
     const result: Finding[] = [];
     for (const f of findings) {
       const sev = (f.severity || "").toLowerCase();
-      if (sev === "required") {
-        if (requiredLeft > 0) {
-          result.push(f);
-          requiredLeft--;
-        } else {
-          debugLog(
-            "🔽 Budget: dropping extra required comment",
-            f.path,
-            f.line,
-          );
-        }
-      } else if (sev === "optional") {
-        if (optionalLeft > 0) {
-          result.push(f);
-          optionalLeft--;
-        } else {
-          debugLog(
-            "🔽 Budget: dropping extra optional comment",
-            f.path,
-            f.line,
-          );
-        }
-      } else if (sev === "nit") {
-        if (nitLeft > 0) {
-          result.push(f);
-          nitLeft--;
-        } else {
-          debugLog("🔽 Budget: dropping extra nit comment", f.path, f.line);
-        }
-      } else {
-        // FYI, praise, etc. keep as-is (not counted in budgets in Phase 1)
-        result.push(f);
+      if (sev === "fyi" || sev === "praise") {
+        debugLog("🔽 Dropping non-actionable note", f.path, f.line);
+        continue;
       }
+      // Keep required/optional/nit; evidence gating and dedupe are handled elsewhere
+      result.push(f);
     }
     return result;
   }

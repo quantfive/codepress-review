@@ -1,6 +1,6 @@
 import { summarizeDiff } from "../src/ai-client";
 import { ProcessableChunk } from "../src/diff-parser";
-import { ModelConfig, DiffSummary, PRType, RiskTag } from "../src/types";
+import { ModelConfig, PRType, RiskTag } from "../src/types";
 
 // Mock the ai library
 jest.mock("ai", () => ({
@@ -168,6 +168,18 @@ describe("AI Client", () => {
         decision: {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
+        },
+        plan: {
+          globalBudget: {
+            required: undefined,
+            optional: undefined,
+            nit: undefined,
+            maxHunks: undefined,
+            defaultMaxTurns: undefined,
+            sequentialTop: undefined,
+            maxConcurrentHunks: undefined,
+          },
+          hunkPlans: [],
         },
         prDescription: undefined,
       });
@@ -394,6 +406,18 @@ This PR introduces a new authentication service for user login and session manag
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        plan: {
+          globalBudget: {
+            required: undefined,
+            optional: undefined,
+            nit: undefined,
+            maxHunks: undefined,
+            defaultMaxTurns: undefined,
+            sequentialTop: undefined,
+            maxConcurrentHunks: undefined,
+          },
+          hunkPlans: [],
+        },
         prDescription: undefined,
       });
     });
@@ -441,6 +465,18 @@ This PR introduces a new authentication service for user login and session manag
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        plan: {
+          globalBudget: {
+            required: undefined,
+            optional: undefined,
+            nit: undefined,
+            maxHunks: undefined,
+            defaultMaxTurns: undefined,
+            sequentialTop: undefined,
+            maxConcurrentHunks: undefined,
+          },
+          hunkPlans: [],
+        },
         prDescription: undefined,
       });
     });
@@ -486,6 +522,18 @@ This PR introduces a new authentication service for user login and session manag
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
         },
+        plan: {
+          globalBudget: {
+            required: undefined,
+            optional: undefined,
+            nit: undefined,
+            maxHunks: undefined,
+            defaultMaxTurns: undefined,
+            sequentialTop: undefined,
+            maxConcurrentHunks: undefined,
+          },
+          hunkPlans: [],
+        },
         prDescription: undefined,
       });
     });
@@ -508,6 +556,18 @@ This PR introduces a new authentication service for user login and session manag
         decision: {
           recommendation: "COMMENT",
           reasoning: "No specific reasoning provided",
+        },
+        plan: {
+          globalBudget: {
+            required: undefined,
+            optional: undefined,
+            nit: undefined,
+            maxHunks: undefined,
+            defaultMaxTurns: undefined,
+            sequentialTop: undefined,
+            maxConcurrentHunks: undefined,
+          },
+          hunkPlans: [],
         },
         prDescription: undefined,
       });
@@ -545,6 +605,18 @@ This PR introduces a new authentication service for user login and session manag
         decision: {
           recommendation: "COMMENT",
           reasoning: "Failed to parse summary response",
+        },
+        plan: {
+          globalBudget: {
+            required: undefined,
+            optional: undefined,
+            nit: undefined,
+            maxHunks: undefined,
+            defaultMaxTurns: undefined,
+            sequentialTop: undefined,
+            maxConcurrentHunks: undefined,
+          },
+          hunkPlans: [],
         },
         prDescription: undefined,
       });

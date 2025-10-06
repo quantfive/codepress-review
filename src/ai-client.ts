@@ -360,28 +360,30 @@ function parseSummaryResponse(text: string): DiffSummary {
 
     // Extract plan (REQUIRED). If absent, synthesize an empty/default plan.
     const plan: DiffPlan = (() => {
-      const planMatch = text.match(/<plan>(.*?)<\/plan>/s);
+      const planMatch = text.match(/<plan>([\s\S]*?)<\/plan>/s);
       const planContent = planMatch ? planMatch[1] : "";
 
       // globalBudget
       const gb: DiffPlan["globalBudget"] = {};
-      const gbMatch = planContent.match(/<globalBudget>(.*?)<\/globalBudget>/s);
+      const gbMatch = planContent.match(
+        /<globalBudget>([\s\S]*?)<\/globalBudget>/s,
+      );
       if (gbMatch) {
         const gbBody = gbMatch[1];
         const num = (s: string | null | undefined) =>
           s && /\d+/.test(s.trim()) ? parseInt(s.trim(), 10) : undefined;
-        const req = gbBody.match(/<required>(.*?)<\/required>/s);
-        const opt = gbBody.match(/<optional>(.*?)<\/optional>/s);
-        const nit = gbBody.match(/<nit>(.*?)<\/nit>/s);
-        const maxHunks = gbBody.match(/<maxHunks>(.*?)<\/maxHunks>/s);
+        const req = gbBody.match(/<required>([\s\S]*?)<\/required>/s);
+        const opt = gbBody.match(/<optional>([\s\S]*?)<\/optional>/s);
+        const nit = gbBody.match(/<nit>([\s\S]*?)<\/nit>/s);
+        const maxHunks = gbBody.match(/<maxHunks>([\s\S]*?)<\/maxHunks>/s);
         const defaultMaxTurns = gbBody.match(
-          /<defaultMaxTurns>(.*?)<\/defaultMaxTurns>/s,
+          /<defaultMaxTurns>([\s\S]*?)<\/defaultMaxTurns>/s,
         );
         const sequentialTop = gbBody.match(
-          /<sequentialTop>(.*?)<\/sequentialTop>/s,
+          /<sequentialTop>([\s\S]*?)<\/sequentialTop>/s,
         );
         const maxConcurrentHunks = gbBody.match(
-          /<maxConcurrentHunks>(.*?)<\/maxConcurrentHunks>/s,
+          /<maxConcurrentHunks>([\s\S]*?)<\/maxConcurrentHunks>/s,
         );
         gb.required = num(req?.[1]);
         gb.optional = num(opt?.[1]);
@@ -546,6 +548,18 @@ function parseSummaryResponse(text: string): DiffSummary {
         reasoning: "Failed to parse summary response",
       },
       prDescription: undefined,
+      plan: {
+        globalBudget: {
+          required: undefined,
+          optional: undefined,
+          nit: undefined,
+          maxHunks: undefined,
+          defaultMaxTurns: undefined,
+          sequentialTop: undefined,
+          maxConcurrentHunks: undefined,
+        },
+        hunkPlans: [],
+      },
     };
   }
 }

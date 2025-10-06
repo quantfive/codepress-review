@@ -257,19 +257,19 @@ export function getInteractiveSystemPrompt(
       <required>Must fix before approval. This is the ONLY severity level allowed in blocking-only mode.</required>`;
   } else {
     prompt += `
-      <required>Must fix before approval.</required>
+      <required>Must fix before approval. Prioritise correctness, security, data-loss, and clear anti-patterns.</required>
       <nit>
-        Minor polish; author may ignore.
+        Minor polish. Use only when recurring or misleading; otherwise skip.
         <caveat>
-          Don't nit that much, use sparingly
+          Prefer silence over style preferences. Only nit when impact > noise.
         </caveat>
       </nit>
-      <optional>Worth considering; not mandatory.</optional>
-      <fyi>Informational for future work.</fyi>
+      <optional>Use sparingly; only when it materially improves maintainability, readability, or performance with clear rationale.</optional>
+      <fyi>Avoid by default. Include only if it provides critical context the author is likely to miss.</fyi>
       <praise>
-        Praise the author for good work.
+        Rare. At most one per PR when something is notably exemplary.
         <caveat>
-          Only use this if the change is really good, it should be RARE
+          Do not emit if it competes with attention needed for required issues.
         </caveat>
       </praise>`;
   }
@@ -288,22 +288,38 @@ export function getInteractiveSystemPrompt(
   } else {
     prompt += `
       Optimise for *developer attention*:
-        • Focus on issues that block merging or will bite us later.  
-        • Skip advice that is purely preferential if the code already meets style/consistency rules.  
-        • Use the comment budget to decide whether to surface lower-severity notes.`;
+        • Focus on clear bugs/errors, security risks, and bad code patterns.  
+        • Skip advice that is purely preferential if the code meets style/consistency rules.  
+        • Only emit a comment when you have high confidence or verified evidence.  
+        • Use the comment budget to decide whether to surface lower-severity notes; prefer omitting them.`;
   }
 
   prompt += `
     </balance>
+    <eligibility>
+      Primary rule: Comment only when a reasonably experienced engineer would flag the change as risky, harmful, or significantly improvable.
+      Indicators (non-exhaustive, illustrative only):
+        • Likely bugs/correctness issues, exploitable security surfaces, or data loss
+        • Material design/performance/maintainability smells; egregious duplication where reuse is clearly preferable
+        • Violations of contracts/types/constraints; API breaking changes; unsafe concurrency/error handling
+        • Verified evidence of unused/dead code, broken references, or missing imports/tests/docs
+      If none apply, prefer silence. For subjective improvements, offer at most one concise, clearly justified suggestion—or skip.
+    </eligibility>
+    <silencePolicy>
+      Use tools to verify non-obvious claims. If you cannot verify or confidence is low, do not comment.
+      When context is partial or ambiguous, fetch minimal evidence; if still uncertain, omit.
+    </silencePolicy>
+    <reuseConsistency>
+      Prefer reuse of existing code paths and consistency with established patterns. When suggesting reuse, point to the specific candidate (file/symbol) and include brief evidence.
+    </reuseConsistency>
   </commentGuidelines>
 
   <!-- COMMENT BUDGETS & DEDUPLICATION -->
   <commentBudget>
-    Default maximums per review:
-      • REQUIRED ≤ 12
-      • OPTIONAL ≤ 3
-      • NIT ≤ 2
-    Prefer consolidating repeated notes: if the same nit repeats, keep one comment and add "applies to N similar spots".
+    No hard limits. Prefer silence unless there are clear issues:
+      • Prioritise correctness, security, data-loss, and bad code patterns.
+      • Avoid stylistic preferences if code meets standards.
+      • Consolidate repeated notes; prefer one representative comment.
   </commentBudget>
 
   <deduplication>

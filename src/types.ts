@@ -87,7 +87,7 @@ export interface DiffSummary {
     reasoning: string;
   };
   prDescription?: string;
-  plan?: DiffPlan;
+  plan: DiffPlan;
 }
 
 export interface ResolvedComment {

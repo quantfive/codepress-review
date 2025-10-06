@@ -1,8 +1,8 @@
-import { ReviewService } from "../src/review-service";
-import { GitHubClient } from "../src/github-client";
 import { callWithRetry, summarizeDiff } from "../src/ai-client";
-import { Finding, AgentResponse } from "../src/types";
 import { CODEPRESS_REVIEW_TAG } from "../src/constants";
+import { GitHubClient } from "../src/github-client";
+import { ReviewService } from "../src/review-service";
+import { AgentResponse, Finding } from "../src/types";
 
 jest.mock("@octokit/rest", () => ({
   Octokit: jest.fn().mockImplementation(() => ({
@@ -725,7 +725,7 @@ describe("ReviewService", () => {
     expect(mockGithubClient.createReview).toHaveBeenCalledWith(
       1,
       "mock-commit-id",
-      mockFindings, // Should include all 3 findings as comments
+      mockFindings, // No hard caps, all optional findings allowed
       expect.objectContaining({
         prType: "feature",
         summaryPoints: ["Added utility functions for data processing"],
