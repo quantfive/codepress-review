@@ -87,6 +87,7 @@ export interface DiffSummary {
     reasoning: string;
   };
   prDescription?: string;
+  plan: DiffPlan;
 }
 
 export interface ResolvedComment {
@@ -99,4 +100,41 @@ export interface ResolvedComment {
 export interface AgentResponse {
   findings: Finding[];
   resolvedComments: ResolvedComment[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Planner types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type RiskLevel = "low" | "medium" | "high" | "critical";
+
+export interface PlannerAction {
+  tool: "search_repo" | "fetch_snippet" | "fetch_files" | "dep_graph";
+  goal: string;
+  params?: Record<string, string | number | boolean | string[]>;
+}
+
+export interface HunkPlan {
+  index: number;
+  riskLevel?: RiskLevel;
+  priority?: number; // lower = earlier
+  maxTurns?: number;
+  toolBudget?: number;
+  skip?: boolean;
+  focus?: string[]; // e.g., ["imports","types"]
+  evidenceRequired?: boolean;
+  actions?: PlannerAction[];
+}
+
+export interface DiffPlan {
+  globalBudget?: {
+    required?: number;
+    optional?: number;
+    nit?: number;
+    maxHunks?: number;
+    defaultMaxTurns?: number;
+    sequentialTop?: number;
+    maxConcurrentHunks?: number;
+  };
+  hunkPlans: HunkPlan[];
 }

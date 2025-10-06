@@ -1,16 +1,17 @@
-import { readFileSync, existsSync } from "fs";
-import { resolve } from "path";
-import { execSync } from "child_process";
-import ignore from "ignore";
 import { APICallError } from "ai";
-import { Finding, ReviewConfig, DiffSummary } from "./types";
-import { getModelConfig, getGitHubConfig } from "./config";
-import { splitDiff, ProcessableChunk } from "./diff-parser";
-import { callWithRetry, summarizeDiff } from "./ai-client";
+import { execSync } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import ignore from "ignore";
+import { resolve } from "path";
 import { reviewChunkWithAgent } from "./agent";
-import { GitHubClient } from "./github-client";
+import { callWithRetry, summarizeDiff } from "./ai-client";
+import { getGitHubConfig, getModelConfig } from "./config";
 import { isCodePressCommentObject } from "./constants";
-import { debugLog, debugWarn, debugError } from "./debug";
+import { debugError, debugLog, debugWarn } from "./debug";
+import type { ProcessableChunk } from "./diff-parser";
+import { splitDiff } from "./diff-parser";
+import { GitHubClient } from "./github-client";
+import type { DiffSummary, Finding, ReviewConfig } from "./types";
 
 /**
  * Service class that orchestrates the entire review process.
@@ -21,11 +22,109 @@ export class ReviewService {
   private diffSummary?: DiffSummary;
   private repoFilePaths: string[] = [];
 
+  // Service-level budgets (Phase 1): enforce concise reviews
+  private static readonly REQUIRED_BUDGET = 12;
+  private static readonly OPTIONAL_BUDGET = 3;
+  private static readonly NIT_BUDGET = 2;
+
   constructor(config: ReviewConfig) {
     this.config = config;
     const githubConfig = getGitHubConfig();
     const modelConfig = getModelConfig();
     this.githubClient = new GitHubClient(githubConfig, modelConfig);
+  }
+
+  /**
+   * Normalize a message for cross-chunk deduplication by removing paths,
+   * numbers, and condensing whitespace. This is intentionally simple.
+   */
+  private normalizeMessage(message: string): string {
+    const lower = message.toLowerCase();
+    const noPaths = lower.replace(/[\w./\\-]+\.[a-z0-9]+/gi, "");
+    const noLineNums = noPaths.replace(/\bline\s*\d+\b/gi, "");
+    const noDigits = noLineNums.replace(/\d+/g, "");
+    return noDigits.replace(/\s+/g, " ").trim();
+  }
+
+  /**
+   * Heuristic: identify messages that assert unused/missing without evidence.
+   * For Phase 1, drop such comments unless they include an "Evidence:" trail.
+   */
+  private passesHeuristicEvidenceGate(f: Finding): boolean {
+    const msg = (f.message || "").toLowerCase();
+    const requiresEvidence =
+      msg.includes("unused") ||
+      msg.includes("not used") ||
+      msg.includes("not referenced") ||
+      msg.includes("dead code") ||
+      msg.includes("missing import") ||
+      msg.includes("missing test");
+    if (!requiresEvidence) return true;
+    // Accept if the message contains an Evidence section
+    const hasEvidence = /\bevidence\s*:/i.test(f.message || "");
+    if (!hasEvidence) {
+      debugLog(
+        `🧪 Evidence gate: dropping comment lacking evidence → ${f.path}:${String(
+          f.line,
+        )}`,
+      );
+    }
+    return hasEvidence;
+  }
+
+  /**
+   * Cross-chunk deduplication: cluster by normalized message. Keep the first
+   * occurrence and annotate it with the number of similar spots.
+   */
+  private crossChunkDedupe(findings: Finding[]): Finding[] {
+    const seen = new Map<string, { index: number; count: number }>();
+    const kept: Finding[] = [];
+
+    for (const f of findings) {
+      const key = `${f.severity || ""}::${this.normalizeMessage(f.message)}`;
+      if (!seen.has(key)) {
+        seen.set(key, { index: kept.length, count: 1 });
+        kept.push(f);
+      } else {
+        const rec = seen.get(key);
+        if (!rec) {
+          continue;
+        }
+        rec.count++;
+        // optionally, prefer the earlier one; no replacement needed
+      }
+    }
+
+    // Annotate messages with cluster sizes > 1
+    for (const { index, count } of seen.values()) {
+      if (count > 1) {
+        const base = kept[index];
+        const suffix = ` (applies to ${count} similar spot${count === 1 ? "" : "s"})`;
+        if (!base.message.includes("applies to")) {
+          base.message = `${base.message}${suffix}`;
+        }
+      }
+    }
+
+    return kept;
+  }
+
+  /**
+   * Enforce simple service-level budgets per severity.
+   */
+  private enforceBudgets(findings: Finding[]): Finding[] {
+    // No hard caps: rely on agent guidance; keep high-signal items.
+    const result: Finding[] = [];
+    for (const f of findings) {
+      const sev = (f.severity || "").toLowerCase();
+      if (sev === "fyi" || sev === "praise") {
+        debugLog("🔽 Dropping non-actionable note", f.path, f.line);
+        continue;
+      }
+      // Keep required/optional/nit; evidence gating and dedupe are handled elsewhere
+      result.push(f);
+    }
+    return result;
   }
 
   /**
@@ -50,7 +149,14 @@ export class ReviewService {
     chunk: ProcessableChunk,
     chunkIndex: number,
     existingComments: Map<string, Set<number>>,
-    existingCommentsData: any[],
+    existingCommentsData: Array<{
+      path?: string;
+      line?: number;
+      body?: string;
+      id?: number;
+      created_at?: string;
+    }>,
+    overrideMaxTurns?: number,
   ): Promise<Finding[]> {
     debugLog(
       `[Hunk ${chunkIndex + 1}] Size: ${Buffer.byteLength(
@@ -107,7 +213,9 @@ export class ReviewService {
             chunkIndex,
             this.repoFilePaths,
             relevantComments,
-            this.config.maxTurns,
+            typeof overrideMaxTurns === "number"
+              ? overrideMaxTurns
+              : this.config.maxTurns,
             this.config.blockingOnly,
           ),
         chunkIndex + 1,
@@ -146,16 +254,17 @@ export class ReviewService {
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       if (APICallError.isInstance(error)) {
         console.error(
           `[Hunk ${
             chunkIndex + 1
-          }] Skipping due to non-retryable API error: ${error.message}`,
+          }] Skipping due to non-retryable API error: ${err?.message || "unknown"}`,
         );
       } else {
         console.error(
-          `[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${error.message}`,
+          `[Hunk ${chunkIndex + 1}] Skipping due to repeated errors: ${err?.message || "unknown"}`,
         );
       }
       return [];
@@ -315,14 +424,15 @@ export class ReviewService {
             debugLog("⚠️ No PR description was generated by the AI model");
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as { message?: string; stack?: string };
         debugWarn(
           "Failed to generate diff summary, proceeding without context:",
-          error.message,
+          err?.message || "unknown",
         );
-        debugError("Full error details:", error);
-        if (error.stack) {
-          debugError("Stack trace:", error.stack);
+        debugError("Full error details:", err);
+        if (err?.stack) {
+          debugError("Stack trace:", err.stack);
         }
         this.diffSummary = undefined;
       }
@@ -334,7 +444,10 @@ export class ReviewService {
     );
 
     const existingComments = new Map<string, Set<number>>();
-    for (const comment of botComments) {
+    for (const comment of botComments as Array<{
+      path?: string;
+      line?: number;
+    }>) {
       if (!comment.path || !comment.line) continue;
       if (!existingComments.has(comment.path)) {
         existingComments.set(comment.path, new Set());
@@ -342,27 +455,132 @@ export class ReviewService {
       existingComments.get(comment.path)?.add(comment.line);
     }
 
-    // Process all chunks in parallel and collect all findings
-    const promises: Promise<Finding[]>[] = [];
-
-    for (let i = 0; i < filteredChunks.length; i++) {
-      const { chunk, originalIndex } = filteredChunks[i];
-      const { fileName } = chunk;
-
-      debugLog("Processing fileName: ", fileName);
-
-      promises.push(
-        this.processChunk(
-          chunk,
-          originalIndex,
-          existingComments,
-          existingCommentsData,
-        ),
-      );
+    // Reorder/skip hunks based on planner, then process in parallel
+    const hunkPlanMap = new Map<
+      number,
+      {
+        priority?: number;
+        skip?: boolean;
+        maxTurns?: number;
+      }
+    >();
+    if (this.diffSummary?.plan?.hunkPlans) {
+      for (const hp of this.diffSummary.plan.hunkPlans) {
+        hunkPlanMap.set(hp.index, {
+          priority: hp.priority,
+          skip: hp.skip,
+          maxTurns: hp.maxTurns,
+        });
+      }
     }
 
-    // Wait for all chunks to be processed
-    const allResults = await Promise.all(promises);
+    // Sort by priority if provided, otherwise preserve original order
+    const planned = [...filteredChunks].sort((a, b) => {
+      const pa = hunkPlanMap.get(a.originalIndex)?.priority;
+      const pb = hunkPlanMap.get(b.originalIndex)?.priority;
+      if (typeof pa === "number" && typeof pb === "number") return pa - pb;
+      if (typeof pa === "number") return -1;
+      if (typeof pb === "number") return 1;
+      return 0;
+    });
+
+    // Optionally cap number of hunks
+    const maxHunks = this.diffSummary?.plan?.globalBudget?.maxHunks;
+    const toProcess =
+      typeof maxHunks === "number" ? planned.slice(0, maxHunks) : planned;
+
+    // Hybrid scheduling: sequential top K, then limited concurrency
+    const sequentialTop = this.diffSummary?.plan?.globalBudget?.sequentialTop;
+    const maxConcurrent =
+      this.diffSummary?.plan?.globalBudget?.maxConcurrentHunks;
+    const effectiveSequentialTop =
+      typeof sequentialTop === "number" ? Math.max(0, sequentialTop) : 3;
+    const effectiveMaxConcurrent =
+      typeof maxConcurrent === "number" ? Math.max(1, maxConcurrent) : 4;
+
+    const resultsAccumulator: Finding[][] = [];
+
+    // 1) Run top K sequentially
+    for (
+      let i = 0;
+      i < Math.min(effectiveSequentialTop, toProcess.length);
+      i++
+    ) {
+      const { chunk, originalIndex } = toProcess[i];
+      const { fileName } = chunk;
+      const plan = hunkPlanMap.get(originalIndex);
+      if (plan?.skip) {
+        debugLog(
+          `⏭️  Skipping hunk ${originalIndex} (${fileName}) per planner`,
+        );
+        continue;
+      }
+      debugLog("Processing (sequential) fileName: ", fileName);
+      const defaultMaxTurns =
+        this.diffSummary?.plan?.globalBudget?.defaultMaxTurns;
+      const maxTurns =
+        typeof plan?.maxTurns === "number"
+          ? plan.maxTurns
+          : typeof defaultMaxTurns === "number"
+            ? defaultMaxTurns
+            : this.config.maxTurns;
+      const findings = await this.processChunk(
+        chunk,
+        originalIndex,
+        existingComments,
+        existingCommentsData,
+        maxTurns,
+      );
+      resultsAccumulator.push(findings);
+    }
+
+    // 2) Run the rest with limited concurrency
+    const pool: Promise<void>[] = [];
+    let cursor = Math.min(effectiveSequentialTop, toProcess.length);
+    const remainderResults: Finding[][] = [];
+    const runNext = async () => {
+      if (cursor >= toProcess.length) return;
+      const idx = cursor++;
+      const { chunk, originalIndex } = toProcess[idx];
+      const { fileName } = chunk;
+      const plan = hunkPlanMap.get(originalIndex);
+      if (plan?.skip) {
+        debugLog(
+          `⏭️  Skipping hunk ${originalIndex} (${fileName}) per planner`,
+        );
+        return;
+      }
+      debugLog("Processing (pooled) fileName: ", fileName);
+      const defaultMaxTurns =
+        this.diffSummary?.plan?.globalBudget?.defaultMaxTurns;
+      const maxTurns =
+        typeof plan?.maxTurns === "number"
+          ? plan.maxTurns
+          : typeof defaultMaxTurns === "number"
+            ? defaultMaxTurns
+            : this.config.maxTurns;
+      const findings = await this.processChunk(
+        chunk,
+        originalIndex,
+        existingComments,
+        existingCommentsData,
+        maxTurns,
+      );
+      remainderResults.push(findings);
+      await runNext();
+    };
+
+    for (
+      let i = 0;
+      i < Math.min(effectiveMaxConcurrent, toProcess.length - cursor);
+      i++
+    ) {
+      pool.push(runNext());
+    }
+
+    await Promise.all(pool);
+
+    const allResults = [...resultsAccumulator, ...remainderResults];
     let allFindings: Finding[] = [];
     for (const findings of allResults) {
       allFindings.push(...findings);
@@ -382,14 +600,25 @@ export class ReviewService {
       }
     }
 
+    // Phase 1: Heuristic evidence gate for unused/missing claims lacking evidence
+    const gatedFindings = allFindings.filter((f) =>
+      this.passesHeuristicEvidenceGate(f),
+    );
+
+    // Cross-chunk dedupe and cluster aggregation
+    const dedupedFindings = this.crossChunkDedupe(gatedFindings);
+
+    // Enforce budgets
+    const budgetedFindings = this.enforceBudgets(dedupedFindings);
+
     // Create a review - either with findings or just the summary decision
     const shouldCreateReview =
-      allFindings.length > 0 || this.diffSummary?.decision;
+      budgetedFindings.length > 0 || this.diffSummary?.decision;
 
     if (shouldCreateReview) {
       const findingsText =
-        allFindings.length > 0
-          ? `${allFindings.length} total findings`
+        budgetedFindings.length > 0
+          ? `${budgetedFindings.length} total findings`
           : "summary decision only";
       debugLog(`\n🔍 Creating review with ${findingsText}...`);
 
@@ -397,7 +626,7 @@ export class ReviewService {
         await this.githubClient.createReview(
           this.config.pr,
           commitId,
-          allFindings,
+          budgetedFindings,
           this.diffSummary,
         );
       } catch (error: unknown) {
@@ -406,9 +635,9 @@ export class ReviewService {
         console.error("Failed to create review:", errorMessage);
 
         // Only fallback to individual comments if we have findings
-        if (allFindings.length > 0) {
+        if (budgetedFindings.length > 0) {
           debugLog("Attempting to create individual comments as fallback...");
-          const commentPromises = allFindings.map(async (finding) => {
+          const commentPromises = budgetedFindings.map(async (finding) => {
             try {
               await this.githubClient.createReviewComment(
                 this.config.pr,

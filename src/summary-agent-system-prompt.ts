@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +113,30 @@ export function getSummarySystemPrompt(blockingOnly: boolean = false): string {
       <notes>Pay attention to file structure. Make sure it's appropriately placed, as well as placed in the right files. IMPORTANT: Remember that hunks show partial file context - imports, dependencies, and related code may exist outside the visible diff lines.</notes>
     </hunkChecklist>
 
+    <planner>
+      REQUIRED: Produce a <plan> the interactive reviewer will follow. Keep it concise and actionable.
+      <globalBudget>
+        Optionally override defaults with: <required>, <optional>, <nit>, <maxHunks>, <defaultMaxTurns>.
+      </globalBudget>
+      <hunks>
+        For hunks that merit interactive review, output a <hunk index="i"> plan with:
+        <riskLevel>low|medium|high|critical</riskLevel>
+        <priority>Integer where lower is earlier</priority>
+        <maxTurns>Optional cap for the interactive agent</maxTurns>
+        <toolBudget>Optional max number of tool calls</toolBudget>
+        <skip>true|false when safe to skip</skip>
+        <focus><item>imports|types|contracts|tests|performance|security|docs</item>...</focus>
+        <evidenceRequired>true|false (require Evidence for unused/missing claims)</evidenceRequired>
+        <actions>
+          Zero or more <action tool="search_repo|fetch_snippet|fetch_files|dep_graph"> blocks:
+          <goal>One-line goal</goal>
+          <params>
+            Use child tags (e.g., <query>, <wordBoundary>, <extensions>, <path>, <depth>); avoid JSON.
+          </params>
+        </actions>
+      </hunks>
+    </planner>
+
     <prDescription>
       Generate a concise, well-structured PR description that includes:
       • Title for the PR
@@ -195,6 +219,50 @@ export function getSummarySystemPrompt(blockingOnly: boolean = false): string {
 
       <!-- repeat <hunk> … </hunk> blocks as needed -->
     </hunks>
+
+    <!-- PLANNER OUTPUT (REQUIRED) -->
+    <plan>
+      <globalBudget>
+        <required>12</required>
+        <optional>3</optional>
+        <nit>2</nit>
+        <maxHunks>25</maxHunks>
+        <defaultMaxTurns>15</defaultMaxTurns>
+        <sequentialTop>3</sequentialTop>
+        <maxConcurrentHunks>4</maxConcurrentHunks>
+      </globalBudget>
+      <hunks>
+        <hunk index="0">
+          <riskLevel>high</riskLevel>
+          <priority>1</priority>
+          <maxTurns>16</maxTurns>
+          <toolBudget>3</toolBudget>
+          <skip>false</skip>
+          <focus>
+            <item>imports</item>
+            <item>types</item>
+          </focus>
+          <evidenceRequired>true</evidenceRequired>
+          <actions>
+            <action tool="search_repo">
+              <goal>Verify symbol rename across src and tests</goal>
+              <params>
+                <query>OldSymbol</query>
+                <wordBoundary>true</wordBoundary>
+                <extensions>.ts,.tsx</extensions>
+              </params>
+            </action>
+            <action tool="dep_graph">
+              <goal>Check transitive import impact</goal>
+              <params>
+                <path>src/foo/bar.ts</path>
+                <depth>2</depth>
+              </params>
+            </action>
+          </actions>
+        </hunk>
+      </hunks>
+    </plan>
   </responseFormat>
 </systemPrompt>
   `;
