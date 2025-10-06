@@ -1,11 +1,15 @@
 import { tool } from "@openai/agents";
-import { z } from "zod";
-import { readFileSync, existsSync, readdirSync, statSync } from "fs";
-import { spawnSync } from "child_process";
-import { resolve, dirname, join, extname, relative } from "path";
 import { rgPath as vscodeRipgrepPath } from "@vscode/ripgrep";
+import { spawnSync } from "child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import ignore from "ignore";
+import { dirname, extname, join, relative, resolve } from "path";
+import { z } from "zod";
 import { DEFAULT_IGNORE_PATTERNS } from "../constants";
+
+// Lightweight in-process LRU cache for search results
+const SEARCH_CACHE: Map<string, string> = new Map();
+const LRU_MAX = 100;
 
 /**
  * Resolve a working ripgrep binary path.
@@ -96,23 +100,25 @@ function extractDependencies(filePath: string): {
 
     // Extract imports
     for (const pattern of importPatterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
+      let match: RegExpExecArray | null = pattern.exec(content);
+      while (match) {
         const resolvedPath = resolveImportPath(match[1], filePath);
         if (resolvedPath) {
           imports.push(resolvedPath);
         }
+        match = pattern.exec(content);
       }
     }
 
     // Extract re-exports
     for (const pattern of exportPatterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
+      let match: RegExpExecArray | null = pattern.exec(content);
+      while (match) {
         const resolvedPath = resolveImportPath(match[1], filePath);
         if (resolvedPath) {
           exports.push(resolvedPath);
         }
+        match = pattern.exec(content);
       }
     }
 
@@ -491,12 +497,16 @@ export const depGraphTool = tool({
 
       if (deps.imports.length > 0) {
         output.push(`Imports (${deps.imports.length}):`);
-        deps.imports.forEach((imp) => output.push(`  → ${imp}`));
+        for (const imp of deps.imports) {
+          output.push(`  → ${imp}`);
+        }
       }
 
       if (deps.importedBy.length > 0) {
         output.push(`Imported by (${deps.importedBy.length}):`);
-        deps.importedBy.forEach((imp) => output.push(`  ← ${imp}`));
+        for (const imp of deps.importedBy) {
+          output.push(`  ← ${imp}`);
+        }
       }
 
       if (deps.imports.length === 0 && deps.importedBy.length === 0) {
@@ -514,6 +524,8 @@ export const depGraphTool = tool({
 export async function runSearchRepo(params: {
   query: string;
   caseSensitive?: boolean | null;
+  regex?: boolean | null;
+  wordBoundary?: boolean | null;
   extensions?: string[] | null;
   paths?: string[] | null;
   contextLines?: number;
@@ -522,11 +534,44 @@ export async function runSearchRepo(params: {
   const {
     query,
     caseSensitive = null,
+    regex = null,
+    wordBoundary = null,
     extensions = null,
     paths = null,
     contextLines = 5,
     maxResults = 200,
   } = params;
+
+  // Simple LRU cache for search results to avoid repeated repo scans
+  type CacheKey = {
+    q: string;
+    cs: boolean | null;
+    rx: boolean | null;
+    wb: boolean | null;
+    exts: string | null;
+    p: string | null;
+    cl: number;
+    mr: number;
+  };
+  const cacheKey: CacheKey = {
+    q: query,
+    cs: caseSensitive,
+    rx: regex,
+    wb: wordBoundary,
+    exts: Array.isArray(extensions) ? [...extensions].sort().join(",") : null,
+    p: Array.isArray(paths) ? [...paths].sort().join(",") : null,
+    cl: contextLines,
+    mr: maxResults,
+  };
+
+  const cacheKeyStr = JSON.stringify(cacheKey);
+  const cached = SEARCH_CACHE.get(cacheKeyStr);
+  if (cached) {
+    // refresh recency
+    SEARCH_CACHE.delete(cacheKeyStr);
+    SEARCH_CACHE.set(cacheKeyStr, cached);
+    return cached;
+  }
 
   // Build ignore set from .codepressignore and defaults
   const codepressIgnoreFiles = findCodepressIgnoreFiles(paths);
@@ -534,9 +579,32 @@ export async function runSearchRepo(params: {
 
   // Prefer ripgrep if available. It respects .gitignore and is fast.
   try {
-    const args: string[] = ["-n", "--json", "-F"]; // -F: fixed-strings
+    const args: string[] = ["-n", "--json"]; // choose -F conditionally
     const isCaseSensitive = caseSensitive === true;
     if (!isCaseSensitive) args.push("-i");
+
+    // Determine query mode and pattern
+    let useRegex = regex === true;
+    let pattern = query;
+
+    function escapeRegexLiteral(s: string): string {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    if (wordBoundary === true) {
+      if (!useRegex) {
+        // Promote to regex with word boundaries
+        useRegex = true;
+        pattern = `\\b${escapeRegexLiteral(query)}\\b`;
+      } else {
+        // Already regex: wrap with word boundaries for exact symbol match
+        pattern = `\\b(?:${pattern})\\b`;
+      }
+    }
+
+    if (!useRegex) {
+      args.push("-F"); // fixed-strings for plain search
+    }
 
     // Optional extension globs
     if (Array.isArray(extensions) && extensions.length > 0) {
@@ -547,7 +615,7 @@ export async function runSearchRepo(params: {
     }
 
     // Pattern
-    args.push(query);
+    args.push(pattern);
 
     // Paths scope or default to current directory
     if (Array.isArray(paths) && paths.length > 0) {
@@ -585,9 +653,15 @@ export async function runSearchRepo(params: {
     let total = 0;
     for (const line of lines) {
       if (!line) continue;
-      let obj: any;
+      let obj: {
+        type?: string;
+        data?: { path?: { text?: string }; line_number?: number };
+      } | null = null;
       try {
-        obj = JSON.parse(line);
+        obj = JSON.parse(line) as {
+          type?: string;
+          data?: { path?: { text?: string }; line_number?: number };
+        };
       } catch {
         continue;
       }
@@ -604,7 +678,15 @@ export async function runSearchRepo(params: {
     }
 
     if (total === 0) {
-      return `No matches found for "${query}"`;
+      const out = `No matches found for "${query}"`;
+      // insert into cache
+      SEARCH_CACHE.set(cacheKeyStr, out);
+      if (SEARCH_CACHE.size > LRU_MAX) {
+        // delete oldest
+        const firstKey = SEARCH_CACHE.keys().next().value as string | undefined;
+        if (firstKey) SEARCH_CACHE.delete(firstKey);
+      }
+      return out;
     }
 
     // Build output with context by reading files once
@@ -644,7 +726,13 @@ export async function runSearchRepo(params: {
       outputs.push(snippets.join("\n\n"));
     }
 
-    return outputs.join("\n\n");
+    const out = outputs.join("\n\n");
+    SEARCH_CACHE.set(cacheKeyStr, out);
+    if (SEARCH_CACHE.size > LRU_MAX) {
+      const firstKey = SEARCH_CACHE.keys().next().value as string | undefined;
+      if (firstKey) SEARCH_CACHE.delete(firstKey);
+    }
+    return out;
   } catch {
     // Fallback to in-process search if ripgrep is unavailable
     const files = getAllSearchableFiles(
@@ -654,6 +742,24 @@ export async function runSearchRepo(params: {
     );
 
     const isCaseSensitive = caseSensitive === true;
+    let useRegex = regex === true;
+    let pattern = query;
+
+    function escapeRegexLiteral(s: string): string {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    if (wordBoundary === true) {
+      if (!useRegex) {
+        useRegex = true;
+        pattern = `\\b${escapeRegexLiteral(query)}\\b`;
+      } else {
+        pattern = `\\b(?:${pattern})\\b`;
+      }
+    }
+
+    const flags = isCaseSensitive ? "g" : "gi";
+    const re = useRegex ? new RegExp(pattern, flags) : null;
     const needle = isCaseSensitive ? query : query.toLowerCase();
     let total = 0;
     let truncated = false;
@@ -675,8 +781,14 @@ export async function runSearchRepo(params: {
       const matches: Array<{ lineNumber: number; snippet: string }> = [];
 
       for (let i = 0; i < lines.length; i++) {
-        const hay = isCaseSensitive ? lines[i] : lines[i].toLowerCase();
-        if (hay.includes(needle)) {
+        const hay = lines[i];
+        const hayCmp = isCaseSensitive ? hay : hay.toLowerCase();
+        const matched = re
+          ? re.test(hay)
+            ? true
+            : false
+          : hayCmp.includes(needle);
+        if (matched) {
           const start = Math.max(0, i - contextLines);
           const end = Math.min(lines.length - 1, i + contextLines);
           const snippet = lines
@@ -720,14 +832,26 @@ export async function runSearchRepo(params: {
     }
 
     if (outputs.length === 0) {
-      return `No matches found for "${query}"`;
+      const out = `No matches found for "${query}"`;
+      SEARCH_CACHE.set(cacheKeyStr, out);
+      if (SEARCH_CACHE.size > LRU_MAX) {
+        const firstKey = SEARCH_CACHE.keys().next().value as string | undefined;
+        if (firstKey) SEARCH_CACHE.delete(firstKey);
+      }
+      return out;
     }
 
     if (truncated) {
       outputs.push(`\n[Truncated after ${maxResults} matches]`);
     }
 
-    return outputs.join("\n\n");
+    const out = outputs.join("\n\n");
+    SEARCH_CACHE.set(cacheKeyStr, out);
+    if (SEARCH_CACHE.size > LRU_MAX) {
+      const firstKey = SEARCH_CACHE.keys().next().value as string | undefined;
+      if (firstKey) SEARCH_CACHE.delete(firstKey);
+    }
+    return out;
   }
 }
 
@@ -744,6 +868,18 @@ export const searchRepoTool = tool({
       .nullish()
       .describe(
         "If true, perform a case-sensitive search (null = default insensitive)",
+      ),
+    regex: z
+      .boolean()
+      .nullish()
+      .describe(
+        "If true, treat 'query' as a regex (ripgrep default); otherwise use fixed-string",
+      ),
+    wordBoundary: z
+      .boolean()
+      .nullish()
+      .describe(
+        "If true, perform word-boundary match (wraps query with \\b ... \\b)",
       ),
     extensions: z
       .array(z.string())

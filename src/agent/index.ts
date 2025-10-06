@@ -1,11 +1,11 @@
 import { Agent, run } from "@openai/agents";
-import { Finding, ModelConfig, DiffSummary, AgentResponse } from "../types";
-import { allTools } from "./tools";
-import { getInteractiveSystemPrompt } from "./agent-system-prompt";
-import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
-import { createModel } from "../model-factory";
 import { aisdk } from "@openai/agents-extensions";
-import { debugLog, debugError } from "../debug";
+import { debugError, debugLog } from "../debug";
+import { createModel } from "../model-factory";
+import { AgentResponse, DiffSummary, Finding, ModelConfig } from "../types";
+import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
+import { getInteractiveSystemPrompt } from "./agent-system-prompt";
+import { allTools } from "./tools";
 
 /**
  * Reviews a diff chunk using the interactive agent.
@@ -90,6 +90,85 @@ export async function reviewChunkWithAgent(
           contextLines.push(`      <item>${test}</item>`);
         });
         contextLines.push("    </suggestedTests>");
+      }
+
+      // Include planner guidance for this hunk, if present
+      if (diffSummary.plan) {
+        const planForHunk = diffSummary.plan.hunkPlans.find(
+          (hp) => hp.index === chunkIndex,
+        );
+        if (planForHunk) {
+          contextLines.push("    <plan>");
+          if (planForHunk.riskLevel) {
+            contextLines.push(
+              `      <riskLevel>${planForHunk.riskLevel}</riskLevel>`,
+            );
+          }
+          if (typeof planForHunk.priority === "number") {
+            contextLines.push(
+              `      <priority>${String(planForHunk.priority)}</priority>`,
+            );
+          }
+          if (typeof planForHunk.maxTurns === "number") {
+            contextLines.push(
+              `      <maxTurns>${String(planForHunk.maxTurns)}</maxTurns>`,
+            );
+          }
+          if (typeof planForHunk.toolBudget === "number") {
+            contextLines.push(
+              `      <toolBudget>${String(planForHunk.toolBudget)}</toolBudget>`,
+            );
+          }
+          if (typeof planForHunk.skip === "boolean") {
+            contextLines.push(
+              `      <skip>${planForHunk.skip ? "true" : "false"}</skip>`,
+            );
+          }
+          if (
+            Array.isArray(planForHunk.focus) &&
+            planForHunk.focus.length > 0
+          ) {
+            contextLines.push("      <focus>");
+            for (const f of planForHunk.focus) {
+              contextLines.push(`        <item>${f}</item>`);
+            }
+            contextLines.push("      </focus>");
+          }
+          if (typeof planForHunk.evidenceRequired === "boolean") {
+            contextLines.push(
+              `      <evidenceRequired>${planForHunk.evidenceRequired ? "true" : "false"}</evidenceRequired>`,
+            );
+          }
+          if (
+            Array.isArray(planForHunk.actions) &&
+            planForHunk.actions.length > 0
+          ) {
+            contextLines.push("      <actions>");
+            planForHunk.actions.forEach((a) => {
+              const tool = a.tool || "";
+              contextLines.push(`        <action tool="${tool}">`);
+              if (a.goal) {
+                contextLines.push(`          <goal>${a.goal}</goal>`);
+              }
+              if (a.params && typeof a.params === "object") {
+                contextLines.push("          <params>");
+                for (const [k, v] of Object.entries(a.params)) {
+                  if (Array.isArray(v)) {
+                    contextLines.push(
+                      `            <${k}>${v.join(",")}</${k}>`,
+                    );
+                  } else {
+                    contextLines.push(`            <${k}>${String(v)}</${k}>`);
+                  }
+                }
+                contextLines.push("          </params>");
+              }
+              contextLines.push("        </action>");
+            });
+            contextLines.push("      </actions>");
+          }
+          contextLines.push("    </plan>");
+        }
       }
 
       contextLines.push("  </chunkSpecific>");

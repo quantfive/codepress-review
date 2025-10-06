@@ -1,21 +1,23 @@
-import { generateText, APICallError } from "ai";
-import {
-  ModelConfig,
-  DiffSummary,
-  RiskItem,
-  IssueItem,
-  HunkSummary,
-  PRType,
-  RiskTag,
-  ReviewDecision,
-  Finding,
-} from "./types";
-import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
+import { APICallError, generateText } from "ai";
 import { setTimeout } from "node:timers/promises";
+import { isCodePressCommentObject, isCodePressReviewObject } from "./constants";
+import { debugLog, debugWarn } from "./debug";
 import { ProcessableChunk } from "./diff-parser";
 import { createModel } from "./model-factory";
-import { isCodePressReviewObject, isCodePressCommentObject } from "./constants";
-import { debugLog, debugWarn } from "./debug";
+import { getSummarySystemPrompt } from "./summary-agent-system-prompt";
+import type {
+  DiffPlan,
+  DiffSummary,
+  Finding,
+  HunkPlan,
+  HunkSummary,
+  IssueItem,
+  ModelConfig,
+  PRType,
+  ReviewDecision,
+  RiskItem,
+  RiskTag,
+} from "./types";
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
@@ -356,6 +358,173 @@ function parseSummaryResponse(text: string): DiffSummary {
       }
     }
 
+    // Extract plan (REQUIRED). If absent, synthesize an empty/default plan.
+    const plan: DiffPlan = (() => {
+      const planMatch = text.match(/<plan>(.*?)<\/plan>/s);
+      const planContent = planMatch ? planMatch[1] : "";
+
+      // globalBudget
+      const gb: DiffPlan["globalBudget"] = {};
+      const gbMatch = planContent.match(/<globalBudget>(.*?)<\/globalBudget>/s);
+      if (gbMatch) {
+        const gbBody = gbMatch[1];
+        const num = (s: string | null | undefined) =>
+          s && /\d+/.test(s.trim()) ? parseInt(s.trim(), 10) : undefined;
+        const req = gbBody.match(/<required>(.*?)<\/required>/s);
+        const opt = gbBody.match(/<optional>(.*?)<\/optional>/s);
+        const nit = gbBody.match(/<nit>(.*?)<\/nit>/s);
+        const maxHunks = gbBody.match(/<maxHunks>(.*?)<\/maxHunks>/s);
+        const defaultMaxTurns = gbBody.match(
+          /<defaultMaxTurns>(.*?)<\/defaultMaxTurns>/s,
+        );
+        const sequentialTop = gbBody.match(
+          /<sequentialTop>(.*?)<\/sequentialTop>/s,
+        );
+        const maxConcurrentHunks = gbBody.match(
+          /<maxConcurrentHunks>(.*?)<\/maxConcurrentHunks>/s,
+        );
+        gb.required = num(req?.[1]);
+        gb.optional = num(opt?.[1]);
+        gb.nit = num(nit?.[1]);
+        gb.maxHunks = num(maxHunks?.[1]);
+        gb.defaultMaxTurns = num(defaultMaxTurns?.[1]);
+        gb.sequentialTop = num(sequentialTop?.[1]);
+        gb.maxConcurrentHunks = num(maxConcurrentHunks?.[1]);
+      }
+
+      // Helper parser
+      function parseBool(s: string | undefined): boolean | undefined {
+        if (!s) return undefined;
+        const v = s.trim().toLowerCase();
+        if (v === "true") return true;
+        if (v === "false") return false;
+        return undefined;
+      }
+
+      function parseParams(
+        paramsBlock: string,
+      ): Record<string, string | number | boolean | string[]> {
+        const out: Record<string, string | number | boolean | string[]> = {};
+        const regex = /<([a-zA-Z0-9_]+)>([\s\S]*?)<\/\1>/g;
+        let m: RegExpExecArray | null = regex.exec(paramsBlock);
+        while (m !== null) {
+          const key = m[1];
+          const raw = m[2].trim();
+          if (/^(true|false)$/i.test(raw)) {
+            out[key] = /^true$/i.test(raw);
+          } else if (/^-?\d+$/.test(raw)) {
+            out[key] = parseInt(raw, 10);
+          } else if (raw.includes(",")) {
+            out[key] = raw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+          } else {
+            out[key] = raw;
+          }
+          m = regex.exec(paramsBlock);
+        }
+        return out;
+      }
+
+      const hunkPlans: HunkPlan[] = [];
+      const planHunksMatch = planContent.match(/<hunks>([\s\S]*?)<\/hunks>/s);
+      if (planHunksMatch) {
+        const hunkBlocks =
+          planHunksMatch[1].match(/<hunk[^>]*>[\s\S]*?<\/hunk>/g) || [];
+        for (const hb of hunkBlocks) {
+          const indexMatch = hb.match(/index="(\d+)"/);
+          if (!indexMatch) continue;
+          const index = parseInt(indexMatch[1], 10);
+          const riskLevel = hb
+            .match(/<riskLevel>([\s\S]*?)<\/riskLevel>/s)?.[1]
+            ?.trim();
+          const priority = hb
+            .match(/<priority>([\s\S]*?)<\/priority>/s)?.[1]
+            ?.trim();
+          const maxTurns = hb
+            .match(/<maxTurns>([\s\S]*?)<\/maxTurns>/s)?.[1]
+            ?.trim();
+          const toolBudget = hb
+            .match(/<toolBudget>([\s\S]*?)<\/toolBudget>/s)?.[1]
+            ?.trim();
+          const skip = hb.match(/<skip>([\s\S]*?)<\/skip>/s)?.[1]?.trim();
+          const evidenceRequired = hb
+            .match(/<evidenceRequired>([\s\S]*?)<\/evidenceRequired>/s)?.[1]
+            ?.trim();
+
+          // focus list
+          const focus: string[] = [];
+          const focusBlock = hb.match(/<focus>([\s\S]*?)<\/focus>/s)?.[1];
+          if (focusBlock) {
+            const items = focusBlock.match(/<item>([\s\S]*?)<\/item>/g) || [];
+            for (const it of items) {
+              const val = it.replace(/<\/?item>/g, "").trim();
+              if (val) focus.push(val);
+            }
+          }
+
+          // actions
+          const actions: HunkPlan["actions"] = [];
+          const actionsBlock = hb.match(/<actions>([\s\S]*?)<\/actions>/s)?.[1];
+          if (actionsBlock) {
+            const actionBlocks =
+              actionsBlock.match(/<action[^>]*>[\s\S]*?<\/action>/g) || [];
+            for (const ab of actionBlocks) {
+              const toolMatch = ab.match(/<action[^>]*tool="([^"]+)"/);
+              const goalMatch = ab.match(/<goal>([\s\S]*?)<\/goal>/s);
+              const paramsBlock = ab.match(
+                /<params>([\s\S]*?)<\/params>/s,
+              )?.[1];
+              const action: any = {
+                tool: toolMatch?.[1]?.trim(),
+                goal: goalMatch?.[1]?.trim() || "",
+              };
+              if (paramsBlock) action.params = parseParams(paramsBlock);
+              actions.push(action);
+            }
+          }
+
+          const hp: HunkPlan = {
+            index,
+            riskLevel: riskLevel as any,
+            priority:
+              priority && /^-?\d+$/.test(priority)
+                ? parseInt(priority, 10)
+                : undefined,
+            maxTurns:
+              maxTurns && /^-?\d+$/.test(maxTurns)
+                ? parseInt(maxTurns, 10)
+                : undefined,
+            toolBudget:
+              toolBudget && /^-?\d+$/.test(toolBudget)
+                ? parseInt(toolBudget, 10)
+                : undefined,
+            skip: parseBool(skip),
+            focus,
+            evidenceRequired: parseBool(evidenceRequired),
+            actions,
+          };
+          hunkPlans.push(hp);
+        }
+      }
+
+      return {
+        globalBudget: Object.keys(gb).length
+          ? gb
+          : {
+              required: undefined,
+              optional: undefined,
+              nit: undefined,
+              maxHunks: undefined,
+              defaultMaxTurns: undefined,
+              sequentialTop: undefined,
+              maxConcurrentHunks: undefined,
+            },
+        hunkPlans,
+      } as DiffPlan;
+    })();
+
     return {
       prType: prType as PRType,
       summaryPoints,
@@ -363,6 +532,7 @@ function parseSummaryResponse(text: string): DiffSummary {
       hunks,
       decision,
       prDescription,
+      plan,
     };
   } catch (error) {
     console.error("Failed to parse summary response:", error);
