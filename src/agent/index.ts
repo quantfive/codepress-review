@@ -98,10 +98,14 @@ Please review this pull request. You have the complete diff above.
    - Understand how changes integrate with existing code
    - Verify claims about unused code, missing imports, etc.
    - Check if changes affect other parts of the codebase
-4. Post review comments for any issues you find using:
+4. Post inline comments for any issues you find using:
    \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
 5. If the PR description was blank, update it:
    \`gh pr edit ${prContext.prNumber} --body "Your summary"\`
+6. **REQUIRED - Submit a formal review with your decision:**
+   - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
+   - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
+   - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
 
 **Comment guidelines:**
 ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUST be fixed (security, bugs, breaking changes)" : "- Focus on substantive issues: bugs, security problems, logic errors, significant design concerns\n- Skip minor style nits unless they indicate a real problem"}
@@ -113,7 +117,7 @@ ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUS
 - For lines starting with \`+\`, count from the @@ hunk header to find the line number
 - Always use commit_id="${prContext.commitSha}" for inline comments
 
-**Remember: Use the bash tool to post comments via gh CLI.**
+**Remember: Use the bash tool for all PR operations. You MUST submit a formal review at the end using \`gh pr review\`.**
 </instruction>`;
 
   try {

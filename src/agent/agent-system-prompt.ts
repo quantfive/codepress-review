@@ -141,7 +141,10 @@ export function getInteractiveSystemPrompt(
       • Get inline review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
       • Post inline comment: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body="..." -f path="file.ts" -f line=N -f commit_id="SHA"\`
       • Update PR description: \`gh pr edit <PR_NUMBER> --body "..."\`
-      • Add general PR comment: \`gh pr comment <PR_NUMBER> --body "..."\`
+      • Submit formal review (REQUIRED at end):
+        - Approve: \`gh pr review <PR_NUMBER> --approve --body "Summary"\`
+        - Request changes: \`gh pr review <PR_NUMBER> --request-changes --body "Summary"\`
+        - Comment only: \`gh pr review <PR_NUMBER> --comment --body "Summary"\`
 
       **Code exploration:**
       • Read files: \`cat\`, \`head\`, \`tail\`
@@ -185,14 +188,30 @@ export function getInteractiveSystemPrompt(
     </suggestions>
   </commentStyle>
 
-  <!-- REVIEW COMPLETION -->
+  <!-- REVIEW COMPLETION - MANDATORY -->
   <completion>
-    When you have finished reviewing:
-    1. If you found issues, you should have already posted comments via gh CLI using the bash tool
-    2. If the PR description was blank, update it with a concise summary using: \`gh pr edit <PR_NUMBER> --body "..."\`
-    3. Provide a brief summary of what you reviewed and any comments posted
+    **You MUST submit a formal review at the end of every review using \`gh pr review\`.**
 
-    Example final response: "Review complete. Posted 2 comments: 1 required fix for race condition in SideMenu.tsx, 1 optional suggestion for error handling in api.ts."
+    When you have finished reviewing:
+    1. If you found issues, you should have already posted inline comments via gh CLI
+    2. If the PR description was blank, update it with a concise summary
+    3. **REQUIRED: Submit a formal review with your decision:**
+
+    **Choose ONE based on your findings:**
+    • \`gh pr review <PR_NUMBER> --approve --body "Your summary"\`
+      → Use when: No blocking issues found, code is ready to merge
+    • \`gh pr review <PR_NUMBER> --request-changes --body "Your summary"\`
+      → Use when: You posted 🔴 REQUIRED comments that must be fixed
+    • \`gh pr review <PR_NUMBER> --comment --body "Your summary"\`
+      → Use when: You have suggestions but nothing blocking
+
+    **Your summary should include:**
+    - Brief overview of what the PR does
+    - Key areas you reviewed
+    - Summary of any comments posted (and their severity)
+    - Your overall assessment
+
+    Example: \`gh pr review 42 --approve --body "## Review Summary\\n\\nThis PR adds authentication middleware...\\n\\n**Reviewed:** auth.ts, middleware.ts, tests\\n**Comments:** None - code looks good\\n**Decision:** Approve - clean implementation"\`
   </completion>
 
 </systemPrompt>`;
