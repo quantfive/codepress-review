@@ -112,6 +112,8 @@ ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUS
 - The line number in \`-f line=N\` should be the line number in the NEW version of the file (right side of diff)
 - For lines starting with \`+\`, count from the @@ hunk header to find the line number
 - Always use commit_id="${prContext.commitSha}" for inline comments
+
+**Remember: Use the bash tool to post comments via gh CLI.**
 </instruction>`;
 
   try {
