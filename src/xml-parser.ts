@@ -17,6 +17,10 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
   const findings: Finding[] = [];
   const resolvedComments: ResolvedComment[] = [];
 
+  // Extract PR summary
+  const prSummaryMatch = xmlText.match(/<prSummary>([\s\S]*?)<\/prSummary>/s);
+  const prSummary = prSummaryMatch ? prSummaryMatch[1].trim() : undefined;
+
   // Extract all <comment> blocks from <comments> section
   const commentsSection = xmlText.match(/<comments>([\s\S]*?)<\/comments>/s);
   if (commentsSection) {
@@ -171,7 +175,7 @@ export function parseAgentResponse(xmlText: string): AgentResponse {
     }
   }
 
-  return { findings, resolvedComments };
+  return { findings, resolvedComments, prSummary };
 }
 
 /**

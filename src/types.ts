@@ -62,6 +62,7 @@ export interface ResolvedComment {
 export interface AgentResponse {
   findings: Finding[];
   resolvedComments: ResolvedComment[];
+  prSummary?: string;
 }
 
 // DiffSummary is kept for backward compatibility with GitHubClient

@@ -15,6 +15,19 @@ function estimateTokens(text: string): number {
 }
 
 /**
+ * Extracts unique file paths from a diff string.
+ */
+function extractFilesFromDiff(diffText: string): string[] {
+  const files: Set<string> = new Set();
+  const regex = /^diff --git a\/(.+?) b\//gm;
+  let match;
+  while ((match = regex.exec(diffText)) !== null) {
+    files.add(match[1]);
+  }
+  return Array.from(files);
+}
+
+/**
  * Maximum tokens we're willing to send to the model in one request.
  * This leaves room for the system prompt and response.
  */
@@ -45,7 +58,7 @@ export async function reviewFullDiff(
   const agent = new Agent({
     model: aisdk(model),
     name: "CodePressReviewAgent",
-    instructions: getInteractiveSystemPrompt(blockingOnly),
+    instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
     tools: allTools,
   });
 
@@ -108,7 +121,9 @@ ${fullDiff}
 </reviewRequest>`;
 
   try {
+    const filesInDiff = extractFilesFromDiff(fullDiff);
     debugLog(`Starting full PR review. Diff size: ~${diffTokens} tokens`);
+    debugLog(`Files in context (${filesInDiff.length}): ${filesInDiff.join(", ")}`);
     debugLog(`Max turns: ${maxTurns}`);
     const result = await run(agent, initialMessage, { maxTurns });
 

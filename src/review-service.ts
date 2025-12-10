@@ -197,6 +197,19 @@ export class ReviewService {
     let findings = agentResponse.findings;
     debugLog(`📝 Agent returned ${findings.length} findings`);
 
+    // Update PR description if enabled and agent provided a summary
+    if (this.config.updatePrDescription && agentResponse.prSummary) {
+      debugLog(`📝 Updating PR description with agent summary...`);
+      try {
+        await this.githubClient.updatePRDescription(
+          this.config.pr,
+          agentResponse.prSummary,
+        );
+      } catch (error) {
+        console.error(`Failed to update PR description:`, error);
+      }
+    }
+
     // Handle resolved comments
     if (agentResponse.resolvedComments.length > 0) {
       debugLog(

@@ -51,10 +51,12 @@ const DEFAULT_REVIEW_GUIDELINES = `
  * otherwise uses the default guidelines.
  *
  * @param blockingOnly If true, instructs the LLM to only generate "required" severity comments
+ * @param maxTurns Maximum number of turns the agent has to complete the review
  * @returns Complete system prompt with tools and response format
  */
 export function getInteractiveSystemPrompt(
   blockingOnly: boolean = false,
+  maxTurns: number,
 ): string {
   // Check for custom prompt file
   const customPromptPath = join(
@@ -121,6 +123,17 @@ export function getInteractiveSystemPrompt(
     When the diff alone is insufficient, you may call one of the *tools*
     listed below to retrieve additional context **before** emitting review
     comments.
+
+    <!-- TURN BUDGET -->
+    <turnBudget>
+      You have a maximum of **${maxTurns} turns** to complete this review.
+      Each tool call and each response counts as a turn.
+      Budget your turns wisely:
+      • Use early turns for critical context gathering (reading key files, searching for references)
+      • Reserve later turns for generating your final review output
+      • If you're running low on turns, prioritize completing the review over gathering more context
+      • Aim to finish your review with turns to spare
+    </turnBudget>
 
     <!-- VERIFICATION POLICY -->
     <verification>
@@ -308,15 +321,26 @@ export function getInteractiveSystemPrompt(
   <!-- RESPONSE FORMAT -->
   <responseFormat>
     <!--
-      Your response should contain two main sections:
-      1. <comments> - new review comments to post
+      Your response should contain three main sections:
+      1. <prSummary> - a concise summary of the PR for the description (if empty)
+        ✦ Write 2-4 sentences summarizing what this PR does
+        ✦ Focus on the "what" and "why", not implementation details
+        ✦ This will be used to populate an empty PR description
+      2. <comments> - new review comments to post
         ✦ Preserve the order in which issues appear in the diff.
         ✦ Omit <suggestion> if you have nothing useful to add.
         ✦ If the comment already exists in the <existingCommentsContext>, do not post it again.
-      2. <resolvedComments> - existing comments that are now resolved
+      3. <resolvedComments> - existing comments that are now resolved
       If there are existing comments in the context, analyze whether the diff
       changes address those comments. If so, mark them as resolved.
     -->
+
+    <prSummary>
+      <!-- A concise 2-4 sentence summary of what this PR does and why.
+           Example: "This PR adds user authentication using JWT tokens.
+           It introduces login/logout endpoints, middleware for protected routes,
+           and updates the user model with password hashing." -->
+    </prSummary>
 
     <comments>
       <!-- Emit one <comment> element for every NEW issue you want to post -->
@@ -413,5 +437,5 @@ export function getInteractiveSystemPrompt(
   return prompt;
 }
 
-// For backward compatibility, export the function with the original name
-export const INTERACTIVE_SYSTEM_PROMPT = getInteractiveSystemPrompt();
+// For backward compatibility, export a default prompt (used for tests/static analysis)
+export const INTERACTIVE_SYSTEM_PROMPT = getInteractiveSystemPrompt(false, 50);
