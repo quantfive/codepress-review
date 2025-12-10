@@ -45,7 +45,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
-          model_name: "o4-mini"
+          model_name: "gpt-5.1"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           # All trigger configurations use sensible defaults
           # + synchronize event runs automatically when included in workflow
@@ -78,7 +78,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | ---------------------------- | -------- | --------------------- | ------------------------------------------------------------- |
 | `github_token`               | ✅       | `${{ github.token }}` | GitHub token for API access                                   |
 | `model_provider`             | ✅       | `openai`              | AI provider (see [Supported Providers](#supported-providers)) |
-| `model_name`                 | ✅       | `gpt-4o`              | Model name (see examples below)                               |
+| `model_name`                 | ✅       | `gpt-5.1`             | Model name (see examples below)                               |
 | `openai_api_key`             | ⚠️       |                       | Required if using OpenAI                                      |
 | `anthropic_api_key`          | ⚠️       |                       | Required if using Anthropic                                   |
 | `gemini_api_key`             | ⚠️       |                       | Required if using Google/Gemini                               |
@@ -93,7 +93,11 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `openai_compatible_base_url` | ⚠️       |                       | Required if using OpenAI-compatible provider                  |
 | `ollama_api_key`             | ❌       |                       | API key for Ollama (optional, often not needed)               |
 | `ollama_base_url`            | ❌       | `localhost:11434/v1`  | Base URL for Ollama instance                                  |
-| `max_turns`                  | ❌       | `12`                  | Maximum turns for interactive agent review                    |
+| `reasoning_effort`           | ❌       |                       | OpenAI reasoning effort: `none`, `minimal`, `low`, `medium`, `high` |
+| `anthropic_effort`           | ❌       |                       | Anthropic effort level: `low`, `medium`, `high` (claude-opus-4-5 only) |
+| `thinking_enabled`           | ❌       | `false`               | Enable Anthropic extended thinking (claude-opus-4-5, claude-sonnet-4-5) |
+| `thinking_budget`            | ❌       | `10000`               | Token budget for Anthropic extended thinking                  |
+| `max_turns`                  | ❌       | `50`                  | Maximum turns for autonomous agent review                     |
 | `update_pr_description`      | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                   |
 | `blocking_only`              | ❌       | `false`               | Only generate comments for critical/blocking issues           |
 | `debug`                      | ❌       | `false`               | Enable debug mode for detailed console logs                   |
@@ -155,7 +159,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
-          model_name: "gpt-4o"
+          model_name: "gpt-5.1"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           # Comment triggers are enabled by default
           # run_on_comment_trigger: true  # Default
@@ -170,7 +174,7 @@ jobs:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     run_on_comment_trigger: false # Disable comment triggers
 ```
@@ -183,7 +187,7 @@ jobs:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     comment_trigger_phrase: "please review" # Custom trigger phrase
 ```
@@ -207,9 +211,9 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 | Provider       | Models Available                                             | Notes                         |
 | -------------- | ------------------------------------------------------------ | ----------------------------- |
-| **OpenAI**     | `gpt-4o`, `gpt-4o-mini`, `o1-preview`, `o1-mini`             | Most popular, reliable        |
-| **Anthropic**  | `claude-3-5-sonnet-20241022`, `claude-3-haiku-20240307`      | Excellent for code review     |
-| **Google**     | `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-2.0-flash-exp` | Fast and cost-effective       |
+| **OpenAI**     | `gpt-5.1`, `gpt-5.1-mini`, `o3`, `o4-mini`                   | Most popular, reliable        |
+| **Anthropic**  | `claude-sonnet-4-5`, `claude-opus-4-5`                       | Excellent for code review     |
+| **Google**     | `gemini-2.5-pro`, `gemini-2.5-flash`                         | Fast and cost-effective       |
 | **Cohere**     | `command-r-plus`, `command-r`                                | Strong reasoning capabilities |
 | **Mistral**    | `mistral-large-latest`, `mistral-small-latest`               | European AI alternative       |
 | **Perplexity** | `llama-3.1-sonar-large-128k-online`                          | Web-connected models          |
@@ -235,7 +239,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
@@ -247,7 +251,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
-    model_name: "claude-3-5-sonnet-20241022"
+    model_name: "claude-sonnet-4-5"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -259,7 +263,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "gemini"
-    model_name: "gemini-1.5-pro"
+    model_name: "gemini-2.5-pro"
     gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
@@ -388,11 +392,57 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     debug: true
     max_turns: 20
     update_pr_description: false
+```
+
+### OpenAI with Reasoning Effort
+
+For OpenAI models that support reasoning (like o3, o4-mini), you can control the reasoning effort:
+
+```yaml
+- name: CodePress Review (High Reasoning)
+  uses: quantfive/codepress-review@v4
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "openai"
+    model_name: "o4-mini"
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    reasoning_effort: "high"  # none, minimal, low, medium, high
+```
+
+### Anthropic with Extended Thinking
+
+For Anthropic Claude models, you can enable extended thinking for deeper analysis:
+
+```yaml
+- name: CodePress Review (Claude with Thinking)
+  uses: quantfive/codepress-review@v4
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "anthropic"
+    model_name: "claude-sonnet-4-5"
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    thinking_enabled: true
+    thinking_budget: 20000  # Token budget for thinking
+```
+
+### Anthropic with Effort Control
+
+For claude-opus-4-5, you can control the overall effort level:
+
+```yaml
+- name: CodePress Review (Claude Opus High Effort)
+  uses: quantfive/codepress-review@v4
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    model_provider: "anthropic"
+    model_name: "claude-opus-4-5"
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    anthropic_effort: "high"  # low, medium, high
 ```
 
 ### Blocking-Only Mode (Critical Issues Only)
@@ -405,8 +455,9 @@ For high-velocity teams or repositories that only want comments on truly blockin
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+    blocking_only: true
 ```
 
 **What Blocking-Only Mode Does:**
@@ -556,7 +607,7 @@ The feature is controlled by the `update_pr_description` parameter:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     update_pr_description: "true" # Enable (default)
     # update_pr_description: "false"  # Disable
@@ -688,7 +739,7 @@ When troubleshooting issues or developing locally, you can enable detailed debug
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-4o"
+    model_name: "gpt-5.1"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     debug: true # Enable detailed logging
 ```
