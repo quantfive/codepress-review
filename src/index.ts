@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { writeFileSync } from "fs";
-import { resolve } from "path";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -111,7 +111,7 @@ async function run(): Promise<void> {
     const githubToken = core.getInput("github_token", { required: true });
     const modelProvider = core.getInput("model_provider", { required: true });
     const modelName = core.getInput("model_name", { required: true });
-    
+
     // Get all possible API keys
     const openaiApiKey = core.getInput("openai_api_key");
     const anthropicApiKey = core.getInput("anthropic_api_key");
@@ -125,10 +125,16 @@ async function run(): Promise<void> {
     const deepseekApiKey = core.getInput("deepseek_api_key");
     const openaiCompatibleApiKey = core.getInput("openai_compatible_api_key");
     const ollamaApiKey = core.getInput("ollama_api_key");
-    
+
     // Get base URLs for self-hosted endpoints
     const openaiCompatibleBaseUrl = core.getInput("openai_compatible_base_url");
     const ollamaBaseUrl = core.getInput("ollama_base_url");
+
+    // Get reasoning/thinking configuration
+    const reasoningEffort = core.getInput("reasoning_effort");
+    const anthropicEffort = core.getInput("anthropic_effort");
+    const thinkingEnabled = core.getInput("thinking_enabled");
+    const thinkingBudget = core.getInput("thinking_budget");
 
     // Handle max_turns input
     const maxTurns = core.getInput("max_turns");
@@ -187,9 +193,13 @@ async function run(): Promise<void> {
     const providerKey = apiKeyMap[modelProvider.toLowerCase()];
     if (providerKey === undefined) {
       // For unknown providers, we'll let the config.ts handle the validation
-      core.info(`Unknown provider "${modelProvider}". Will attempt to use ${modelProvider.toUpperCase()}_API_KEY environment variable.`);
+      core.info(
+        `Unknown provider "${modelProvider}". Will attempt to use ${modelProvider.toUpperCase()}_API_KEY environment variable.`,
+      );
     } else if (!providerKey) {
-      core.setFailed(`${modelProvider.toLowerCase()}_api_key is required when using ${modelProvider} provider`);
+      core.setFailed(
+        `${modelProvider.toLowerCase()}_api_key is required when using ${modelProvider} provider`,
+      );
       return;
     }
 
@@ -197,9 +207,10 @@ async function run(): Promise<void> {
 
     // Set environment variables for the review script
     process.env.GITHUB_TOKEN = githubToken;
+    process.env.GH_TOKEN = githubToken; // For gh CLI authentication
     process.env.MODEL_PROVIDER = modelProvider;
     process.env.MODEL_NAME = modelName;
-    
+
     // Set all API keys as environment variables
     process.env.OPENAI_API_KEY = openaiApiKey;
     process.env.ANTHROPIC_API_KEY = anthropicApiKey;
@@ -213,10 +224,17 @@ async function run(): Promise<void> {
     process.env.DEEPSEEK_API_KEY = deepseekApiKey;
     process.env.OPENAI_COMPATIBLE_API_KEY = openaiCompatibleApiKey;
     process.env.OLLAMA_API_KEY = ollamaApiKey;
-    
+
     // Set base URLs for self-hosted endpoints
     process.env.OPENAI_COMPATIBLE_BASE_URL = openaiCompatibleBaseUrl;
     process.env.OLLAMA_BASE_URL = ollamaBaseUrl;
+
+    // Set reasoning/thinking configuration
+    process.env.REASONING_EFFORT = reasoningEffort;
+    process.env.ANTHROPIC_EFFORT = anthropicEffort;
+    process.env.THINKING_ENABLED = thinkingEnabled;
+    process.env.THINKING_BUDGET = thinkingBudget;
+
     process.env.MAX_TURNS = maxTurns;
     process.env.UPDATE_PR_DESCRIPTION = updatePrDescription.toString();
     process.env.DEBUG = debug.toString();
@@ -269,7 +287,7 @@ async function run(): Promise<void> {
       return;
     }
 
-    if (isNaN(prNumber)) {
+    if (prNumber == null || Number.isNaN(prNumber)) {
       core.setFailed("Could not determine a valid pull request number.");
       return;
     }
@@ -277,13 +295,24 @@ async function run(): Promise<void> {
     core.info(`Running CodePress Review for PR #${prNumber}`);
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
-    // Generate diff
+    // Generate diff and get commit SHA
     const diffFile = resolve("pr.diff");
+    let commitSha: string;
 
     try {
-      core.info("Fetching diff from GitHub API...");
+      core.info("Fetching PR info and diff from GitHub API...");
       const octokit = github.getOctokit(githubToken);
 
+      // Get PR info to get the commit SHA
+      const prInfo = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: prNumber,
+      });
+      commitSha = prInfo.data.head.sha;
+      core.info(`Commit SHA: ${commitSha}`);
+
+      // Get the diff
       const diffResponse = await octokit.rest.pulls.get({
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -302,6 +331,10 @@ async function run(): Promise<void> {
       core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
       return;
     }
+
+    // Set PR context for the agent
+    process.env.PR_NUMBER = prNumber.toString();
+    process.env.COMMIT_SHA = commitSha;
 
     // Run the AI review script
     try {

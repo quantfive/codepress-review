@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import * as fs from "fs";
+import * as nodeFs from "node:fs";
 import { run } from "../src/index"; // Adjust the path to your main file
 
 // Mock external dependencies
@@ -8,6 +9,10 @@ jest.mock("@actions/core");
 jest.mock("@actions/github");
 jest.mock("fs", () => ({
   ...jest.requireActual("fs"),
+  writeFileSync: jest.fn(),
+}));
+jest.mock("node:fs", () => ({
+  ...jest.requireActual("node:fs"),
   writeFileSync: jest.fn(),
 }));
 jest.mock("../src/ai-review", () => ({
@@ -70,6 +75,8 @@ describe("GitHub Action main run function", () => {
           return "test-openai-key";
         case "comment_trigger_phrase":
           return "@codepress review";
+        case "max_turns":
+          return "12";
         default:
           return "";
       }
@@ -101,8 +108,15 @@ describe("GitHub Action main run function", () => {
     jest.spyOn(core, "info").mockImplementation(() => {});
     jest.spyOn(core, "setFailed").mockImplementation(() => {});
 
-    // Mock Octokit
-    mockPullsGet = jest.fn().mockResolvedValue({ data: "diff" });
+    // Mock Octokit - pulls.get is called twice: first for PR info (head sha), then for diff
+    mockPullsGet = jest.fn().mockImplementation((params) => {
+      // If mediaType is specified, it's a diff request
+      if (params.mediaType) {
+        return Promise.resolve({ data: "diff" as unknown });
+      }
+      // Otherwise it's a PR info request
+      return Promise.resolve({ data: { head: { sha: "abc123" } } });
+    });
     mockPullsList = jest.fn();
     mockGetOctokit = jest.spyOn(github, "getOctokit").mockReturnValue({
       rest: { pulls: { get: mockPullsGet, list: mockPullsList } },
@@ -256,7 +270,7 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(reviewMain).toHaveBeenCalled();
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
+    expect(nodeFs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining("pr.diff"),
       "diff",
     );
@@ -269,7 +283,7 @@ describe("GitHub Action main run function", () => {
         eventName: "pull_request",
         payload: {
           action: "opened",
-          pull_request: { number: "invalid" },
+          pull_request: { number: NaN },
         },
         ref: "refs/heads/feature",
       },
@@ -290,13 +304,14 @@ describe("GitHub Action main run function", () => {
         eventName: "pull_request",
         payload: {
           action: "opened",
-          pull_request: { number: undefined },
+          pull_request: {},
         },
         ref: "refs/heads/feature",
       },
       writable: true,
     });
 
+    // When number is undefined, it becomes NaN
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
@@ -311,7 +326,7 @@ describe("GitHub Action main run function", () => {
         eventName: "issue_comment",
         payload: {
           action: "created",
-          issue: { number: "not-a-number", pull_request: {} },
+          issue: { pull_request: {} },
           comment: { body: "@codepress review" },
         },
         ref: "refs/heads/feature",
@@ -319,6 +334,7 @@ describe("GitHub Action main run function", () => {
       writable: true,
     });
 
+    // When number is undefined, it becomes NaN
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
@@ -358,7 +374,10 @@ describe("GitHub Action main run function", () => {
       },
       writable: true,
     });
-    mockPullsGet.mockRejectedValue(new Error("GitHub API Error"));
+    // Override the mock to fail on PR info fetch
+    mockPullsGet.mockImplementation(() => {
+      return Promise.reject(new Error("GitHub API Error"));
+    });
 
     await run();
 

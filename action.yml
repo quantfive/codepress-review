@@ -18,9 +18,9 @@ inputs:
     default: "openai"
 
   model_name:
-    description: "AI model name (e.g., gpt-4o, claude-3-sonnet-20240229, gemini-1.5-pro, command-r-plus, etc.)"
+    description: "AI model name (e.g., gpt-5.1, gpt-5.1-codex, claude-sonnet-4-5, claude-opus-4-5,gemini-2.5-flash, command-r-plus, etc.)"
     required: true
-    default: "o4-mini"
+    default: "gpt-5.1"
 
   openai_api_key:
     description: "OpenAI API key (required if using OpenAI)"
@@ -78,10 +78,30 @@ inputs:
     description: "Ollama base URL (defaults to http://localhost:11434/v1)"
     required: false
 
+  reasoning_effort:
+    description: "OpenAI reasoning effort level (none, minimal, low, medium, high). 'none' is only for GPT-5.1 models."
+    required: false
+    default: ""
+
+  anthropic_effort:
+    description: "Anthropic effort level (low, medium, high). Only for claude-opus-4-5. Affects thinking, text responses, and function calls."
+    required: false
+    default: ""
+
+  thinking_enabled:
+    description: "Enable Anthropic extended thinking (true/false). Only for Claude claude-opus-4-5, claude-sonnet-4-5, claude-3-7-sonnet models."
+    required: false
+    default: "false"
+
+  thinking_budget:
+    description: "Token budget for Anthropic extended thinking (e.g., 10000, 20000). Only used when thinking_enabled is true."
+    required: false
+    default: "10000"
+
   max_turns:
     description: "Maximum number of turns for the interactive agent"
     required: false
-    default: "12"
+    default: "50"
 
   update_pr_description:
     description: "Whether to update the PR description with AI-generated summary (true/false)"

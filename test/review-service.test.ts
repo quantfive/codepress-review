@@ -1,1090 +1,202 @@
-import { callWithRetry, summarizeDiff } from "../src/ai-client";
-import { CODEPRESS_REVIEW_TAG } from "../src/constants";
-import { GitHubClient } from "../src/github-client";
 import { ReviewService } from "../src/review-service";
-import { AgentResponse, Finding } from "../src/types";
+import * as agent from "../src/agent";
+import * as config from "../src/config";
 
-jest.mock("@octokit/rest", () => ({
-  Octokit: jest.fn().mockImplementation(() => ({
-    pulls: {
-      get: jest.fn(),
-      listReviewComments: jest.fn(),
-      createReviewComment: jest.fn(),
-    },
-    paginate: jest.fn(),
-  })),
+// Mock dependencies
+jest.mock("../src/agent");
+jest.mock("../src/config");
+jest.mock("fs", () => ({
+  ...jest.requireActual("fs"),
+  readFileSync: jest.fn(),
+  existsSync: jest.fn(),
+}));
+jest.mock("child_process", () => ({
+  execSync: jest.fn(),
 }));
 
-jest.mock("../src/config", () => ({
-  getModelConfig: jest.fn().mockReturnValue({
-    provider: "openai",
-    modelName: "gpt-4",
-    apiKey: "mock-api-key",
-  }),
-  getGitHubConfig: jest.fn().mockReturnValue({
-    token: "mock-github-token",
-    owner: "mock-owner",
-    repo: "mock-repo",
-  }),
-}));
-
-jest.mock("../src/github-client");
-jest.mock("../src/ai-client", () => {
-  const actual = jest.requireActual("../src/ai-client");
-  return {
-    ...actual,
-    callWithRetry: jest.fn(),
-    summarizeDiff: jest.fn(),
-  };
-});
-
-jest.mock("../src/agent", () => ({
-  reviewChunkWithAgent: jest.fn(),
-}));
+const fs = require("fs");
+const { execSync } = require("child_process");
 
 describe("ReviewService", () => {
-  let reviewService: ReviewService;
-  let mockGithubClient: jest.Mocked<GitHubClient>;
+  const mockReviewConfig = {
+    diff: "/tmp/test.diff",
+    pr: 123,
+    provider: "openai",
+    modelName: "gpt-4",
+    githubToken: "test-token",
+    githubRepository: "owner/repo",
+    maxTurns: 20,
+    debug: false,
+    blockingOnly: false,
+  };
 
   beforeEach(() => {
-    // Suppress console.log and console.error
+    jest.clearAllMocks();
+
+    // Suppress console output
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
     jest.spyOn(console, "warn").mockImplementation(() => {});
 
-    // Mock summarizeDiff to return a valid DiffSummary
-    (summarizeDiff as jest.Mock).mockResolvedValue({
-      prType: "feature",
-      summaryPoints: ["Test summary point"],
-      keyRisks: [],
-      hunks: [],
-      decision: {
-        recommendation: "APPROVE",
-        reasoning: "Code looks good overall",
-      },
-    });
-
-    reviewService = new ReviewService({
-      pr: 1,
-      diff: "mock-diff-path",
+    // Setup config mocks
+    (config.getModelConfig as jest.Mock).mockReturnValue({
       provider: "openai",
       modelName: "gpt-4",
-      githubToken: "mock-token",
-      githubRepository: "mock-owner/mock-repo",
-      maxTurns: 20,
-      updatePrDescription: false,
-      debug: false,
-      blockingOnly: false,
+      apiKey: "test-key",
     });
 
-    // Mock the dependencies
-    mockGithubClient = new GitHubClient(
-      {
-        token: "mock-token",
-        owner: "mock-owner",
-        repo: "mock-repo",
-      },
-      {
-        provider: "openai",
-        modelName: "gpt-4",
-        apiKey: "mock-api-key",
-      },
-    ) as jest.Mocked<GitHubClient>;
+    // Setup fs mocks
+    (fs.existsSync as jest.Mock).mockReturnValue(false);
+    (fs.readFileSync as jest.Mock).mockReturnValue(`
+diff --git a/src/test.ts b/src/test.ts
+--- a/src/test.ts
++++ b/src/test.ts
+@@ -1,3 +1,4 @@
+ function test() {
++  console.log("hello");
+   return true;
+ }
+`);
 
-    (reviewService as any).githubClient = mockGithubClient;
-    mockGithubClient.getPRInfo.mockResolvedValue({
-      commitId: "mock-commit-id",
-      prInfo: {} as any,
-    });
-    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
-    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
-    mockGithubClient.createReviewComment = jest
-      .fn()
-      .mockResolvedValue(undefined);
-    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
+    // Setup execSync mock for git ls-files
+    (execSync as jest.Mock).mockReturnValue("src/test.ts\nsrc/other.ts\n");
+
+    // Setup environment
+    process.env.COMMIT_SHA = "abc123";
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
+    delete process.env.COMMIT_SHA;
   });
 
-  it("should skip a chunk if it has existing comments", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([
-      {
-        path: "file1.txt",
-        line: 2,
-        body: `${CODEPRESS_REVIEW_TAG} - An existing comment`,
-        user: { login: "github-actions[bot]" },
-      },
-    ] as any);
+  describe("execute", () => {
+    it("should call reviewFullDiff with the complete diff and PR context", async () => {
+      (agent.reviewFullDiff as jest.Mock).mockResolvedValue(undefined);
 
-    // Mock callWithRetry to only return diff summary
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Test summary point"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "COMMENT",
-            reasoning: "No specific reasoning provided",
-          },
-        });
-      }
-      // If hunkIdx is not 0, this shouldn't be called for this test
-      throw new Error("Unexpected call to callWithRetry for reviewChunk");
+      const service = new ReviewService(mockReviewConfig);
+      await service.execute();
+
+      expect(agent.reviewFullDiff).toHaveBeenCalledTimes(1);
+      expect(agent.reviewFullDiff).toHaveBeenCalledWith(
+        expect.stringContaining("diff --git"),
+        expect.any(Object), // modelConfig
+        expect.any(Array), // repoFilePaths
+        expect.objectContaining({
+          repo: "owner/repo",
+          prNumber: 123,
+          commitSha: "abc123",
+        }), // prContext
+        20, // maxTurns
+        false, // blockingOnly
+      );
     });
 
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
+    it("should pass blockingOnly flag to agent", async () => {
+      const blockingConfig = { ...mockReviewConfig, blockingOnly: true };
 
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
+      (agent.reviewFullDiff as jest.Mock).mockResolvedValue(undefined);
 
-    // Act
-    await (reviewService as any).execute();
+      const service = new ReviewService(blockingConfig);
+      await service.execute();
 
-    // Assert
-    // callWithRetry should be called once for summarizeDiff, but not for reviewChunk
-    expect(callWithRetry).toHaveBeenCalledTimes(1);
-    expect(callWithRetry).toHaveBeenCalledWith(
-      expect.any(Function),
-      0, // This is the summary step
-    );
-
-    // Should create a review even with no findings since we have a decision
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      [], // No findings
-      expect.objectContaining({
-        decision: expect.objectContaining({
-          recommendation: "COMMENT",
-          reasoning: "No specific reasoning provided",
-        }),
-      }),
-    );
-  });
-
-  it("should process a chunk without existing comments", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([]);
-    const mockFindings: Finding[] = [
-      {
-        path: "file1.txt",
-        line: 2,
-        message: "A new finding",
-        severity: "optional",
-      },
-    ];
-
-    // Mock callWithRetry to return different values based on the hunk index
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Test summary point"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "COMMENT",
-            reasoning: "No specific reasoning provided",
-          },
-        });
-      } else {
-        // This is the reviewChunk call - now returns AgentResponse
-        return Promise.resolve({
-          findings: mockFindings,
-          resolvedComments: [],
-        } as AgentResponse);
-      }
+      expect(agent.reviewFullDiff).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Object),
+        expect.any(Array),
+        expect.any(Object),
+        20,
+        true, // blockingOnly should be true
+      );
     });
 
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
+    it("should filter files by .codepressignore patterns", async () => {
+      (fs.existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path === ".codepressignore";
+      });
+      (fs.readFileSync as jest.Mock).mockImplementation((path: string) => {
+        if (path === ".codepressignore") {
+          return "*.test.ts\ndist/";
+        }
+        // Diff with both ignored and non-ignored files
+        return `
+diff --git a/src/test.test.ts b/src/test.test.ts
+--- a/src/test.test.ts
++++ b/src/test.test.ts
+@@ -1 +1 @@
+-old
++new
+diff --git a/src/main.ts b/src/main.ts
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1 +1 @@
+-old
++new
+`;
+      });
 
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
+      (agent.reviewFullDiff as jest.Mock).mockResolvedValue(undefined);
 
-    // Act
-    await (reviewService as any).execute();
+      const service = new ReviewService(mockReviewConfig);
+      await service.execute();
 
-    // Assert
-    // callWithRetry should be called at least twice: once for summarizeDiff (hunkIdx=0) and once for reviewChunk (hunkIdx=1)
-    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 0); // summarizeDiff
-    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 1); // reviewChunk
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      mockFindings,
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Test summary point"],
-        keyRisks: [],
-        hunks: [],
-        decision: expect.objectContaining({
-          recommendation: expect.any(String),
-          reasoning: expect.any(String),
-        }),
-      }),
-    );
-  });
-
-  it("should create a batch review with multiple findings from different chunks", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([]);
-
-    const mockFindings1: Finding[] = [
-      {
-        path: "file1.txt",
-        line: 2,
-        message: "First finding",
-        severity: "required",
-      },
-    ];
-
-    const mockFindings2: Finding[] = [
-      {
-        path: "file2.txt",
-        line: 5,
-        message: "Second finding",
-        severity: "optional",
-      },
-    ];
-
-    // Mock callWithRetry to return different values based on the hunk index
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Test summary point"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "COMMENT",
-            reasoning: "No specific reasoning provided",
-          },
-        });
-      } else if (hunkIdx === 1) {
-        return Promise.resolve({
-          findings: mockFindings1,
-          resolvedComments: [],
-        } as AgentResponse);
-      } else if (hunkIdx === 2) {
-        return Promise.resolve({
-          findings: mockFindings2,
-          resolvedComments: [],
-        } as AgentResponse);
-      }
-      return Promise.resolve({
-        findings: [],
-        resolvedComments: [],
-      } as AgentResponse);
+      // The diff should be filtered to exclude ignored files but include non-ignored
+      expect(agent.reviewFullDiff).toHaveBeenCalled();
+      const callArgs = (agent.reviewFullDiff as jest.Mock).mock.calls[0];
+      expect(callArgs[0]).not.toContain("test.test.ts");
+      expect(callArgs[0]).toContain("main.ts");
     });
 
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-      {
-        fileName: "file2.txt",
-        content: "diff --git a/file2.txt b/file2.txt...",
-        hunk: { newStart: 4, newLines: 2 },
-      },
-    ];
+    it("should not call agent when all files are ignored", async () => {
+      (fs.existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path === ".codepressignore";
+      });
+      (fs.readFileSync as jest.Mock).mockImplementation((path: string) => {
+        if (path === ".codepressignore") {
+          return "*.ts";
+        }
+        return `
+diff --git a/src/test.ts b/src/test.ts
+--- a/src/test.ts
++++ b/src/test.ts
+@@ -1 +1 @@
+-old
++new
+`;
+      });
 
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
+      const service = new ReviewService(mockReviewConfig);
+      await service.execute();
 
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      [...mockFindings1, ...mockFindings2], // All findings combined
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Test summary point"],
-        keyRisks: [],
-        hunks: [],
-        decision: expect.objectContaining({
-          recommendation: expect.any(String),
-          reasoning: expect.any(String),
-        }),
-      }),
-    );
-  });
-
-  it("should handle createReview failure and fallback to individual comments", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([]);
-    mockGithubClient.createReview.mockRejectedValue(
-      new Error("Review API failed"),
-    );
-    mockGithubClient.createReviewComment.mockResolvedValue(undefined);
-
-    const mockFindings: Finding[] = [
-      {
-        path: "file1.txt",
-        line: 2,
-        message: "A finding",
-        severity: "required",
-      },
-    ];
-
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Test summary point"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "REQUEST_CHANGES",
-            reasoning: "Issues found that need attention",
-          },
-        });
-      } else {
-        return Promise.resolve({
-          findings: mockFindings,
-          resolvedComments: [],
-        } as AgentResponse);
-      }
+      // Agent should not be called when all files are filtered out
+      expect(agent.reviewFullDiff).not.toHaveBeenCalled();
     });
 
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
+    it("should warn when COMMIT_SHA is not set", async () => {
+      delete process.env.COMMIT_SHA;
 
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
+      (agent.reviewFullDiff as jest.Mock).mockResolvedValue(undefined);
 
-    // Act
-    await (reviewService as any).execute();
+      const service = new ReviewService(mockReviewConfig);
+      await service.execute();
 
-    // Assert
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      mockFindings,
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Test summary point"],
-        keyRisks: [],
-        hunks: [],
-        decision: expect.objectContaining({
-          recommendation: expect.any(String),
-          reasoning: expect.any(String),
-        }),
-      }),
-    );
-
-    // Should fallback to individual comments
-    expect(mockGithubClient.createReviewComment).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      mockFindings[0],
-    );
-  });
-
-  it("should create review with decision even when no findings are found", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([]);
-
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Test summary point"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning: "Code looks good overall",
-          },
-        });
-      } else {
-        return Promise.resolve({
-          findings: [], // No findings
-          resolvedComments: [],
-        } as AgentResponse);
-      }
+      expect(console.error).toHaveBeenCalledWith(
+        "COMMIT_SHA not set - agent will not be able to post inline comments",
+      );
     });
 
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
+    it("should handle agent errors gracefully", async () => {
+      (agent.reviewFullDiff as jest.Mock).mockRejectedValue(
+        new Error("Agent failed"),
+      );
 
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
+      const service = new ReviewService(mockReviewConfig);
+      await service.execute();
 
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      [], // No findings
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Test summary point"],
-        keyRisks: [],
-        hunks: [],
-        decision: {
-          recommendation: "APPROVE",
-          reasoning: "Code looks good overall",
-        },
-      }),
-    );
-    expect(mockGithubClient.createReviewComment).not.toHaveBeenCalled();
-  });
-
-  it("should pass existing reviews and comments to summarizeDiff for context", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([
-      {
-        path: "different-file.txt",
-        line: 5,
-        body: "Previous comment",
-        user: { login: "github-actions[bot]" },
-      },
-    ] as any);
-
-    const existingReview = {
-      user: { login: "github-actions[bot]" },
-      body: "Previous review body",
-      submitted_at: "2023-01-01T00:00:00Z",
-    } as any;
-
-    mockGithubClient.getExistingReviews.mockResolvedValue([existingReview]);
-
-    const mockFindings: Finding[] = [
-      {
-        path: "file1.txt",
-        line: 2,
-        message: "A finding",
-        severity: "required",
-      },
-    ];
-
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Test summary point"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning: "No specific reasoning provided",
-          },
-        });
-      } else {
-        return Promise.resolve({
-          findings: mockFindings,
-          resolvedComments: [],
-        } as AgentResponse);
-      }
+      expect(console.error).toHaveBeenCalledWith(
+        "Review failed:",
+        "Agent failed",
+      );
     });
-
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
-
-    jest.spyOn(require("fs"), "existsSync").mockReturnValue(false);
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert - Check that summarizeDiff was called with existing reviews and comments
-    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 0);
-    expect(callWithRetry).toHaveBeenCalledWith(expect.any(Function), 1);
-    // Verify that both existing reviews and comments were fetched
-    expect(mockGithubClient.getExistingReviews).toHaveBeenCalledWith(1);
-    expect(mockGithubClient.getExistingComments).toHaveBeenCalledWith(1);
-    // Verify that the review was created with the diff summary
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      mockFindings,
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Test summary point"],
-        keyRisks: [],
-        hunks: [],
-        decision: expect.objectContaining({
-          recommendation: expect.any(String),
-          reasoning: expect.any(String),
-        }),
-      }),
-    );
-  });
-
-  it("should create review with REQUEST_CHANGES decision", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([]);
-
-    const mockFindings: Finding[] = [
-      {
-        path: "file1.txt",
-        line: 2,
-        message: "Critical security issue",
-        severity: "required",
-      },
-    ];
-
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Added new authentication feature"],
-          keyRisks: [{ tag: "SEC", description: "Missing input validation" }],
-          hunks: [],
-          decision: {
-            recommendation: "REQUEST_CHANGES",
-            reasoning:
-              "Critical security vulnerabilities must be addressed before merge",
-          },
-        });
-      } else {
-        return Promise.resolve({
-          findings: mockFindings,
-          resolvedComments: [],
-        } as AgentResponse);
-      }
-    });
-
-    const mockChunks = [
-      {
-        fileName: "file1.txt",
-        content: "diff --git a/file1.txt b/file1.txt...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
-
-    jest.spyOn(require("fs"), "existsSync").mockReturnValue(false);
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      mockFindings,
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Added new authentication feature"],
-        keyRisks: [{ tag: "SEC", description: "Missing input validation" }],
-        hunks: [],
-        decision: {
-          recommendation: "REQUEST_CHANGES",
-          reasoning:
-            "Critical security vulnerabilities must be addressed before merge",
-        },
-      }),
-    );
-  });
-
-  it("should APPROVE PR with findings when decision is APPROVE", async () => {
-    // Arrange
-    mockGithubClient.getExistingComments.mockResolvedValue([]);
-
-    const mockFindings: Finding[] = [
-      {
-        path: "src/utils.ts",
-        line: 15,
-        message: "Consider adding JSDoc for better documentation",
-        severity: "optional",
-      },
-      {
-        path: "src/utils.ts",
-        line: 32,
-        message: "Minor: This variable could be const instead of let",
-        severity: "optional",
-      },
-      {
-        path: "tests/utils.test.ts",
-        line: 8,
-        message: "Suggestion: Add edge case test for empty input",
-        severity: "optional",
-      },
-    ];
-
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Added utility functions for data processing"],
-          keyRisks: [
-            { tag: "STYLE", description: "Minor formatting inconsistencies" },
-            {
-              tag: "TEST",
-              description: "Could benefit from additional test coverage",
-            },
-          ],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning:
-              "Minor suggestions don't block merge. Code quality is good overall and functionality is sound.",
-          },
-        });
-      } else {
-        return Promise.resolve({
-          findings: mockFindings,
-          resolvedComments: [],
-        } as AgentResponse);
-      }
-    });
-
-    const mockChunks = [
-      {
-        fileName: "src/utils.ts",
-        content: "diff --git a/src/utils.ts b/src/utils.ts...",
-        hunk: { newStart: 1, newLines: 10 },
-      },
-    ];
-
-    jest.spyOn(require("fs"), "existsSync").mockReturnValue(false);
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.createReview).toHaveBeenCalledWith(
-      1,
-      "mock-commit-id",
-      mockFindings, // No hard caps, all optional findings allowed
-      expect.objectContaining({
-        prType: "feature",
-        summaryPoints: ["Added utility functions for data processing"],
-        keyRisks: [
-          { tag: "STYLE", description: "Minor formatting inconsistencies" },
-          {
-            tag: "TEST",
-            description: "Could benefit from additional test coverage",
-          },
-        ],
-        hunks: [],
-        decision: {
-          recommendation: "APPROVE", // Should approve despite having findings
-          reasoning:
-            "Minor suggestions don't block merge. Code quality is good overall and functionality is sound.",
-        },
-      }),
-    );
-
-    // Verify we're calling createReview once (not falling back to individual comments)
-    expect(mockGithubClient.createReview).toHaveBeenCalledTimes(1);
-    expect(mockGithubClient.createReviewComment).not.toHaveBeenCalled();
-  });
-});
-
-describe("PR Description Generation", () => {
-  let reviewService: ReviewService;
-  let mockGithubClient: jest.Mocked<GitHubClient>;
-
-  beforeEach(() => {
-    // Suppress console.log and console.error
-    jest.spyOn(console, "log").mockImplementation(() => {});
-    jest.spyOn(console, "error").mockImplementation(() => {});
-    jest.spyOn(console, "warn").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  it("should update PR description when feature is enabled and description is generated", async () => {
-    // Mock callWithRetry to return a DiffSummary with PR description for the summary step
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Added authentication service"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning: "Code looks good",
-          },
-          prDescription:
-            "## Add Authentication Service\n\nThis PR adds user authentication.",
-        });
-      }
-      // For other hunk indices, shouldn't be called
-      throw new Error("Unexpected call to callWithRetry for reviewChunk");
-    });
-
-    reviewService = new ReviewService({
-      pr: 1,
-      diff: "mock-diff-path",
-      provider: "openai",
-      modelName: "gpt-4",
-      githubToken: "mock-token",
-      githubRepository: "mock-owner/mock-repo",
-      maxTurns: 20,
-      updatePrDescription: true, // Feature enabled
-      debug: false,
-      blockingOnly: false,
-    });
-
-    // Mock the dependencies
-    mockGithubClient = new GitHubClient(
-      {
-        token: "mock-token",
-        owner: "mock-owner",
-        repo: "mock-repo",
-      },
-      {
-        provider: "openai",
-        modelName: "gpt-4",
-        apiKey: "mock-api-key",
-      },
-    ) as jest.Mocked<GitHubClient>;
-
-    (reviewService as any).githubClient = mockGithubClient;
-    mockGithubClient.getPRInfo.mockResolvedValue({
-      commitId: "mock-commit-id",
-      prInfo: {} as any,
-    });
-    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
-    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
-    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
-    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
-
-    const mockChunks = [
-      {
-        fileName: "src/auth.ts",
-        content: "diff --git a/src/auth.ts b/src/auth.ts...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
-
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.updatePRDescription).toHaveBeenCalledWith(
-      1,
-      "## Add Authentication Service\n\nThis PR adds user authentication.",
-    );
-  });
-
-  it("should not update PR description when feature is disabled", async () => {
-    // Mock callWithRetry to return a DiffSummary with PR description for the summary step
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Added authentication service"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning: "Code looks good",
-          },
-          prDescription:
-            "## Add Authentication Service\n\nThis PR adds user authentication.",
-        });
-      }
-      throw new Error("Unexpected call to callWithRetry for reviewChunk");
-    });
-
-    reviewService = new ReviewService({
-      pr: 1,
-      diff: "mock-diff-path",
-      provider: "openai",
-      modelName: "gpt-4",
-      githubToken: "mock-token",
-      githubRepository: "mock-owner/mock-repo",
-      maxTurns: 20,
-      updatePrDescription: false, // Feature disabled
-      debug: false,
-      blockingOnly: false,
-    });
-
-    // Mock the dependencies
-    mockGithubClient = new GitHubClient(
-      {
-        token: "mock-token",
-        owner: "mock-owner",
-        repo: "mock-repo",
-      },
-      {
-        provider: "openai",
-        modelName: "gpt-4",
-        apiKey: "mock-api-key",
-      },
-    ) as jest.Mocked<GitHubClient>;
-
-    (reviewService as any).githubClient = mockGithubClient;
-    mockGithubClient.getPRInfo.mockResolvedValue({
-      commitId: "mock-commit-id",
-      prInfo: {} as any,
-    });
-    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
-    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
-    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
-    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
-
-    const mockChunks = [
-      {
-        fileName: "src/auth.ts",
-        content: "diff --git a/src/auth.ts b/src/auth.ts...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
-
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.updatePRDescription).not.toHaveBeenCalled();
-  });
-
-  it("should not update PR description when feature is enabled but no description is generated", async () => {
-    // Mock callWithRetry to return a DiffSummary without PR description
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Added authentication service"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning: "Code looks good",
-          },
-          prDescription: undefined, // No description generated
-        });
-      }
-      throw new Error("Unexpected call to callWithRetry for reviewChunk");
-    });
-
-    reviewService = new ReviewService({
-      pr: 1,
-      diff: "mock-diff-path",
-      provider: "openai",
-      modelName: "gpt-4",
-      githubToken: "mock-token",
-      githubRepository: "mock-owner/mock-repo",
-      maxTurns: 20,
-      updatePrDescription: true, // Feature enabled
-      debug: false,
-      blockingOnly: false,
-    });
-
-    // Mock the dependencies
-    mockGithubClient = new GitHubClient(
-      {
-        token: "mock-token",
-        owner: "mock-owner",
-        repo: "mock-repo",
-      },
-      {
-        provider: "openai",
-        modelName: "gpt-4",
-        apiKey: "mock-api-key",
-      },
-    ) as jest.Mocked<GitHubClient>;
-
-    (reviewService as any).githubClient = mockGithubClient;
-    mockGithubClient.getPRInfo.mockResolvedValue({
-      commitId: "mock-commit-id",
-      prInfo: {} as any,
-    });
-    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
-    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
-    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
-    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
-
-    const mockChunks = [
-      {
-        fileName: "src/auth.ts",
-        content: "diff --git a/src/auth.ts b/src/auth.ts...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
-
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.updatePRDescription).not.toHaveBeenCalled();
-  });
-
-  it("should not update PR description when feature is enabled but description is empty", async () => {
-    // Mock callWithRetry to return a DiffSummary with empty PR description
-    (callWithRetry as jest.Mock).mockImplementation((fn, hunkIdx) => {
-      if (hunkIdx === 0) {
-        // This is the summarizeDiff call
-        return Promise.resolve({
-          prType: "feature",
-          summaryPoints: ["Added authentication service"],
-          keyRisks: [],
-          hunks: [],
-          decision: {
-            recommendation: "APPROVE",
-            reasoning: "Code looks good",
-          },
-          prDescription: "   \n  \t  \n   ", // Empty/whitespace description
-        });
-      }
-      throw new Error("Unexpected call to callWithRetry for reviewChunk");
-    });
-
-    reviewService = new ReviewService({
-      pr: 1,
-      diff: "mock-diff-path",
-      provider: "openai",
-      modelName: "gpt-4",
-      githubToken: "mock-token",
-      githubRepository: "mock-owner/mock-repo",
-      maxTurns: 20,
-      updatePrDescription: true, // Feature enabled
-      debug: false,
-      blockingOnly: false,
-    });
-
-    // Mock the dependencies
-    mockGithubClient = new GitHubClient(
-      {
-        token: "mock-token",
-        owner: "mock-owner",
-        repo: "mock-repo",
-      },
-      {
-        provider: "openai",
-        modelName: "gpt-4",
-        apiKey: "mock-api-key",
-      },
-    ) as jest.Mocked<GitHubClient>;
-
-    (reviewService as any).githubClient = mockGithubClient;
-    mockGithubClient.getPRInfo.mockResolvedValue({
-      commitId: "mock-commit-id",
-      prInfo: {} as any,
-    });
-    mockGithubClient.getExistingReviews = jest.fn().mockResolvedValue([]);
-    mockGithubClient.getExistingComments = jest.fn().mockResolvedValue([]);
-    mockGithubClient.createReview = jest.fn().mockResolvedValue(undefined);
-    mockGithubClient.updatePRDescription = jest.fn().mockResolvedValue(true);
-
-    const mockChunks = [
-      {
-        fileName: "src/auth.ts",
-        content: "diff --git a/src/auth.ts b/src/auth.ts...",
-        hunk: { newStart: 1, newLines: 3 },
-      },
-    ];
-
-    jest
-      .spyOn(require("fs"), "readFileSync")
-      .mockReturnValue("mock diff content");
-    jest
-      .spyOn(require("../src/diff-parser"), "splitDiff")
-      .mockReturnValue(mockChunks);
-
-    // Act
-    await (reviewService as any).execute();
-
-    // Assert
-    expect(mockGithubClient.updatePRDescription).not.toHaveBeenCalled();
   });
 });

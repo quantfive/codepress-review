@@ -2,270 +2,143 @@ import { Agent, run } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
-import { AgentResponse, DiffSummary, Finding, ModelConfig } from "../types";
-import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
+import { ModelConfig } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { allTools } from "./tools";
 
 /**
- * Reviews a diff chunk using the interactive agent.
+ * Estimates token count for a string (rough approximation: 4 chars per token).
  */
-export async function reviewChunkWithAgent(
-  diffChunk: string,
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Extracts unique file paths from a diff string.
+ */
+function extractFilesFromDiff(diffText: string): string[] {
+  const files: Set<string> = new Set();
+  const regex = /^diff --git a\/(.+?) b\//gm;
+  let match;
+  while ((match = regex.exec(diffText)) !== null) {
+    files.add(match[1]);
+  }
+  return Array.from(files);
+}
+
+/**
+ * Maximum tokens we're willing to send to the model in one request.
+ * This leaves room for the system prompt and response.
+ */
+const MAX_DIFF_TOKENS = 80000;
+
+export interface PRContext {
+  repo: string; // owner/repo format
+  prNumber: number;
+  commitSha: string;
+}
+
+/**
+ * Reviews an entire PR diff using a single interactive agent.
+ * The agent has full autonomy to:
+ * - Fetch additional context via bash/gh CLI
+ * - View existing PR comments
+ * - Post review comments directly
+ * - Update PR description if blank
+ */
+export async function reviewFullDiff(
+  fullDiff: string,
   modelConfig: ModelConfig,
-  diffSummary: DiffSummary | undefined,
-  chunkIndex: number,
   repoFilePaths: string[],
-  existingComments: any[] = [],
-  maxTurns: number = 20,
+  prContext: PRContext,
+  maxTurns: number = 30,
   blockingOnly: boolean = false,
-): Promise<AgentResponse> {
+): Promise<void> {
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
     model: aisdk(model),
     name: "CodePressReviewAgent",
-    instructions: getInteractiveSystemPrompt(blockingOnly),
+    instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
     tools: allTools,
   });
 
   const fileList = repoFilePaths.join("\n");
 
-  // Build summary context for this chunk
-  let summaryContext = "No summary available.";
-  if (diffSummary) {
-    const { prType, summaryPoints, keyRisks, hunks } = diffSummary;
-    const contextLines: string[] = [];
-
-    contextLines.push("<diffContext>");
-    contextLines.push(`  <prType>${prType}</prType>`);
-
-    if (summaryPoints.length > 0) {
-      contextLines.push("  <overview>");
-      summaryPoints.forEach((item: string) => {
-        contextLines.push(`    <item>${item}</item>`);
-      });
-      contextLines.push("  </overview>");
-    }
-
-    if (keyRisks.length > 0) {
-      contextLines.push("  <keyRisks>");
-      keyRisks.forEach((risk) => {
-        contextLines.push(
-          `    <item tag="${risk.tag}">${risk.description}</item>`,
-        );
-      });
-      contextLines.push("  </keyRisks>");
-    }
-
-    // Find specific notes for this chunk
-    const hunkSummary = hunks.find((hunk) => hunk.index === chunkIndex);
-    if (hunkSummary) {
-      contextLines.push("  <chunkSpecific>");
-      contextLines.push(`    <overview>${hunkSummary.overview}</overview>`);
-
-      if (hunkSummary.risks.length > 0) {
-        contextLines.push("    <risks>");
-        hunkSummary.risks.forEach((risk) => {
-          contextLines.push(
-            `      <item tag="${risk.tag}">${risk.description}</item>`,
-          );
-        });
-        contextLines.push("    </risks>");
-      }
-
-      if (hunkSummary.issues.length > 0) {
-        contextLines.push("    <issues>");
-        hunkSummary.issues.forEach((issue) => {
-          contextLines.push(
-            `      <issue severity="${issue.severity}" kind="${issue.kind}">${issue.description}</issue>`,
-          );
-        });
-        contextLines.push("    </issues>");
-      }
-
-      if (hunkSummary.tests.length > 0) {
-        contextLines.push("    <suggestedTests>");
-        hunkSummary.tests.forEach((test) => {
-          contextLines.push(`      <item>${test}</item>`);
-        });
-        contextLines.push("    </suggestedTests>");
-      }
-
-      // Include planner guidance for this hunk, if present
-      if (diffSummary.plan) {
-        const planForHunk = diffSummary.plan.hunkPlans.find(
-          (hp) => hp.index === chunkIndex,
-        );
-        if (planForHunk) {
-          contextLines.push("    <plan>");
-          if (planForHunk.riskLevel) {
-            contextLines.push(
-              `      <riskLevel>${planForHunk.riskLevel}</riskLevel>`,
-            );
-          }
-          if (typeof planForHunk.priority === "number") {
-            contextLines.push(
-              `      <priority>${String(planForHunk.priority)}</priority>`,
-            );
-          }
-          if (typeof planForHunk.maxTurns === "number") {
-            contextLines.push(
-              `      <maxTurns>${String(planForHunk.maxTurns)}</maxTurns>`,
-            );
-          }
-          if (typeof planForHunk.toolBudget === "number") {
-            contextLines.push(
-              `      <toolBudget>${String(planForHunk.toolBudget)}</toolBudget>`,
-            );
-          }
-          if (typeof planForHunk.skip === "boolean") {
-            contextLines.push(
-              `      <skip>${planForHunk.skip ? "true" : "false"}</skip>`,
-            );
-          }
-          if (
-            Array.isArray(planForHunk.focus) &&
-            planForHunk.focus.length > 0
-          ) {
-            contextLines.push("      <focus>");
-            for (const f of planForHunk.focus) {
-              contextLines.push(`        <item>${f}</item>`);
-            }
-            contextLines.push("      </focus>");
-          }
-          if (typeof planForHunk.evidenceRequired === "boolean") {
-            contextLines.push(
-              `      <evidenceRequired>${planForHunk.evidenceRequired ? "true" : "false"}</evidenceRequired>`,
-            );
-          }
-          if (
-            Array.isArray(planForHunk.actions) &&
-            planForHunk.actions.length > 0
-          ) {
-            contextLines.push("      <actions>");
-            planForHunk.actions.forEach((a) => {
-              const tool = a.tool || "";
-              contextLines.push(`        <action tool="${tool}">`);
-              if (a.goal) {
-                contextLines.push(`          <goal>${a.goal}</goal>`);
-              }
-              if (a.params && typeof a.params === "object") {
-                contextLines.push("          <params>");
-                for (const [k, v] of Object.entries(a.params)) {
-                  if (Array.isArray(v)) {
-                    contextLines.push(
-                      `            <${k}>${v.join(",")}</${k}>`,
-                    );
-                  } else {
-                    contextLines.push(`            <${k}>${String(v)}</${k}>`);
-                  }
-                }
-                contextLines.push("          </params>");
-              }
-              contextLines.push("        </action>");
-            });
-            contextLines.push("      </actions>");
-          }
-          contextLines.push("    </plan>");
-        }
-      }
-
-      contextLines.push("  </chunkSpecific>");
-    } else {
-      debugLog(
-        `[Hunk ${chunkIndex + 1}] No specific guidance from summary agent - chunk considered good or low-risk`,
-      );
-    }
-
-    contextLines.push("</diffContext>");
-    summaryContext = contextLines.join("\n");
-  }
-
-  // Build existing comments context for this chunk
-  let existingCommentsContext = "";
-  if (existingComments.length > 0) {
-    const contextLines: string[] = [];
-    contextLines.push("<existingComments>");
-    existingComments.forEach((comment) => {
-      if (comment.path && comment.line && comment.body) {
-        contextLines.push(
-          `  <comment id="${String(comment.id || `${comment.path}:${comment.line}`)}" path="${comment.path}" line="${String(comment.line)}" createdAt="${comment.created_at || "unknown"}">`,
-        );
-        contextLines.push(`    ${comment.body}`);
-        contextLines.push(`  </comment>`);
-      }
-    });
-    contextLines.push("</existingComments>");
-    existingCommentsContext = contextLines.join("\n");
+  // Check if diff is too large
+  const diffTokens = estimateTokens(fullDiff);
+  if (diffTokens > MAX_DIFF_TOKENS) {
+    debugLog(
+      `⚠️ Diff is large (~${diffTokens} tokens). Agent will need to use tools for context.`,
+    );
   }
 
   const initialMessage = `
-<reviewRequest>
-  <repositoryFiles>
-    ${fileList}
-  </repositoryFiles>
-  <diffAnalysisContext>
-    ${summaryContext}
-  </diffAnalysisContext>
-  <existingCommentsContext>
-    ${existingCommentsContext}
-  </existingCommentsContext>
-  <diffChunk>
-    ${diffChunk}
-  </diffChunk>
+You are reviewing PR #${prContext.prNumber} in repository ${prContext.repo}.
+Commit SHA: ${prContext.commitSha}
 
-  <instruction>
-    Please review this diff chunk using the provided context. ${existingComments.length > 0 ? "Pay special attention to the existing comments:\n  1. Avoid creating duplicate or similar comments unless you have significantly different insights.\n  2. Analyze whether any existing comments have been addressed by the changes in this diff.\n  3. If you find that an existing comment has been resolved by the code changes, include it in the <resolvedComments> section with a clear explanation of how it was addressed." : ""}
-  </instruction>
-</reviewRequest>`;
+<repositoryFiles>
+${fileList}
+</repositoryFiles>
+
+<fullDiff>
+${fullDiff}
+</fullDiff>
+
+<instruction>
+Please review this pull request. You have the complete diff above.
+
+**Your workflow:**
+1. First, check the PR description: \`gh pr view ${prContext.prNumber}\`
+   - If the description is blank/empty, you'll update it at the end with a summary
+2. Check for existing review comments: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\`
+   - Avoid duplicating existing comments
+   - If an existing comment has been addressed by the code changes, you can resolve it
+3. Review the diff thoroughly using your tools (bash, dep_graph) to:
+   - Understand how changes integrate with existing code
+   - Verify claims about unused code, missing imports, etc.
+   - Check if changes affect other parts of the codebase
+4. Post inline comments for any issues you find using:
+   \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
+5. If the PR description was blank, update it:
+   \`gh pr edit ${prContext.prNumber} --body "Your summary"\`
+6. **REQUIRED - Submit a formal review with your decision:**
+   - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
+   - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
+   - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
+
+**Comment guidelines:**
+${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUST be fixed (security, bugs, breaking changes)" : "- Focus on substantive issues: bugs, security problems, logic errors, significant design concerns\n- Skip minor style nits unless they indicate a real problem"}
+- Be constructive and explain WHY something is an issue
+- Include code suggestions when helpful
+
+**Important:**
+- The line number in \`-f line=N\` should be the line number in the NEW version of the file (right side of diff)
+- For lines starting with \`+\`, count from the @@ hunk header to find the line number
+- Always use commit_id="${prContext.commitSha}" for inline comments
+
+**Remember: Use the bash tool for all PR operations. You MUST submit a formal review at the end using \`gh pr review\`.**
+</instruction>`;
 
   try {
-    debugLog(`[Hunk ${chunkIndex + 1}] Initial Message:\n`, initialMessage);
+    const filesInDiff = extractFilesFromDiff(fullDiff);
+    debugLog(`Starting full PR review. Diff size: ~${diffTokens} tokens`);
+    debugLog(
+      `Files in context (${filesInDiff.length}): ${filesInDiff.join(", ")}`,
+    );
+    debugLog(`Max turns: ${maxTurns}`);
+    debugLog(`PR: ${prContext.repo}#${prContext.prNumber}`);
+
     const result = await run(agent, initialMessage, { maxTurns });
 
     if (result.finalOutput) {
-      debugLog("Agent Raw Response:", result.finalOutput);
-      const response = parseAgentResponse(result.finalOutput as string);
-      const resolvedFindings = resolveLineNumbers(response.findings, diffChunk);
-      return {
-        findings: resolvedFindings,
-        resolvedComments: response.resolvedComments,
-      };
+      debugLog("Agent completed review. Final output:", result.finalOutput);
     } else {
-      debugError("Agent failed to produce a final output.", result);
-      return { findings: [], resolvedComments: [] };
+      debugLog("Agent completed without final output.");
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     debugError("An error occurred while running the agent:", errorMessage);
-    return { findings: [], resolvedComments: [] };
+    throw error;
   }
-}
-
-/**
- * Reviews a diff chunk using the interactive agent.
- * @deprecated Use reviewChunkWithAgent which returns the full AgentResponse instead
- */
-export async function reviewChunkWithAgentLegacy(
-  diffChunk: string,
-  modelConfig: ModelConfig,
-  diffSummary: DiffSummary | undefined,
-  chunkIndex: number,
-  repoFilePaths: string[],
-  existingComments: any[] = [],
-  maxTurns: number = 20,
-  blockingOnly: boolean = false,
-): Promise<Finding[]> {
-  const response = await reviewChunkWithAgent(
-    diffChunk,
-    modelConfig,
-    diffSummary,
-    chunkIndex,
-    repoFilePaths,
-    existingComments,
-    maxTurns,
-    blockingOnly,
-  );
-  return response.findings;
 }

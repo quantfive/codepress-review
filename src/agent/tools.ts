@@ -1,11 +1,16 @@
 import { tool } from "@openai/agents";
 import { rgPath as vscodeRipgrepPath } from "@vscode/ripgrep";
-import { spawnSync } from "child_process";
+import { execSync, spawnSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import ignore from "ignore";
 import { dirname, extname, join, relative, resolve } from "path";
 import { z } from "zod";
 import { DEFAULT_IGNORE_PATTERNS } from "../constants";
+
+// Maximum output size for bash commands (100KB)
+const MAX_BASH_OUTPUT = 100 * 1024;
+// Default timeout for bash commands (30 seconds)
+const BASH_TIMEOUT_MS = 30 * 1000;
 
 // Lightweight in-process LRU cache for search results
 const SEARCH_CACHE: Map<string, string> = new Map();
@@ -914,9 +919,93 @@ export const searchRepoTool = tool({
   execute: runSearchRepo,
 });
 
-export const allTools = [
-  fetchFilesTool,
-  fetchSnippetTool,
-  depGraphTool,
-  searchRepoTool,
-];
+/**
+ * Tool to run bash commands in the repository.
+ * Useful for git operations, GitHub CLI, grep, find, etc.
+ */
+export const bashTool = tool({
+  name: "bash",
+  description: `Run a bash command in the repository root. Useful for:
+- Read files: cat, head, tail, less
+- Search code: rg (ripgrep), grep -r
+- Git commands: git log, git diff, git blame, git show
+- GitHub CLI: gh pr view, gh issue list, gh api
+- File operations: find, ls, wc, tree
+- Text processing: awk, sed, sort, uniq
+- Package info: npm list, pip list, cargo tree
+
+Note: Git history may be limited (shallow clone). If git blame/log fails, proceed without that context.
+Commands run with a 30-second timeout and 100KB output limit.`,
+  parameters: z.object({
+    command: z
+      .string()
+      .describe(
+        "The bash command to execute. Can include pipes and shell features.",
+      ),
+  }),
+  execute: async ({ command }) => {
+    try {
+      // Build environment with GitHub token for gh CLI
+      const env = { ...process.env };
+      // Ensure GH_TOKEN is set for GitHub CLI (it uses GH_TOKEN or GITHUB_TOKEN)
+      if (process.env.GITHUB_TOKEN && !process.env.GH_TOKEN) {
+        env.GH_TOKEN = process.env.GITHUB_TOKEN;
+      }
+
+      // Run the command from the repository root
+      const result = execSync(command, {
+        cwd: process.cwd(),
+        encoding: "utf-8",
+        timeout: BASH_TIMEOUT_MS,
+        maxBuffer: MAX_BASH_OUTPUT,
+        shell: "/bin/bash",
+        env,
+        // Capture both stdout and stderr
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      if (!result || result.trim() === "") {
+        return "(command completed with no output)";
+      }
+
+      // Truncate if needed
+      if (result.length > MAX_BASH_OUTPUT) {
+        return (
+          result.slice(0, MAX_BASH_OUTPUT) +
+          `\n\n[Output truncated at ${MAX_BASH_OUTPUT} bytes]`
+        );
+      }
+
+      return result;
+    } catch (error: unknown) {
+      const err = error as {
+        message?: string;
+        stderr?: string;
+        stdout?: string;
+        status?: number;
+        killed?: boolean;
+      };
+
+      // Handle timeout
+      if (err.killed) {
+        return `Error: Command timed out after ${BASH_TIMEOUT_MS / 1000} seconds`;
+      }
+
+      // Return stderr if available, otherwise the error message
+      const stderr = err.stderr?.trim();
+      const stdout = err.stdout?.trim();
+      const exitCode = err.status;
+
+      let output = "";
+      if (stdout) output += stdout + "\n";
+      if (stderr) output += stderr + "\n";
+      if (exitCode !== undefined) {
+        output += `\nExit code: ${exitCode}`;
+      }
+
+      return output.trim() || `Error: ${err.message || "Command failed"}`;
+    }
+  },
+});
+
+export const allTools = [bashTool, depGraphTool];

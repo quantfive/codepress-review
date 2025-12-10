@@ -1,12 +1,3 @@
-export interface Finding {
-  path: string;
-  line: number | null;
-  lineToMatch?: string;
-  message: string;
-  severity?: string;
-  suggestion?: string;
-}
-
 export interface ReviewConfig {
   diff: string;
   pr: number;
@@ -15,126 +6,26 @@ export interface ReviewConfig {
   githubToken: string;
   githubRepository: string;
   maxTurns: number;
-  updatePrDescription: boolean;
   debug: boolean;
   blockingOnly: boolean;
 }
 
 export interface ModelConfig {
-  provider: string; // Support any provider
+  provider: string;
   modelName: string;
   apiKey: string;
+  /** OpenAI reasoning effort: 'none' (GPT-5.1 only) | 'minimal' | 'low' | 'medium' | 'high' */
+  reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
+  /** Anthropic effort for claude-opus-4-5: 'low' | 'medium' | 'high' (default) */
+  effort?: "low" | "medium" | "high";
+  /** Anthropic thinking config for claude-opus-4-5, claude-sonnet-4-5, claude-3-7-sonnet */
+  thinking?: {
+    type: "enabled" | "disabled";
+    budgetTokens?: number;
+  };
 }
 
 export interface ParsedArgs {
   diff: string;
   pr: number;
-}
-
-export interface GitHubConfig {
-  owner: string;
-  repo: string;
-  token: string;
-}
-
-export interface FileLineMap {
-  [filePath: string]: {
-    [lineContent: string]: number;
-  };
-}
-
-export type PRType =
-  | "feature"
-  | "bugfix"
-  | "refactor"
-  | "docs"
-  | "test"
-  | "chore"
-  | "dependency-bump"
-  | "mixed";
-
-export type RiskTag = "SEC" | "PERF" | "ARCH" | "TEST" | "STYLE" | "DEP";
-
-export interface RiskItem {
-  tag: RiskTag;
-  description: string;
-}
-
-export interface IssueItem {
-  severity: string;
-  kind: string;
-  description: string;
-}
-
-export interface HunkSummary {
-  index: number;
-  file: string;
-  overview: string;
-  risks: RiskItem[]; // Keep for backward compatibility with keyRisks
-  issues: IssueItem[]; // New format for hunk-level issues
-  tests: string[];
-}
-
-export type ReviewDecision = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
-
-export interface DiffSummary {
-  prType: PRType;
-  summaryPoints: string[];
-  keyRisks: RiskItem[];
-  hunks: HunkSummary[];
-  decision: {
-    recommendation: ReviewDecision;
-    reasoning: string;
-  };
-  prDescription?: string;
-  plan: DiffPlan;
-}
-
-export interface ResolvedComment {
-  commentId: string;
-  path: string;
-  line: number;
-  reason: string; // Why this comment is considered resolved
-}
-
-export interface AgentResponse {
-  findings: Finding[];
-  resolvedComments: ResolvedComment[];
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Planner types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type RiskLevel = "low" | "medium" | "high" | "critical";
-
-export interface PlannerAction {
-  tool: "search_repo" | "fetch_snippet" | "fetch_files" | "dep_graph";
-  goal: string;
-  params?: Record<string, string | number | boolean | string[]>;
-}
-
-export interface HunkPlan {
-  index: number;
-  riskLevel?: RiskLevel;
-  priority?: number; // lower = earlier
-  maxTurns?: number;
-  toolBudget?: number;
-  skip?: boolean;
-  focus?: string[]; // e.g., ["imports","types"]
-  evidenceRequired?: boolean;
-  actions?: PlannerAction[];
-}
-
-export interface DiffPlan {
-  globalBudget?: {
-    required?: number;
-    optional?: number;
-    nit?: number;
-    maxHunks?: number;
-    defaultMaxTurns?: number;
-    sequentialTop?: number;
-    maxConcurrentHunks?: number;
-  };
-  hunkPlans: HunkPlan[];
 }

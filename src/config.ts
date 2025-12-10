@@ -1,4 +1,4 @@
-import { ReviewConfig, ParsedArgs, ModelConfig, GitHubConfig } from "./types";
+import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 
 export function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
@@ -47,23 +47,52 @@ export function getModelConfig(): ModelConfig {
     throw new Error("MODEL_PROVIDER and MODEL_NAME are required");
   }
 
+  // Get reasoning/thinking configuration
+  const reasoningEffort = process.env.REASONING_EFFORT as
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | undefined;
+  const anthropicEffort = process.env.ANTHROPIC_EFFORT as
+    | "low"
+    | "medium"
+    | "high"
+    | undefined;
+  const thinkingEnabled =
+    process.env.THINKING_ENABLED?.toLowerCase() === "true";
+  const thinkingBudget = parseInt(process.env.THINKING_BUDGET || "10000", 10);
+
+  // Build thinking config if enabled
+  const thinking = thinkingEnabled
+    ? { type: "enabled" as const, budgetTokens: thinkingBudget }
+    : undefined;
+
   // Get the expected environment variable name for this provider
   const envVarName = PROVIDER_API_KEY_MAP[provider.toLowerCase()];
-  
+
   if (!envVarName) {
     // For unknown providers, try the pattern PROVIDER_API_KEY
     const fallbackEnvVar = `${provider.toUpperCase()}_API_KEY`;
     const apiKey = process.env[fallbackEnvVar];
-    
+
     if (!apiKey) {
       const supportedProviders = Object.keys(PROVIDER_API_KEY_MAP).join(", ");
       throw new Error(
         `Unknown provider "${provider}". Supported providers: ${supportedProviders}. ` +
-        `For unknown providers, set ${fallbackEnvVar} environment variable.`
+          `For unknown providers, set ${fallbackEnvVar} environment variable.`,
       );
     }
-    
-    return { provider, modelName, apiKey };
+
+    return {
+      provider,
+      modelName,
+      apiKey,
+      reasoningEffort: reasoningEffort || undefined,
+      effort: anthropicEffort || undefined,
+      thinking,
+    };
   }
 
   // Use the mapped environment variable name
@@ -72,43 +101,36 @@ export function getModelConfig(): ModelConfig {
     throw new Error(`${envVarName} is required for provider "${provider}"`);
   }
 
-  return { provider, modelName, apiKey };
-}
-
-export function getGitHubConfig(): GitHubConfig {
-  const githubToken = process.env.GITHUB_TOKEN;
-  const repoFullName = process.env.GITHUB_REPOSITORY;
-
-  if (!githubToken) {
-    throw new Error("GITHUB_TOKEN environment variable is required");
-  }
-
-  if (!repoFullName) {
-    throw new Error("GITHUB_REPOSITORY environment variable is required");
-  }
-
-  const [owner, repo] = repoFullName.split("/");
-  if (!owner || !repo) {
-    throw new Error("Invalid GITHUB_REPOSITORY format. Expected 'owner/repo'");
-  }
-
-  return { owner, repo, token: githubToken };
+  return {
+    provider,
+    modelName,
+    apiKey,
+    reasoningEffort: reasoningEffort || undefined,
+    effort: anthropicEffort || undefined,
+    thinking,
+  };
 }
 
 export function getReviewConfig(): ReviewConfig {
   const { diff, pr } = parseArgs();
   const { provider, modelName } = getModelConfig();
-  const { token: githubToken } = getGitHubConfig();
+
+  const githubToken = process.env.GITHUB_TOKEN;
+  const githubRepository = process.env.GITHUB_REPOSITORY;
+
+  if (!githubToken) {
+    throw new Error("GITHUB_TOKEN environment variable is required");
+  }
+
+  if (!githubRepository) {
+    throw new Error("GITHUB_REPOSITORY environment variable is required");
+  }
 
   // Parse maxTurns from environment variable
   const maxTurns = parseInt(process.env.MAX_TURNS!, 10);
   if (isNaN(maxTurns) || maxTurns <= 0) {
     throw new Error("MAX_TURNS must be a positive number");
   }
-
-  // Parse updatePrDescription from environment variable, default to true
-  const updatePrDescriptionEnv = process.env.UPDATE_PR_DESCRIPTION || "true";
-  const updatePrDescription = updatePrDescriptionEnv.toLowerCase() === "true";
 
   // Parse debug from environment variable, default to false
   const debugEnv = process.env.DEBUG || "false";
@@ -124,9 +146,8 @@ export function getReviewConfig(): ReviewConfig {
     provider,
     modelName,
     githubToken,
-    githubRepository: process.env.GITHUB_REPOSITORY!,
+    githubRepository,
     maxTurns,
-    updatePrDescription,
     debug,
     blockingOnly,
   };
