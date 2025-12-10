@@ -30,6 +30,19 @@ jobs:
           ref: build
           fetch-depth: 0 # Need full history for tags
 
+      - name: Verify build branch is recent
+        run: |
+          # Get the commit message which contains the main branch SHA
+          LAST_COMMIT_MSG=$(git log -1 --format=%s)
+          echo "Last build commit: $LAST_COMMIT_MSG"
+
+          # Check if build branch was updated recently (within last day)
+          LAST_COMMIT_DATE=$(git log -1 --format=%ci)
+          echo "Last build date: $LAST_COMMIT_DATE"
+
+          echo "⚠️  Make sure the build branch is up-to-date with main before releasing!"
+          echo "   Run 'Build and Deploy to Build Branch' workflow first if needed."
+
       - name: Get latest version tag
         id: get_version
         run: |
@@ -126,7 +139,7 @@ jobs:
           tag_name: ${{ steps.new_version.outputs.new_version }}
           name: ${{ steps.new_version.outputs.new_version }}
           body_path: release_notes.md
-          prerelease: ${{ github.event.inputs.prerelease }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,6 +150,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Type:** ${{ github.event.inputs.version_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Pre-release:** ${{ github.event.inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Pre-release:** ${{ github.event.inputs.prerelease == 'true' && 'Yes' || 'No' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The \`update-major-tag\` workflow will automatically update the major version tag." >> $GITHUB_STEP_SUMMARY
