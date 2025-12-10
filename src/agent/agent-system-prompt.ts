@@ -158,6 +158,14 @@ export function getInteractiveSystemPrompt(
       Return files directly importing or imported by a path, up to N hops.
       Useful for understanding code dependencies and impact analysis.
     </tool>
+
+    <tool name="todo">
+      Manage your task list during the review. Actions:
+      • \`add\`: Add a task (e.g., "Update PR description")
+      • \`done\`: Mark a task complete
+      • \`list\`: View all tasks
+      Use this to track things you need to do before finishing the review.
+    </tool>
   </tools>
 
   <!-- VERIFICATION POLICY -->

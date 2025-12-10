@@ -1,0 +1,142 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      prerelease:
+        description: "Mark as pre-release"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+        with:
+          ref: build
+          fetch-depth: 0 # Need full history for tags
+
+      - name: Get latest version tag
+        id: get_version
+        run: |
+          # Get the latest semver tag
+          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No existing version tags found. Starting from v0.0.0"
+            LATEST_TAG="v0.0.0"
+          fi
+
+          echo "Latest tag: $LATEST_TAG"
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+          # Parse version components
+          VERSION=${LATEST_TAG#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+
+          echo "Current version: $MAJOR.$MINOR.$PATCH"
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "patch=$PATCH" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          MAJOR=${{ steps.get_version.outputs.major }}
+          MINOR=${{ steps.get_version.outputs.minor }}
+          PATCH=${{ steps.get_version.outputs.patch }}
+          BUMP_TYPE=${{ github.event.inputs.version_type }}
+
+          case $BUMP_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version_number=$MAJOR.$MINOR.$PATCH" >> $GITHUB_OUTPUT
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create and push tag
+        run: |
+          NEW_VERSION=${{ steps.new_version.outputs.new_version }}
+
+          echo "Creating tag $NEW_VERSION..."
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
+          git push origin "$NEW_VERSION"
+
+          echo "✅ Tag $NEW_VERSION created and pushed"
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          LATEST_TAG=${{ steps.get_version.outputs.latest_tag }}
+          NEW_VERSION=${{ steps.new_version.outputs.new_version }}
+
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+
+          # If we have a previous tag, show commits since then
+          if [ "$LATEST_TAG" != "v0.0.0" ]; then
+            # Get commits from main branch between tags (approximation)
+            echo "### Commits since $LATEST_TAG" >> release_notes.md
+            echo "" >> release_notes.md
+            git log --oneline $LATEST_TAG..HEAD 2>/dev/null | head -20 >> release_notes.md || echo "See commit history for changes." >> release_notes.md
+          else
+            echo "Initial release" >> release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$LATEST_TAG...$NEW_VERSION" >> release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.new_version.outputs.new_version }}
+          name: ${{ steps.new_version.outputs.new_version }}
+          body_path: release_notes.md
+          prerelease: ${{ github.event.inputs.prerelease }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Release Created!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Type:** ${{ github.event.inputs.version_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Pre-release:** ${{ github.event.inputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The \`update-major-tag\` workflow will automatically update the major version tag." >> $GITHUB_STEP_SUMMARY

@@ -4,7 +4,7 @@ import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
 import { ModelConfig } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
-import { allTools } from "./tools";
+import { allTools, resetTodoList } from "./tools";
 
 /**
  * Estimates token count for a string (rough approximation: 4 chars per token).
@@ -54,6 +54,9 @@ export async function reviewFullDiff(
   maxTurns: number = 30,
   blockingOnly: boolean = false,
 ): Promise<void> {
+  // Reset todo list for fresh review
+  resetTodoList();
+
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
@@ -89,23 +92,24 @@ ${fullDiff}
 Please review this pull request. You have the complete diff above.
 
 **Your workflow:**
-1. First, check the PR description: \`gh pr view ${prContext.prNumber}\`
-   - If the description is blank/empty, you'll update it at the end with a summary
+1. First, check the PR: \`gh pr view ${prContext.prNumber}\`
+   - If the description/body is blank, use \`todo\` tool: add "Update PR description"
 2. Check for existing review comments: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\`
    - Avoid duplicating existing comments
-   - If an existing comment has been addressed by the code changes, you can resolve it
 3. Review the diff thoroughly using your tools (bash, dep_graph) to:
    - Understand how changes integrate with existing code
    - Verify claims about unused code, missing imports, etc.
-   - Check if changes affect other parts of the codebase
+   - Use \`todo\` to track issues you want to comment on
 4. Post inline comments for any issues you find using:
    \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
-5. If the PR description was blank, update it:
-   \`gh pr edit ${prContext.prNumber} --body "Your summary"\`
-6. **REQUIRED - Submit a formal review with your decision:**
+5. Before finishing, check your \`todo list\` - complete any remaining tasks:
+   - Update PR description if it was blank: \`gh pr edit ${prContext.prNumber} --body "## Summary\n\n..."\`
+6. **REQUIRED - Submit a formal review:**
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
    - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
    - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
+
+**Use the \`todo\` tool to track tasks** - especially "Update PR description" if it was blank!
 
 **Comment guidelines:**
 ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUST be fixed (security, bugs, breaking changes)" : "- Focus on substantive issues: bugs, security problems, logic errors, significant design concerns\n- Skip minor style nits unless they indicate a real problem"}

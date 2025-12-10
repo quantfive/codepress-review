@@ -12,6 +12,9 @@ const MAX_BASH_OUTPUT = 100 * 1024;
 // Default timeout for bash commands (30 seconds)
 const BASH_TIMEOUT_MS = 30 * 1000;
 
+// In-memory todo list for the agent to track tasks
+const agentTodoList: Array<{ task: string; done: boolean }> = [];
+
 // Lightweight in-process LRU cache for search results
 const SEARCH_CACHE: Map<string, string> = new Map();
 const LRU_MAX = 100;
@@ -1008,4 +1011,70 @@ Commands run with a 30-second timeout and 100KB output limit.`,
   },
 });
 
-export const allTools = [bashTool, depGraphTool];
+/**
+ * Tool for the agent to manage a todo list during the review.
+ * Helps track tasks like "update PR description" or "check for duplicates".
+ */
+export const todoTool = tool({
+  name: "todo",
+  description: `Manage your task list during the review. Use this to:
+- Add tasks you need to complete (e.g., "Update PR description - it was blank")
+- Mark tasks as done when completed
+- View remaining tasks to ensure nothing is forgotten
+
+This helps you stay organized and not forget important steps.`,
+  parameters: z.object({
+    action: z
+      .enum(["add", "done", "list"])
+      .describe("Action to perform: add a task, mark done, or list all"),
+    task: z
+      .string()
+      .optional()
+      .describe("Task description (required for 'add' and 'done' actions)"),
+  }),
+  execute: async ({ action, task }) => {
+    switch (action) {
+      case "add": {
+        if (!task) return "Error: task description required for 'add' action";
+        agentTodoList.push({ task, done: false });
+        return `✅ Added task: "${task}"\n\nCurrent tasks:\n${formatTodoList()}`;
+      }
+
+      case "done": {
+        if (!task) return "Error: task description required for 'done' action";
+        const found = agentTodoList.find(
+          (t) => t.task.toLowerCase().includes(task.toLowerCase()) && !t.done,
+        );
+        if (found) {
+          found.done = true;
+          return `✅ Marked done: "${found.task}"\n\nRemaining tasks:\n${formatTodoList()}`;
+        }
+        return `Task not found: "${task}"\n\nCurrent tasks:\n${formatTodoList()}`;
+      }
+
+      case "list": {
+        if (agentTodoList.length === 0) {
+          return "No tasks in todo list.";
+        }
+        return `Current tasks:\n${formatTodoList()}`;
+      }
+
+      default:
+        return "Unknown action. Use 'add', 'done', or 'list'.";
+    }
+  },
+});
+
+function formatTodoList(): string {
+  if (agentTodoList.length === 0) return "(empty)";
+  return agentTodoList
+    .map((t, i) => `${i + 1}. [${t.done ? "x" : " "}] ${t.task}`)
+    .join("\n");
+}
+
+// Reset todo list (called at start of each review)
+export function resetTodoList(): void {
+  agentTodoList.length = 0;
+}
+
+export const allTools = [bashTool, depGraphTool, todoTool];
