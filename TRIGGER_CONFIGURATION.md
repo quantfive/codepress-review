@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: CodePress Review
-        uses: quantfive/codepress-review@v3
+        uses: quantfive/codepress-review@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
@@ -101,7 +101,7 @@ jobs:
   ai-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: quantfive/codepress-review@v3
+      - uses: quantfive/codepress-review@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"

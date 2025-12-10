@@ -6,13 +6,13 @@ A turnkey GitHub Action for automatic, inline code review on every Pull Request 
 
 ## Features
 
-- 🤖 **AI-Powered Reviews**: Use GPT-4, Claude, Gemini, Groq, DeepSeek, and more to power your PRs
+- 🤖 **Autonomous AI Agent**: Intelligent agent that explores code, verifies claims, and posts actionable feedback
 - 🔑 **BYOK + OS**: 100% open source. Install as a github action, and use your own key
-- 💬 **Inline Comments**: Posts line-level feedback directly on PRs
+- 💬 **Inline Comments**: Posts line-level feedback directly on PRs via GitHub CLI
+- ✅ **Formal PR Reviews**: Submits approve/request-changes/comment decisions with summaries
 - 📄 **Smart PR Descriptions**: Automatically generates structured PR descriptions for blank PRs
 - 🔄 **Provider Agnostic**: Easily switch between 11+ LLM providers including self-hosted models
-- 📝 **Smart Chunking**: Handles large diffs efficiently
-- 🛡️ **Robust**: Built-in retries, rate limiting, and error handling
+- 🔍 **Context-Aware**: Agent can read full files, search code, and analyze dependencies before commenting
 - ⚡ **Zero Setup**: Just add to your github action workflows
 - 🎯 **Customizable**: Use custom review guidelines via configuration file
 - 🚨 **Blocking-Only Mode**: Focus only on critical issues that must be fixed before approval
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: CodePress Review
-        uses: quantfive/codepress-review@v3
+        uses: quantfive/codepress-review@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
@@ -151,7 +151,7 @@ jobs:
           ref: ${{ github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || github.ref }}
 
       - name: CodePress Review
-        uses: quantfive/codepress-review@v3
+        uses: quantfive/codepress-review@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
@@ -166,7 +166,7 @@ jobs:
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -179,7 +179,7 @@ jobs:
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -231,7 +231,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -243,7 +243,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
@@ -255,7 +255,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "gemini"
@@ -267,7 +267,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "groq"
@@ -279,7 +279,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "deepseek"
@@ -291,7 +291,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "cohere"
@@ -303,7 +303,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai-compatible"
@@ -316,7 +316,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "ollama"
@@ -334,7 +334,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "mistral"
@@ -346,7 +346,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "perplexity"
@@ -358,7 +358,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "fireworks"
@@ -370,7 +370,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "xai"
@@ -384,7 +384,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ```yaml
 - name: CodePress Review (Debug)
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -401,13 +401,12 @@ For high-velocity teams or repositories that only want comments on truly blockin
 
 ```yaml
 - name: CodePress Review (Blocking Only)
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
     model_name: "gpt-4o"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-    blocking_only: true
 ```
 
 **What Blocking-Only Mode Does:**
@@ -495,43 +494,20 @@ Use the `!` prefix to force review of files that would otherwise be ignored by d
 
 We provide a [`.codepressignore.example`](.codepressignore.example) file showing common patterns you might want to add.
 
-## Review Output Format
+## How It Works
 
-CodePress Review uses a structured XML format for consistent, rich code review comments. Each finding includes:
+CodePress Review uses an **autonomous AI agent** that has full control over the review process:
 
-- **Severity**: `required`, `optional`, `nit`, or `fyi` (in blocking-only mode, only `required` comments are generated)
-- **Inline Comments**: Posted directly on the relevant line
-- **Suggestions**: Optional code improvements with syntax highlighting
-- **Examples**: Optional code blocks demonstrating best practices
+1. **Reads PR Context**: Fetches PR description and existing review comments
+2. **Analyzes the Diff**: Reviews all changes with full awareness of the codebase
+3. **Gathers Additional Context**: Can read files, search code, and analyze dependencies to verify claims
+4. **Posts Inline Comments**: Creates line-level feedback directly via GitHub CLI with severity levels:
+   - 🔴 **REQUIRED**: Must fix before approval (bugs, security, breaking changes)
+   - 🟡 **OPTIONAL**: Suggested improvement (cleaner code, better patterns)
+   - 💡 **NIT**: Minor polish (only if pattern is repeated or misleading)
+5. **Submits Formal Review**: Approves, requests changes, or comments with a summary of findings
 
-Example output format:
-
-````xml
-<comment>
-  <severity>required</severity>
-  <file>src/components/Button.tsx</file>
-  <line>+  onClick?: () => void;</line>
-  <message>Consider making onClick required for better UX - users expect buttons to be interactive.</message>
-  <suggestion>+  onClick: () => void;</suggestion>
-  <code>
-    ```tsx
-    interface ButtonProps {
-      text: string;
-      onClick: () => void; // required for user interaction
-    }
-    ```
-  </code>
-</comment>
-````
-
-## Two-Pass Review System
-
-CodePress Review uses a sophisticated **two-pass review system** for enhanced code analysis:
-
-1. **First Pass - Diff Summarization**: Analyzes the entire diff to identify PR type, key themes, and risks
-2. **Second Pass - Chunk Review**: Reviews each code chunk with context from the first pass
-
-This provides global awareness while maintaining focused, line-level feedback.
+The agent verifies claims before making them - if it says code is "unused" or "missing", it has searched the codebase to confirm.
 
 ## Automatic PR Description Generation
 
@@ -576,7 +552,7 @@ The feature is controlled by the `update_pr_description` parameter:
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -593,7 +569,7 @@ The feature is controlled by the `update_pr_description` parameter:
 
 ### Custom Description Guidelines
 
-You can customize PR description generation by modifying the summary guidelines in your `custom-codepress-summary-prompt.md` file. The AI will use your custom instructions when generating descriptions.
+PR descriptions are generated by the autonomous agent based on its analysis of the diff. The agent will create structured descriptions that include a summary and key changes when the PR description is blank.
 
 ## Custom Review Guidelines
 
@@ -700,40 +676,6 @@ You are a patient mentor reviewing code from a junior developer. Your feedback s
 Prefer **optional** for learning opportunities, **nit** for style, **fyi** for educational notes.
 ```
 
-### Custom Summarization Guidelines
-
-You can also customize the initial diff summarization by creating a `custom-codepress-summary-prompt.md` file in your repository root. This allows you to tailor how CodePress analyzes and summarizes your pull requests.
-
-#### Creating Custom Summary Guidelines
-
-Create a file named `custom-codepress-summary-prompt.md` in your repository root:
-
-```markdown
-# Custom PR Summary Guidelines
-
-You are analyzing a complete pull request. Focus on:
-
-## Analysis Priorities
-
-- API design and breaking changes
-- Cross-service dependencies
-- Database migration impacts
-- Performance implications at scale
-- Security considerations in architectural changes
-
-## Classification Guidelines
-
-- Classify the PR type accurately: feature | bugfix | refactor | docs | test | chore | dependency-bump | mixed
-- Identify key architectural concerns that reviewers should be aware of
-- Highlight any risks that span multiple files or components
-
-## Output Focus
-
-- Provide concise, actionable insights for individual chunk reviewers
-- Flag cross-cutting concerns that might not be obvious from individual file changes
-- Emphasize testing strategies for complex changes
-```
-
 ## Debugging and Troubleshooting
 
 ### Debug Mode
@@ -742,7 +684,7 @@ When troubleshooting issues or developing locally, you can enable detailed debug
 
 ```yaml
 - name: CodePress Review
-  uses: quantfive/codepress-review@v3
+  uses: quantfive/codepress-review@v4
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
@@ -753,11 +695,10 @@ When troubleshooting issues or developing locally, you can enable detailed debug
 
 **Debug mode provides:**
 
-- Detailed processing logs for each diff chunk
-- Raw AI model responses before parsing
-- Rate limiting and retry information
-- GitHub API call details
-- Agent interaction logs (v2 only)
+- Detailed agent workflow logs
+- Tool calls and their results (bash commands, dependency graphs)
+- Turn-by-turn progress tracking
+- GitHub CLI command outputs
 - Error stack traces and context
 
 **Note:** Debug mode significantly increases log output. Only enable when troubleshooting specific issues. Always disable in production to keep action logs clean.
@@ -802,22 +743,23 @@ env:
 
 ## Version Comparison
 
-### v2 (Current) - Interactive Agent Architecture
+### v4 (Current) - Autonomous Agent Architecture
 
-CodePress Review v2 introduces a sophisticated **interactive agent system** powered by OpenAI's agents framework:
+CodePress Review v4 introduces a fully **autonomous agent** that takes complete control of the review process:
 
-- **🤖 Interactive Tools**: Agent can fetch additional file context, analyze dependencies, and explore code relationships
-- **🔍 Smart Context Gathering**: When reviewing diffs, the agent can request full file contents or specific code snippets for better understanding
-- **📊 Dependency Analysis**: Built-in tools to analyze import/export relationships and project structure
-- **🎯 Context-Aware Reviews**: No more false positives from missing context - the agent sees the full picture
-- **⚡ Adaptive Processing**: Agent determines when additional context is needed and fetches it automatically
+- **🤖 Autonomous Actions**: Agent posts comments and submits reviews directly via GitHub CLI
+- **✅ Formal PR Reviews**: Submits approve/request-changes/comment decisions with detailed summaries
+- **🔍 Smart Verification**: Verifies claims by searching the codebase before commenting
+- **📊 Dependency Analysis**: Built-in tools to analyze import/export relationships
+- **🎯 Context-Aware**: Reads full files and explores code to understand changes deeply
+- **💬 Direct Feedback**: No intermediate formats - comments go straight to GitHub
 
-**Key Benefits of v2:**
+**Key Benefits of v4:**
 
-- Eliminates incorrect comments about "missing" code that exists outside diff chunks
-- Provides more accurate reviews by understanding full file context
-- Reduces false positives for unused imports, missing migrations, etc.
-- Offers deeper architectural insights through dependency analysis
+- Submits formal PR reviews (approve/request changes) with summaries
+- Agent posts comments directly - no parsing or intermediate steps
+- Eliminates false positives by verifying claims before making them
+- Provides deeper architectural insights through code exploration
 
 ### v1 (Legacy) - Static Diff Review
 
@@ -832,35 +774,30 @@ CodePress Review v1 uses a traditional static approach:
 
 - Cost-sensitive environments where minimal token usage is priority
 - Simple codebases where diff context is usually sufficient
-- Legacy workflows that don't require advanced context analysis
 
 ### Migration Guide
 
-To use v1 instead of v2, simply change the version in your workflow:
-
 ```yaml
-# For v2 (recommended - interactive agent)
-uses: quantfive/codepress-review@v3
+# For v4 (recommended - autonomous agent)
+uses: quantfive/codepress-review@v4
 
 # For v1 (legacy - static diff review)
 uses: quantfive/codepress-review@v1
 ```
 
-**Note:** v2 is the recommended version for most use cases due to its superior accuracy and context awareness.
-
 ## Technical Architecture
 
-This project uses the [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) (`ai` package) for **universal LLM provider support**. The system:
+This project uses the [OpenAI Agents SDK](https://github.com/openai/openai-agents-js) with [Vercel AI SDK](https://ai-sdk.dev/docs/introduction) for **universal LLM provider support**. The system:
 
+- **Autonomous Agent**: Single agent with full control over the review process
+- **GitHub CLI Integration**: Agent posts comments and reviews directly via `gh` CLI commands
 - **Universal Provider Support**: 11+ LLM providers through unified AI SDK interface
 - **Self-Hosted Compatibility**: Support for OpenAI-compatible APIs and Ollama instances
-- **Clean TypeScript Functions**: System prompts managed in `src/system-prompt.ts`
-- **Proper Message Structure**: Uses system prompt for guidelines + user prompt for diff content
-- **Preserved Response Format**: Always includes XML `<responseFormat>` regardless of custom prompts
-- **Structured XML Output**: Parses XML responses for rich comment formatting
-- **Severity System**: `required`, `optional`, `nit`, `fyi` with emoji indicators
-- **Hunk-Based Processing**: Each diff hunk processed individually for focused reviews
-- **Line Resolution**: Handles line number mapping from diff context
-- **File-Based Customization**: Custom review guidelines from `custom-codepress-review-prompt.md` and summary guidelines from `custom-codepress-summary-prompt.md`
-- **Interactive Agent Tools** (v2): `fetch_files` (multi-file), `fetch_snippet`, and `dep_graph` for enhanced context gathering
+- **Agent Tools**:
+  - `bash`: Execute shell commands (gh CLI, file reading, code search with ripgrep)
+  - `dep_graph`: Analyze import/export relationships between files
+- **Severity System**: 🔴 REQUIRED, 🟡 OPTIONAL, 💡 NIT with clear guidelines
+- **Formal Reviews**: Agent submits approve/request-changes/comment decisions
+- **Turn Budget**: Configurable maximum turns for cost control
+- **File-Based Customization**: Custom review guidelines from `custom-codepress-review-prompt.md`
 - **Provider Configuration**: Automatic API key detection and provider-specific configuration
