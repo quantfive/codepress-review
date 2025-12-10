@@ -1,4 +1,4 @@
-import { ReviewConfig, ParsedArgs, ModelConfig, GitHubConfig } from "./types";
+import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 
 export function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
@@ -111,40 +111,26 @@ export function getModelConfig(): ModelConfig {
   };
 }
 
-export function getGitHubConfig(): GitHubConfig {
+export function getReviewConfig(): ReviewConfig {
+  const { diff, pr } = parseArgs();
+  const { provider, modelName } = getModelConfig();
+
   const githubToken = process.env.GITHUB_TOKEN;
-  const repoFullName = process.env.GITHUB_REPOSITORY;
+  const githubRepository = process.env.GITHUB_REPOSITORY;
 
   if (!githubToken) {
     throw new Error("GITHUB_TOKEN environment variable is required");
   }
 
-  if (!repoFullName) {
+  if (!githubRepository) {
     throw new Error("GITHUB_REPOSITORY environment variable is required");
   }
-
-  const [owner, repo] = repoFullName.split("/");
-  if (!owner || !repo) {
-    throw new Error("Invalid GITHUB_REPOSITORY format. Expected 'owner/repo'");
-  }
-
-  return { owner, repo, token: githubToken };
-}
-
-export function getReviewConfig(): ReviewConfig {
-  const { diff, pr } = parseArgs();
-  const { provider, modelName } = getModelConfig();
-  const { token: githubToken } = getGitHubConfig();
 
   // Parse maxTurns from environment variable
   const maxTurns = parseInt(process.env.MAX_TURNS!, 10);
   if (isNaN(maxTurns) || maxTurns <= 0) {
     throw new Error("MAX_TURNS must be a positive number");
   }
-
-  // Parse updatePrDescription from environment variable, default to true
-  const updatePrDescriptionEnv = process.env.UPDATE_PR_DESCRIPTION || "true";
-  const updatePrDescription = updatePrDescriptionEnv.toLowerCase() === "true";
 
   // Parse debug from environment variable, default to false
   const debugEnv = process.env.DEBUG || "false";
@@ -160,9 +146,8 @@ export function getReviewConfig(): ReviewConfig {
     provider,
     modelName,
     githubToken,
-    githubRepository: process.env.GITHUB_REPOSITORY!,
+    githubRepository,
     maxTurns,
-    updatePrDescription,
     debug,
     blockingOnly,
   };

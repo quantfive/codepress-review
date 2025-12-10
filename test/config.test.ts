@@ -2,7 +2,6 @@ import {
   getReviewConfig,
   parseArgs,
   getModelConfig,
-  getGitHubConfig,
 } from "../src/config";
 
 describe("Configuration", () => {
@@ -365,46 +364,6 @@ describe("Configuration", () => {
     });
   });
 
-  describe("getGitHubConfig", () => {
-    it("should get GitHub config correctly", () => {
-      process.env.GITHUB_TOKEN = "test-token";
-      process.env.GITHUB_REPOSITORY = "owner/repo";
-
-      const result = getGitHubConfig();
-
-      expect(result).toEqual({
-        owner: "owner",
-        repo: "repo",
-        token: "test-token",
-      });
-    });
-
-    it("should throw error if GITHUB_TOKEN is missing", () => {
-      process.env.GITHUB_REPOSITORY = "owner/repo";
-
-      expect(() => getGitHubConfig()).toThrow(
-        "GITHUB_TOKEN environment variable is required",
-      );
-    });
-
-    it("should throw error if GITHUB_REPOSITORY is missing", () => {
-      process.env.GITHUB_TOKEN = "test-token";
-
-      expect(() => getGitHubConfig()).toThrow(
-        "GITHUB_REPOSITORY environment variable is required",
-      );
-    });
-
-    it("should throw error if GITHUB_REPOSITORY format is invalid", () => {
-      process.env.GITHUB_TOKEN = "test-token";
-      process.env.GITHUB_REPOSITORY = "invalid-format";
-
-      expect(() => getGitHubConfig()).toThrow(
-        "Invalid GITHUB_REPOSITORY format. Expected 'owner/repo'",
-      );
-    });
-  });
-
   describe("getReviewConfig", () => {
     beforeEach(() => {
       // Set up minimal required environment
@@ -422,7 +381,6 @@ describe("Configuration", () => {
       process.env.GITHUB_TOKEN = "test-token";
       process.env.GITHUB_REPOSITORY = "owner/repo";
       process.env.MAX_TURNS = "10";
-      process.env.UPDATE_PR_DESCRIPTION = "true";
     });
 
     it("should create complete review config with debug disabled by default", () => {
@@ -436,7 +394,6 @@ describe("Configuration", () => {
         githubToken: "test-token",
         githubRepository: "owner/repo",
         maxTurns: 10,
-        updatePrDescription: true,
         debug: false,
         blockingOnly: false,
       });
@@ -482,22 +439,6 @@ describe("Configuration", () => {
       expect(result.debug).toBe(true);
     });
 
-    it("should parse updatePrDescription correctly", () => {
-      process.env.UPDATE_PR_DESCRIPTION = "false";
-
-      const result = getReviewConfig();
-
-      expect(result.updatePrDescription).toBe(false);
-    });
-
-    it("should default updatePrDescription to true when not set", () => {
-      delete process.env.UPDATE_PR_DESCRIPTION;
-
-      const result = getReviewConfig();
-
-      expect(result.updatePrDescription).toBe(true);
-    });
-
     it("should throw error if MAX_TURNS is invalid", () => {
       process.env.MAX_TURNS = "invalid";
 
@@ -519,6 +460,22 @@ describe("Configuration", () => {
 
       expect(() => getReviewConfig()).toThrow(
         "MAX_TURNS must be a positive number",
+      );
+    });
+
+    it("should throw error if GITHUB_TOKEN is missing", () => {
+      delete process.env.GITHUB_TOKEN;
+
+      expect(() => getReviewConfig()).toThrow(
+        "GITHUB_TOKEN environment variable is required",
+      );
+    });
+
+    it("should throw error if GITHUB_REPOSITORY is missing", () => {
+      delete process.env.GITHUB_REPOSITORY;
+
+      expect(() => getReviewConfig()).toThrow(
+        "GITHUB_REPOSITORY environment variable is required",
       );
     });
   });

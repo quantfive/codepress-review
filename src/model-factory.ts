@@ -183,7 +183,7 @@ function buildModelSettings(config: ModelConfig): Record<string, unknown> {
  * Caches model instances to avoid recreating them.
  */
 export async function createModel(config: ModelConfig) {
-  const key = `${config.provider}-${config.modelName}-${config.reasoningEffort || ""}-${config.effort || ""}-${config.thinking?.type || ""}`;
+  const key = `${config.provider}-${config.modelName}-${config.reasoningEffort || ""}-${config.effort || ""}-${config.thinking?.type || ""}-${config.thinking?.budgetTokens || ""}`;
   if (modelMap.has(key)) {
     return modelMap.get(key);
   }

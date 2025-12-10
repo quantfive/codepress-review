@@ -1,12 +1,3 @@
-export interface Finding {
-  path: string;
-  line: number | null;
-  lineToMatch?: string;
-  message: string;
-  severity?: string;
-  suggestion?: string;
-}
-
 export interface ReviewConfig {
   diff: string;
   pr: number;
@@ -15,7 +6,6 @@ export interface ReviewConfig {
   githubToken: string;
   githubRepository: string;
   maxTurns: number;
-  updatePrDescription: boolean;
   debug: boolean;
   blockingOnly: boolean;
 }
@@ -38,38 +28,4 @@ export interface ModelConfig {
 export interface ParsedArgs {
   diff: string;
   pr: number;
-}
-
-export interface GitHubConfig {
-  owner: string;
-  repo: string;
-  token: string;
-}
-
-export interface FileLineMap {
-  [filePath: string]: {
-    [lineContent: string]: number;
-  };
-}
-
-export interface ResolvedComment {
-  commentId: string;
-  path: string;
-  line: number;
-  reason: string;
-}
-
-export interface AgentResponse {
-  findings: Finding[];
-  resolvedComments: ResolvedComment[];
-  prSummary?: string;
-}
-
-// DiffSummary is kept for backward compatibility with GitHubClient
-// but most fields are now optional/unused
-export interface DiffSummary {
-  decision?: {
-    recommendation: "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
-    reasoning: string;
-  };
 }

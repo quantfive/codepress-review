@@ -207,6 +207,7 @@ async function run(): Promise<void> {
 
     // Set environment variables for the review script
     process.env.GITHUB_TOKEN = githubToken;
+    process.env.GH_TOKEN = githubToken; // For gh CLI authentication
     process.env.MODEL_PROVIDER = modelProvider;
     process.env.MODEL_NAME = modelName;
 
@@ -286,7 +287,7 @@ async function run(): Promise<void> {
       return;
     }
 
-    if (Number.isNaN(prNumber)) {
+    if (prNumber == null || Number.isNaN(prNumber)) {
       core.setFailed("Could not determine a valid pull request number.");
       return;
     }
@@ -294,13 +295,24 @@ async function run(): Promise<void> {
     core.info(`Running CodePress Review for PR #${prNumber}`);
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
-    // Generate diff
+    // Generate diff and get commit SHA
     const diffFile = resolve("pr.diff");
+    let commitSha: string;
 
     try {
-      core.info("Fetching diff from GitHub API...");
+      core.info("Fetching PR info and diff from GitHub API...");
       const octokit = github.getOctokit(githubToken);
 
+      // Get PR info to get the commit SHA
+      const prInfo = await octokit.rest.pulls.get({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        pull_number: prNumber,
+      });
+      commitSha = prInfo.data.head.sha;
+      core.info(`Commit SHA: ${commitSha}`);
+
+      // Get the diff
       const diffResponse = await octokit.rest.pulls.get({
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -319,6 +331,10 @@ async function run(): Promise<void> {
       core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
       return;
     }
+
+    // Set PR context for the agent
+    process.env.PR_NUMBER = prNumber.toString();
+    process.env.COMMIT_SHA = commitSha;
 
     // Run the AI review script
     try {

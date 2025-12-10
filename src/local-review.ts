@@ -8,8 +8,7 @@ import { setDebugMode } from "./debug";
 /**
  * Minimal local runner for ReviewService.
  * - Creates a tiny diff (unless --diff is provided)
- * - Uses a stub GitHub client that prints outputs to the console
- * - Calls the full ReviewService pipeline (summary + per-hunk agent)
+ * - Calls the full ReviewService pipeline with the autonomous agent
  *
  * Usage examples:
  *   MODEL_PROVIDER=openai MODEL_NAME=gpt-5.1 OPENAI_API_KEY=sk-... pnpm local:review
@@ -30,42 +29,8 @@ function parseArgs(argv: string[]) {
   return args;
 }
 
-class LocalGithubClient {
-  async getPRInfo() {
-    return { commitId: "local-commit", prInfo: {} as any };
-  }
-  async getExistingReviews() {
-    return [];
-  }
-  async getExistingComments() {
-    return [];
-  }
-  async createReview(
-    _pr: number,
-    commitId: string,
-    findings: any[],
-    diffSummary: any,
-  ) {
-    console.log("\n===== LOCAL REVIEW (batch) =====");
-    console.log("Decision:", diffSummary?.decision);
-    console.log("Findings:", findings);
-    console.log("Summary points:", diffSummary?.summaryPoints);
-  }
-  async createReviewComment(_pr: number, commitId: string, finding: any) {
-    console.log("LOCAL COMMENT:", finding);
-  }
-  async updatePRDescription(_pr: number, description: string) {
-    console.log("LOCAL PR DESCRIPTION UPDATE:\n" + description);
-    return true;
-  }
-  async resolveReviewComment(_pr: number, commentId: number, reason: string) {
-    console.log("LOCAL RESOLVE:", commentId, reason);
-  }
-}
-
 function makeMinimalDiff(targetFile: string): string {
   // A tiny unified diff that touches an existing file in this repo
-  // Using src/ai-client.ts so fetch_snippet/fetch_files can succeed locally
   return [
     `diff --git a/${targetFile} b/${targetFile}`,
     "index 0000000..0000001 100644",
@@ -98,22 +63,25 @@ async function main() {
   const debug = Boolean(args.debug ?? true);
   setDebugMode(debug);
 
-  // Provide dummy GitHub env for local run to satisfy getGitHubConfig()
+  // Provide dummy GitHub env for local run
   process.env.GITHUB_TOKEN = process.env.GITHUB_TOKEN || "local-token";
+  process.env.GH_TOKEN = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
   process.env.GITHUB_REPOSITORY =
     process.env.GITHUB_REPOSITORY || "local/preview";
+  process.env.MAX_TURNS = maxTurns.toString();
+  process.env.COMMIT_SHA = process.env.COMMIT_SHA || "local-commit-sha";
 
   // Prepare diff path
   let diffPath = args.diff as string | undefined;
   if (!diffPath) {
     const dir = mkdtempSync(join(tmpdir(), "codepress-local-"));
     diffPath = join(dir, "local.diff");
-    const minimal = makeMinimalDiff("src/ai-client.ts");
+    const minimal = makeMinimalDiff("src/config.ts");
     writeFileSync(diffPath, minimal, "utf8");
     console.log("Wrote minimal diff to", diffPath);
   }
 
-  // Build config; GitHub fields are dummies for local run
+  // Build config
   const reviewService = new ReviewService({
     diff: diffPath,
     pr: parseInt((args.pr as string) || "1", 10),
@@ -122,13 +90,9 @@ async function main() {
     githubToken: process.env.GITHUB_TOKEN || "local-token",
     githubRepository: process.env.GITHUB_REPOSITORY || "local/preview",
     maxTurns,
-    updatePrDescription: false,
     debug,
     blockingOnly,
   });
-
-  // Swap the GitHub client with a local stub
-  (reviewService as any).githubClient = new LocalGithubClient();
 
   await reviewService.execute();
 }

@@ -2,8 +2,7 @@ import { Agent, run } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
-import { AgentResponse, ModelConfig } from "../types";
-import { parseAgentResponse, resolveLineNumbers } from "../xml-parser";
+import { ModelConfig } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { allTools } from "./tools";
 
@@ -33,26 +32,28 @@ function extractFilesFromDiff(diffText: string): string[] {
  */
 const MAX_DIFF_TOKENS = 80000;
 
-export interface ExistingComment {
-  id?: number;
-  path?: string;
-  line?: number;
-  body?: string;
-  created_at?: string;
+export interface PRContext {
+  repo: string; // owner/repo format
+  prNumber: number;
+  commitSha: string;
 }
 
 /**
  * Reviews an entire PR diff using a single interactive agent.
- * The agent has tools to fetch additional context as needed.
+ * The agent has full autonomy to:
+ * - Fetch additional context via bash/gh CLI
+ * - View existing PR comments
+ * - Post review comments directly
+ * - Update PR description if blank
  */
 export async function reviewFullDiff(
   fullDiff: string,
   modelConfig: ModelConfig,
   repoFilePaths: string[],
-  existingComments: ExistingComment[] = [],
+  prContext: PRContext,
   maxTurns: number = 30,
   blockingOnly: boolean = false,
-): Promise<AgentResponse> {
+): Promise<void> {
   const model = await createModel(modelConfig);
 
   const agent = new Agent({
@@ -72,76 +73,66 @@ export async function reviewFullDiff(
     );
   }
 
-  // Build existing comments context
-  let existingCommentsContext = "";
-  if (existingComments.length > 0) {
-    const contextLines: string[] = [];
-    contextLines.push("<existingComments>");
-    existingComments.forEach((comment) => {
-      if (comment.path && comment.line && comment.body) {
-        contextLines.push(
-          `  <comment id="${String(comment.id || `${comment.path}:${comment.line}`)}" path="${comment.path}" line="${String(comment.line)}" createdAt="${comment.created_at || "unknown"}">`,
-        );
-        contextLines.push(`    ${comment.body}`);
-        contextLines.push(`  </comment>`);
-      }
-    });
-    contextLines.push("</existingComments>");
-    existingCommentsContext = contextLines.join("\n");
-  }
-
   const initialMessage = `
-<reviewRequest>
-  <repositoryFiles>
-    ${fileList}
-  </repositoryFiles>
-  <existingCommentsContext>
-    ${existingCommentsContext}
-  </existingCommentsContext>
-  <fullDiff>
+You are reviewing PR #${prContext.prNumber} in repository ${prContext.repo}.
+Commit SHA: ${prContext.commitSha}
+
+<repositoryFiles>
+${fileList}
+</repositoryFiles>
+
+<fullDiff>
 ${fullDiff}
-  </fullDiff>
+</fullDiff>
 
-  <instruction>
-    Please review this pull request diff. You have the complete diff above.
+<instruction>
+Please review this pull request. You have the complete diff above.
 
-    Use your tools (search_repo, fetch_files, fetch_snippet, dep_graph) to:
-    - Understand how changes integrate with existing code
-    - Verify claims about unused code, missing imports, etc.
-    - Check if changes affect other parts of the codebase
+**Your workflow:**
+1. First, check the PR description: \`gh pr view ${prContext.prNumber}\`
+   - If the description is blank/empty, you'll update it at the end with a summary
+2. Check for existing review comments: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\`
+   - Avoid duplicating existing comments
+   - If an existing comment has been addressed by the code changes, you can resolve it
+3. Review the diff thoroughly using your tools (bash, dep_graph) to:
+   - Understand how changes integrate with existing code
+   - Verify claims about unused code, missing imports, etc.
+   - Check if changes affect other parts of the codebase
+4. Post review comments for any issues you find using:
+   \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
+5. If the PR description was blank, update it:
+   \`gh pr edit ${prContext.prNumber} --body "Your summary"\`
 
-    ${existingComments.length > 0 ? `Pay attention to the ${existingComments.length} existing comments:
-    1. Avoid creating duplicate or similar comments unless you have significantly different insights.
-    2. Analyze whether any existing comments have been addressed by the changes in this diff.
-    3. If you find that an existing comment has been resolved by the code changes, include it in the <resolvedComments> section with a clear explanation of how it was addressed.` : ""}
+**Comment guidelines:**
+${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUST be fixed (security, bugs, breaking changes)" : "- Focus on substantive issues: bugs, security problems, logic errors, significant design concerns\n- Skip minor style nits unless they indicate a real problem"}
+- Be constructive and explain WHY something is an issue
+- Include code suggestions when helpful
 
-    Focus on substantive issues: bugs, security problems, logic errors, and significant design concerns.
-    Skip minor style nits unless they indicate a real problem.
-  </instruction>
-</reviewRequest>`;
+**Important:**
+- The line number in \`-f line=N\` should be the line number in the NEW version of the file (right side of diff)
+- For lines starting with \`+\`, count from the @@ hunk header to find the line number
+- Always use commit_id="${prContext.commitSha}" for inline comments
+</instruction>`;
 
   try {
     const filesInDiff = extractFilesFromDiff(fullDiff);
     debugLog(`Starting full PR review. Diff size: ~${diffTokens} tokens`);
-    debugLog(`Files in context (${filesInDiff.length}): ${filesInDiff.join(", ")}`);
+    debugLog(
+      `Files in context (${filesInDiff.length}): ${filesInDiff.join(", ")}`,
+    );
     debugLog(`Max turns: ${maxTurns}`);
+    debugLog(`PR: ${prContext.repo}#${prContext.prNumber}`);
+
     const result = await run(agent, initialMessage, { maxTurns });
 
     if (result.finalOutput) {
-      debugLog("Agent Raw Response:", result.finalOutput);
-      const response = parseAgentResponse(result.finalOutput as string);
-      const resolvedFindings = resolveLineNumbers(response.findings, fullDiff);
-      return {
-        findings: resolvedFindings,
-        resolvedComments: response.resolvedComments,
-      };
+      debugLog("Agent completed review. Final output:", result.finalOutput);
     } else {
-      debugError("Agent failed to produce a final output.", result);
-      return { findings: [], resolvedComments: [] };
+      debugLog("Agent completed without final output.");
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     debugError("An error occurred while running the agent:", errorMessage);
-    return { findings: [], resolvedComments: [] };
+    throw error;
   }
 }

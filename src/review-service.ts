@@ -2,112 +2,21 @@ import { execSync } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import ignore from "ignore";
 import { resolve } from "path";
-import { ExistingComment, reviewFullDiff } from "./agent";
-import { getGitHubConfig, getModelConfig } from "./config";
-import { isCodePressCommentObject } from "./constants";
+import { PRContext, reviewFullDiff } from "./agent";
+import { getModelConfig } from "./config";
 import { debugLog } from "./debug";
-import { GitHubClient } from "./github-client";
-import type { Finding, ReviewConfig } from "./types";
+import type { ReviewConfig } from "./types";
 
 /**
- * Service class that orchestrates the entire review process.
- * Simplified to use a single agent for the entire PR.
+ * Service class that orchestrates the review process.
+ * The agent now has full autonomy to post comments and update PR description directly via gh CLI.
  */
 export class ReviewService {
   private config: ReviewConfig;
-  private githubClient: GitHubClient;
   private repoFilePaths: string[] = [];
 
   constructor(config: ReviewConfig) {
     this.config = config;
-    const githubConfig = getGitHubConfig();
-    this.githubClient = new GitHubClient(githubConfig);
-  }
-
-  /**
-   * Normalize a message for deduplication by removing paths, numbers, and condensing whitespace.
-   */
-  private normalizeMessage(message: string): string {
-    const lower = message.toLowerCase();
-    const noPaths = lower.replace(/[\w./\\-]+\.[a-z0-9]+/gi, "");
-    const noLineNums = noPaths.replace(/\bline\s*\d+\b/gi, "");
-    const noDigits = noLineNums.replace(/\d+/g, "");
-    return noDigits.replace(/\s+/g, " ").trim();
-  }
-
-  /**
-   * Heuristic: identify messages that assert unused/missing without evidence.
-   * Drop such comments unless they include an "Evidence:" trail.
-   */
-  private passesHeuristicEvidenceGate(f: Finding): boolean {
-    const msg = (f.message || "").toLowerCase();
-    const requiresEvidence =
-      msg.includes("unused") ||
-      msg.includes("not used") ||
-      msg.includes("not referenced") ||
-      msg.includes("dead code") ||
-      msg.includes("missing import") ||
-      msg.includes("missing test");
-    if (!requiresEvidence) return true;
-    const hasEvidence = /\bevidence\s*:/i.test(f.message || "");
-    if (!hasEvidence) {
-      debugLog(
-        `🧪 Evidence gate: dropping comment lacking evidence → ${f.path}:${String(f.line)}`,
-      );
-    }
-    return hasEvidence;
-  }
-
-  /**
-   * Deduplicate findings by normalized message to avoid similar comments.
-   */
-  private deduplicateFindings(findings: Finding[]): Finding[] {
-    const seen = new Map<string, { index: number; count: number }>();
-    const kept: Finding[] = [];
-
-    for (const f of findings) {
-      const key = `${f.severity || ""}::${this.normalizeMessage(f.message)}`;
-      if (!seen.has(key)) {
-        seen.set(key, { index: kept.length, count: 1 });
-        kept.push(f);
-      } else {
-        const rec = seen.get(key);
-        if (rec) rec.count++;
-      }
-    }
-
-    // Annotate messages with cluster sizes > 1
-    for (const { index, count } of seen.values()) {
-      if (count > 1) {
-        const base = kept[index];
-        const suffix = ` (applies to ${count} similar spot${count === 1 ? "" : "s"})`;
-        if (!base.message.includes("applies to")) {
-          base.message = `${base.message}${suffix}`;
-        }
-      }
-    }
-
-    return kept;
-  }
-
-  /**
-   * Filter findings by severity and other criteria.
-   */
-  private filterFindings(findings: Finding[]): Finding[] {
-    return findings.filter((f) => {
-      const sev = (f.severity || "").toLowerCase();
-      // Drop non-actionable notes
-      if (sev === "fyi" || sev === "praise") {
-        debugLog("🔽 Dropping non-actionable note", f.path, f.line);
-        return false;
-      }
-      // Drop findings without valid line numbers
-      if (f.line === null || f.line <= 0) {
-        debugLog("🔽 Dropping finding without valid line", f.path);
-        return false;
-      }
-      return true;
-    });
   }
 
   /**
@@ -124,7 +33,7 @@ export class ReviewService {
   }
 
   /**
-   * Executes the complete review process using a single agent.
+   * Executes the complete review process using a single autonomous agent.
    */
   async execute(): Promise<void> {
     // Get all files in the repo
@@ -142,10 +51,13 @@ export class ReviewService {
       : [];
 
     const { DEFAULT_IGNORE_PATTERNS } = await import("./constants");
-    const allIgnorePatterns = [...DEFAULT_IGNORE_PATTERNS, ...userIgnorePatterns];
+    const allIgnorePatterns = [
+      ...DEFAULT_IGNORE_PATTERNS,
+      ...userIgnorePatterns,
+    ];
     const ig = ignore().add(allIgnorePatterns);
 
-    // Filter the diff to remove ignored files (simple line-based filtering)
+    // Filter the diff to remove ignored files
     const filteredDiff = this.filterDiffByIgnorePatterns(diffText, ig);
 
     if (!filteredDiff.trim()) {
@@ -153,154 +65,41 @@ export class ReviewService {
       return;
     }
 
-    // Get PR info
-    const { commitId } = await this.githubClient.getPRInfo(this.config.pr);
+    // Build PR context for the agent
+    const prContext: PRContext = {
+      repo: this.config.githubRepository,
+      prNumber: this.config.pr,
+      commitSha: process.env.COMMIT_SHA || "",
+    };
 
-    // Fetch existing comments to provide context and avoid duplicates
-    const existingCommentsData = await this.githubClient.getExistingComments(
-      this.config.pr,
-    );
-
-    // Filter to only CodePress bot comments for duplicate checking
-    const botComments = existingCommentsData.filter((comment) =>
-      isCodePressCommentObject(comment),
-    );
-
-    // Build a set of existing comment locations
-    const existingCommentLocations = new Set<string>();
-    for (const comment of botComments as ExistingComment[]) {
-      if (comment.path && comment.line) {
-        existingCommentLocations.add(`${comment.path}:${comment.line}`);
-      }
+    if (!prContext.commitSha) {
+      console.error("COMMIT_SHA not set - agent will not be able to post inline comments");
     }
 
-    // Run the single agent review
-    debugLog("🚀 Starting single-agent PR review...");
+    // Run the autonomous agent review
+    debugLog("🚀 Starting autonomous PR review...");
     const modelConfig = getModelConfig();
 
-    let agentResponse;
     try {
-      agentResponse = await reviewFullDiff(
+      await reviewFullDiff(
         filteredDiff,
         modelConfig,
         this.repoFilePaths,
-        existingCommentsData as ExistingComment[],
+        prContext,
         this.config.maxTurns,
         this.config.blockingOnly,
       );
+      debugLog("✅ Review completed!");
     } catch (error: unknown) {
       const err = error as { message?: string };
       console.error("Review failed:", err?.message || "unknown error");
-      return;
-    }
-
-    let findings = agentResponse.findings;
-    debugLog(`📝 Agent returned ${findings.length} findings`);
-
-    // Update PR description if enabled and agent provided a summary
-    if (this.config.updatePrDescription && agentResponse.prSummary) {
-      debugLog(`📝 Updating PR description with agent summary...`);
-      try {
-        await this.githubClient.updatePRDescription(
-          this.config.pr,
-          agentResponse.prSummary,
-        );
-      } catch (error) {
-        console.error(`Failed to update PR description:`, error);
-      }
-    }
-
-    // Handle resolved comments
-    if (agentResponse.resolvedComments.length > 0) {
-      debugLog(
-        `✅ Found ${agentResponse.resolvedComments.length} comments to resolve`,
-      );
-      for (const resolved of agentResponse.resolvedComments) {
-        try {
-          await this.githubClient.resolveReviewComment(
-            this.config.pr,
-            parseInt(resolved.commentId, 10),
-            resolved.reason,
-          );
-        } catch (error) {
-          console.error(`Failed to resolve comment ${resolved.commentId}:`, error);
-        }
-      }
-    }
-
-    // Filter out findings on lines that already have comments
-    findings = findings.filter((f) => {
-      const key = `${f.path}:${f.line}`;
-      if (existingCommentLocations.has(key)) {
-        debugLog(`🔽 Skipping duplicate comment on ${key}`);
-        return false;
-      }
-      return true;
-    });
-
-    // Apply blocking-only filter if enabled
-    if (this.config.blockingOnly) {
-      const originalCount = findings.length;
-      findings = findings.filter((f) => f.severity === "required");
-      if (originalCount - findings.length > 0) {
-        debugLog(
-          `🔽 Blocking-only mode: Filtered ${originalCount - findings.length} non-blocking comments`,
-        );
-      }
-    }
-
-    // Apply evidence gate
-    findings = findings.filter((f) => this.passesHeuristicEvidenceGate(f));
-
-    // Apply deduplication
-    findings = this.deduplicateFindings(findings);
-
-    // Apply final filters
-    findings = this.filterFindings(findings);
-
-    debugLog(`📊 Final findings count: ${findings.length}`);
-
-    // Create the review
-    if (findings.length > 0) {
-      debugLog(`\n🔍 Creating review with ${findings.length} findings...`);
-
-      try {
-        await this.githubClient.createReview(
-          this.config.pr,
-          commitId,
-          findings,
-          undefined, // No diff summary in simplified flow
-        );
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error("Failed to create review:", errorMessage);
-
-        // Fallback to individual comments
-        debugLog("Attempting to create individual comments as fallback...");
-        for (const finding of findings) {
-          try {
-            await this.githubClient.createReviewComment(
-              this.config.pr,
-              commitId,
-              finding,
-            );
-            debugLog(`✅ Commented on ${finding.path}:${finding.line}`);
-          } catch (e: unknown) {
-            const eMessage = e instanceof Error ? e.message : String(e);
-            console.error(
-              `❌ Failed to comment on ${finding.path}:${finding.line}: ${eMessage}`,
-            );
-          }
-        }
-      }
-    } else {
-      debugLog("🎉 No issues found during review!");
     }
   }
 
   /**
-   * Filters a diff to remove files that match ignore patterns.
+   * Filters a diff to remove entire file blocks that match ignore patterns.
+   * Each file block starts with "diff --git" and includes all headers (index, ---, +++, @@)
+   * and content lines until the next "diff --git" line.
    */
   private filterDiffByIgnorePatterns(
     diffText: string,
@@ -309,10 +108,11 @@ export class ReviewService {
     const lines = diffText.split("\n");
     const filteredLines: string[] = [];
     let currentFile: string | null = null;
-    let includeCurrentFile = true;
+    // Start false to exclude any preamble content before first diff block
+    let includeCurrentFile = false;
 
     for (const line of lines) {
-      // Check for file header
+      // Check for file header - this starts a new diff block
       const fileMatch = line.match(/^diff --git a\/(.+?) b\//);
       if (fileMatch) {
         currentFile = fileMatch[1];
@@ -323,7 +123,8 @@ export class ReviewService {
         continue;
       }
 
-      // Include line if current file is not ignored
+      // Include line if current file block is not ignored
+      // This includes all headers (index, ---, +++, @@) and content lines
       if (includeCurrentFile) {
         filteredLines.push(line);
       }
