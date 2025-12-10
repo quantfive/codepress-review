@@ -1,14 +1,9 @@
 import { Octokit } from "@octokit/rest";
-import type {
-  Finding,
-  GitHubConfig,
-  DiffSummary,
-  ReviewDecision,
-  ModelConfig,
-} from "./types";
-import { summarizeFindings } from "./ai-client";
+import type { Finding, GitHubConfig, DiffSummary } from "./types";
 import { CODEPRESS_REVIEW_TAG } from "./constants";
-import { debugLog, debugWarn } from "./debug";
+import { debugLog } from "./debug";
+
+type ReviewDecision = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
 
 /**
  * Formats a finding into a GitHub comment with appropriate styling.
@@ -220,11 +215,9 @@ export class GitHubClient {
   private octokit: Octokit;
   private config: GitHubConfig;
   private rateLimitHandler: GitHubRateLimitHandler;
-  private modelConfig: ModelConfig;
 
-  constructor(config: GitHubConfig, modelConfig: ModelConfig) {
+  constructor(config: GitHubConfig) {
     this.config = config;
-    this.modelConfig = modelConfig;
     this.octokit = new Octokit({ auth: config.token });
     this.rateLimitHandler = new GitHubRateLimitHandler();
   }
@@ -475,78 +468,40 @@ export class GitHubClient {
       }
     }
 
-    // Get LLM summaries for each section
-    let findingSummaries: {
-      praiseSummary?: string;
-      requiredSummary?: string;
-      othersSummary?: string;
-    } = {};
-
-    // Only call LLM if there are findings to summarize
-    if (praise.length > 0 || required.length > 0 || others.length > 0) {
-      try {
-        findingSummaries = await summarizeFindings(
-          required,
-          optional,
-          nit,
-          fyi,
-          praise,
-          this.modelConfig,
-        );
-      } catch (error) {
-        debugWarn(
-          "Failed to generate finding summaries, falling back to detailed list:",
-          error,
-        );
-      }
-    }
-
-    // Add praise section with summary or fallback to detailed list
+    // Add praise section
     if (praise.length > 0) {
       summaryParts.push("### 👍 What's working well");
-      if (findingSummaries.praiseSummary) {
-        summaryParts.push(findingSummaries.praiseSummary);
-      } else {
-        praise.forEach((finding) => {
-          summaryParts.push(`• ${finding.message}`);
-        });
-      }
+      praise.forEach((finding) => {
+        summaryParts.push(`• ${finding.message}`);
+      });
       summaryParts.push("");
     }
 
-    // Add required issues section with summary or fallback to detailed list
+    // Add required issues section
     if (required.length > 0) {
       summaryParts.push("### 🚧 Needs a bit of love");
-      if (findingSummaries.requiredSummary) {
-        summaryParts.push(findingSummaries.requiredSummary);
-      } else {
-        required.forEach((finding) => {
-          summaryParts.push(
-            `• **${finding.path}:${finding.line}** - ${finding.message}`,
-          );
-        });
-      }
+      required.forEach((finding) => {
+        summaryParts.push(
+          `• **${finding.path}:${finding.line}** - ${finding.message}`,
+        );
+      });
       summaryParts.push("");
     }
 
-    // Add other thoughts section with summary or fallback to detailed list
+    // Add other thoughts section
     if (others.length > 0) {
       summaryParts.push("### ℹ️ Other thoughts");
-      if (findingSummaries.othersSummary) {
-        summaryParts.push(findingSummaries.othersSummary);
-      } else {
-        others.forEach((finding) => {
-          const severityEmoji =
-            finding.severity === "optional"
-              ? "🟡"
-              : finding.severity === "nit"
-                ? "🔵"
-                : "ℹ️";
-          summaryParts.push(
-            `• ${severityEmoji} **${finding.path}:${finding.line}** - ${finding.message}`,
-          );
-        });
-      }
+      others.forEach((finding) => {
+        const severityEmoji =
+          finding.severity === "optional"
+            ? "🟡"
+            : finding.severity === "nit"
+              ? "🔵"
+              : "ℹ️";
+        summaryParts.push(
+          `• ${severityEmoji} **${finding.path}:${finding.line}** - ${finding.message}`,
+        );
+      });
       summaryParts.push("");
     }
 

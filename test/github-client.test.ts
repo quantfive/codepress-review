@@ -1,5 +1,5 @@
 import { GitHubClient } from "../src/github-client";
-import { GitHubConfig, ModelConfig } from "../src/types";
+import { GitHubConfig } from "../src/types";
 import { Octokit } from "@octokit/rest";
 import { CODEPRESS_REVIEW_TAG } from "../src/constants";
 
@@ -24,18 +24,12 @@ describe("GitHubClient", () => {
     token: "test-token",
   };
 
-  const modelConfig: ModelConfig = {
-    provider: "openai",
-    modelName: "gpt-4",
-    apiKey: "test-key",
-  };
-
   beforeEach(() => {
     // Reset mocks before each test
     jest.clearAllMocks();
 
     // Create a new client instance for each test
-    client = new GitHubClient(githubConfig, modelConfig);
+    client = new GitHubClient(githubConfig);
 
     // Get a reference to the mocked octokit instance used by the client
     mockOctokit = (client as any).octokit;

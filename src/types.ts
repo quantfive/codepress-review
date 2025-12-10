@@ -21,7 +21,7 @@ export interface ReviewConfig {
 }
 
 export interface ModelConfig {
-  provider: string; // Support any provider
+  provider: string;
   modelName: string;
   apiKey: string;
 }
@@ -43,58 +43,11 @@ export interface FileLineMap {
   };
 }
 
-export type PRType =
-  | "feature"
-  | "bugfix"
-  | "refactor"
-  | "docs"
-  | "test"
-  | "chore"
-  | "dependency-bump"
-  | "mixed";
-
-export type RiskTag = "SEC" | "PERF" | "ARCH" | "TEST" | "STYLE" | "DEP";
-
-export interface RiskItem {
-  tag: RiskTag;
-  description: string;
-}
-
-export interface IssueItem {
-  severity: string;
-  kind: string;
-  description: string;
-}
-
-export interface HunkSummary {
-  index: number;
-  file: string;
-  overview: string;
-  risks: RiskItem[]; // Keep for backward compatibility with keyRisks
-  issues: IssueItem[]; // New format for hunk-level issues
-  tests: string[];
-}
-
-export type ReviewDecision = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
-
-export interface DiffSummary {
-  prType: PRType;
-  summaryPoints: string[];
-  keyRisks: RiskItem[];
-  hunks: HunkSummary[];
-  decision: {
-    recommendation: ReviewDecision;
-    reasoning: string;
-  };
-  prDescription?: string;
-  plan: DiffPlan;
-}
-
 export interface ResolvedComment {
   commentId: string;
   path: string;
   line: number;
-  reason: string; // Why this comment is considered resolved
+  reason: string;
 }
 
 export interface AgentResponse {
@@ -102,39 +55,11 @@ export interface AgentResponse {
   resolvedComments: ResolvedComment[];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Planner types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type RiskLevel = "low" | "medium" | "high" | "critical";
-
-export interface PlannerAction {
-  tool: "search_repo" | "fetch_snippet" | "fetch_files" | "dep_graph";
-  goal: string;
-  params?: Record<string, string | number | boolean | string[]>;
-}
-
-export interface HunkPlan {
-  index: number;
-  riskLevel?: RiskLevel;
-  priority?: number; // lower = earlier
-  maxTurns?: number;
-  toolBudget?: number;
-  skip?: boolean;
-  focus?: string[]; // e.g., ["imports","types"]
-  evidenceRequired?: boolean;
-  actions?: PlannerAction[];
-}
-
-export interface DiffPlan {
-  globalBudget?: {
-    required?: number;
-    optional?: number;
-    nit?: number;
-    maxHunks?: number;
-    defaultMaxTurns?: number;
-    sequentialTop?: number;
-    maxConcurrentHunks?: number;
+// DiffSummary is kept for backward compatibility with GitHubClient
+// but most fields are now optional/unused
+export interface DiffSummary {
+  decision?: {
+    recommendation: "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
+    reasoning: string;
   };
-  hunkPlans: HunkPlan[];
 }
