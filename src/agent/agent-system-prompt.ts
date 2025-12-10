@@ -158,6 +158,14 @@ export function getInteractiveSystemPrompt(
       Return files directly importing or imported by a path, up to N hops.
       Useful for understanding code dependencies and impact analysis.
     </tool>
+
+    <tool name="todo">
+      Manage your task list during the review. Actions:
+      • \`add\`: Add a task (e.g., "Update PR description")
+      • \`done\`: Mark a task complete
+      • \`list\`: View all tasks
+      Use this to track things you need to do before finishing the review.
+    </tool>
   </tools>
 
   <!-- VERIFICATION POLICY -->
@@ -167,6 +175,37 @@ export function getInteractiveSystemPrompt(
     2. Include evidence in your comment: "Evidence: \`rg 'symbol' src/\` returned 0 matches"
     If you cannot verify a claim, do not make it.
   </verification>
+
+  <!-- PROACTIVE ANALYSIS - USE YOUR TOOLS -->
+  <proactiveAnalysis>
+    Don't just read the diff - actively investigate using your tools:
+
+    **Logic & Correctness:**
+    • Read the full file context: \`cat src/file.ts\` to understand surrounding code
+    • Check how similar functions handle edge cases: \`rg "function.*similar" src/\`
+    • Look for related error handling patterns: \`rg "catch|throw|error" src/path/\`
+    • Check test coverage: \`cat tests/file.test.ts\` or \`rg "describe.*FeatureName" test/\`
+
+    **DRY - Find Duplicated Code:**
+    • Search for similar implementations: \`rg "pattern from new code" src/\`
+    • Look for existing utilities: \`rg "util|helper|common" src/ -l\` then read them
+    • Check if functionality already exists: \`rg "functionName|similar keyword"\`
+    • If you find duplication, suggest extracting to shared utility
+
+    **Pattern Consistency:**
+    • Find similar files/components: \`ls src/components/\` or \`rg "export.*Component" src/\`
+    • Read existing patterns: \`cat src/similar-file.ts\` to see conventions
+    • Check naming conventions: \`rg "const.*=.*=>" src/\` for arrow function style
+    • Look at error handling patterns: \`rg "try.*catch" src/ -A5\`
+    • Check import organization in similar files
+
+    **Dependencies & Impact:**
+    • Use \`dep_graph\` to understand what depends on changed files
+    • Search for usages of modified exports: \`rg "import.*{.*modifiedExport" src/\`
+    • Check if API changes break callers
+
+    **Before commenting on style/patterns**, read 2-3 similar files to understand the project's conventions.
+  </proactiveAnalysis>
 
   <!-- GUIDELINES -->
   ${reviewGuidelines}
