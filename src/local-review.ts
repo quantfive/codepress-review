@@ -12,9 +12,9 @@ import { setDebugMode } from "./debug";
  * - Calls the full ReviewService pipeline (summary + per-hunk agent)
  *
  * Usage examples:
- *   MODEL_PROVIDER=openai MODEL_NAME=gpt-4o-mini OPENAI_API_KEY=sk-... pnpm local:review
- *   MODEL_PROVIDER=openai MODEL_NAME=gpt-4o-mini OPENAI_API_KEY=sk-... pnpm local:review --blocking-only --max-turns 6
- *   MODEL_PROVIDER=openai MODEL_NAME=gpt-4o-mini OPENAI_API_KEY=sk-... pnpm local:review --diff /absolute/path/to/your.diff
+ *   MODEL_PROVIDER=openai MODEL_NAME=gpt-5.1 OPENAI_API_KEY=sk-... pnpm local:review
+ *   MODEL_PROVIDER=anthropic MODEL_NAME=claude-sonnet-4-5 ANTHROPIC_API_KEY=sk-... pnpm local:review --blocking-only --max-turns 6
+ *   MODEL_PROVIDER=openai MODEL_NAME=gpt-5.1 OPENAI_API_KEY=sk-... pnpm local:review --diff /absolute/path/to/your.diff
  */
 
 function parseArgs(argv: string[]) {

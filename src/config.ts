@@ -47,23 +47,52 @@ export function getModelConfig(): ModelConfig {
     throw new Error("MODEL_PROVIDER and MODEL_NAME are required");
   }
 
+  // Get reasoning/thinking configuration
+  const reasoningEffort = process.env.REASONING_EFFORT as
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | undefined;
+  const anthropicEffort = process.env.ANTHROPIC_EFFORT as
+    | "low"
+    | "medium"
+    | "high"
+    | undefined;
+  const thinkingEnabled =
+    process.env.THINKING_ENABLED?.toLowerCase() === "true";
+  const thinkingBudget = parseInt(process.env.THINKING_BUDGET || "10000", 10);
+
+  // Build thinking config if enabled
+  const thinking = thinkingEnabled
+    ? { type: "enabled" as const, budgetTokens: thinkingBudget }
+    : undefined;
+
   // Get the expected environment variable name for this provider
   const envVarName = PROVIDER_API_KEY_MAP[provider.toLowerCase()];
-  
+
   if (!envVarName) {
     // For unknown providers, try the pattern PROVIDER_API_KEY
     const fallbackEnvVar = `${provider.toUpperCase()}_API_KEY`;
     const apiKey = process.env[fallbackEnvVar];
-    
+
     if (!apiKey) {
       const supportedProviders = Object.keys(PROVIDER_API_KEY_MAP).join(", ");
       throw new Error(
         `Unknown provider "${provider}". Supported providers: ${supportedProviders}. ` +
-        `For unknown providers, set ${fallbackEnvVar} environment variable.`
+          `For unknown providers, set ${fallbackEnvVar} environment variable.`,
       );
     }
-    
-    return { provider, modelName, apiKey };
+
+    return {
+      provider,
+      modelName,
+      apiKey,
+      reasoningEffort: reasoningEffort || undefined,
+      effort: anthropicEffort || undefined,
+      thinking,
+    };
   }
 
   // Use the mapped environment variable name
@@ -72,7 +101,14 @@ export function getModelConfig(): ModelConfig {
     throw new Error(`${envVarName} is required for provider "${provider}"`);
   }
 
-  return { provider, modelName, apiKey };
+  return {
+    provider,
+    modelName,
+    apiKey,
+    reasoningEffort: reasoningEffort || undefined,
+    effort: anthropicEffort || undefined,
+    thinking,
+  };
 }
 
 export function getGitHubConfig(): GitHubConfig {

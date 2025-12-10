@@ -117,35 +117,98 @@ const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
 };
 
 /**
+ * Validates reasoning effort configuration.
+ * 'none' is only valid for GPT-5.1 models.
+ */
+function validateReasoningEffort(
+  modelName: string,
+  reasoningEffort: string | undefined,
+): void {
+  if (reasoningEffort === "none") {
+    const isGpt51 = modelName.toLowerCase().includes("gpt-5.1");
+    if (!isGpt51) {
+      throw new Error(
+        `reasoningEffort 'none' is only available for GPT-5.1 models. ` +
+          `Current model: ${modelName}. Use 'minimal', 'low', 'medium', or 'high' instead.`,
+      );
+    }
+  }
+}
+
+/**
+ * Builds model settings based on provider and config options.
+ */
+function buildModelSettings(config: ModelConfig): Record<string, unknown> {
+  const provider = config.provider.toLowerCase();
+  const settings: Record<string, unknown> = {};
+
+  // OpenAI reasoning effort
+  if (
+    (provider === "openai" || provider === "openai-compatible") &&
+    config.reasoningEffort
+  ) {
+    validateReasoningEffort(config.modelName, config.reasoningEffort);
+    settings.reasoningEffort = config.reasoningEffort;
+  }
+
+  // Anthropic provider options
+  if (provider === "anthropic") {
+    const anthropicOptions: Record<string, unknown> = {};
+
+    // Effort option (for claude-opus-4-5)
+    if (config.effort) {
+      anthropicOptions.effort = config.effort;
+    }
+
+    // Thinking configuration (for opus/sonnet models)
+    if (config.thinking?.type === "enabled") {
+      anthropicOptions.thinking = {
+        type: "enabled",
+        budgetTokens: config.thinking.budgetTokens || 10000,
+      };
+    }
+
+    if (Object.keys(anthropicOptions).length > 0) {
+      settings.providerOptions = {
+        anthropic: anthropicOptions,
+      };
+    }
+  }
+
+  return settings;
+}
+
+/**
  * Creates the appropriate AI model based on configuration.
  * Caches model instances to avoid recreating them.
  */
 export async function createModel(config: ModelConfig) {
-  const key = `${config.provider}-${config.modelName}`;
+  const key = `${config.provider}-${config.modelName}-${config.reasoningEffort || ""}-${config.effort || ""}-${config.thinking?.type || ""}`;
   if (modelMap.has(key)) {
     return modelMap.get(key);
   }
 
   const providerConfig = PROVIDER_CONFIGS[config.provider.toLowerCase()];
-  
+
   if (!providerConfig) {
     throw new Error(
       `Unsupported MODEL_PROVIDER: ${config.provider}. ` +
-      `Supported providers: ${Object.keys(PROVIDER_CONFIGS).join(", ")}`
+        `Supported providers: ${Object.keys(PROVIDER_CONFIGS).join(", ")}`,
     );
   }
 
   try {
     const providerInstance = providerConfig.createFn({ apiKey: config.apiKey });
-    const model = providerInstance(config.modelName);
-    
+    const modelSettings = buildModelSettings(config);
+    const model = providerInstance(config.modelName, modelSettings);
+
     modelMap.set(key, model);
     return model;
   } catch (error: any) {
     if (error.code === "MODULE_NOT_FOUND") {
       throw new Error(
         `Provider SDK not installed: ${providerConfig.packageName}. ` +
-        `Install with: npm install ${providerConfig.packageName}`
+          `Install with: npm install ${providerConfig.packageName}`,
       );
     }
     throw error;

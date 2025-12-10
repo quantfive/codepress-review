@@ -130,6 +130,12 @@ async function run(): Promise<void> {
     const openaiCompatibleBaseUrl = core.getInput("openai_compatible_base_url");
     const ollamaBaseUrl = core.getInput("ollama_base_url");
 
+    // Get reasoning/thinking configuration
+    const reasoningEffort = core.getInput("reasoning_effort");
+    const anthropicEffort = core.getInput("anthropic_effort");
+    const thinkingEnabled = core.getInput("thinking_enabled");
+    const thinkingBudget = core.getInput("thinking_budget");
+
     // Handle max_turns input
     const maxTurns = core.getInput("max_turns");
 
@@ -221,6 +227,13 @@ async function run(): Promise<void> {
     // Set base URLs for self-hosted endpoints
     process.env.OPENAI_COMPATIBLE_BASE_URL = openaiCompatibleBaseUrl;
     process.env.OLLAMA_BASE_URL = ollamaBaseUrl;
+
+    // Set reasoning/thinking configuration
+    process.env.REASONING_EFFORT = reasoningEffort;
+    process.env.ANTHROPIC_EFFORT = anthropicEffort;
+    process.env.THINKING_ENABLED = thinkingEnabled;
+    process.env.THINKING_BUDGET = thinkingBudget;
+
     process.env.MAX_TURNS = maxTurns;
     process.env.UPDATE_PR_DESCRIPTION = updatePrDescription.toString();
     process.env.DEBUG = debug.toString();
