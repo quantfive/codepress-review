@@ -27,7 +27,12 @@ export class ReviewService {
       const files = execSync("git ls-files", { encoding: "utf-8" });
       return files.split("\n").filter((p) => p);
     } catch (error) {
-      console.error("Failed to list repository files with git:", error);
+      console.warn(
+        "⚠️  WARNING: Repository not checked out - agent will have limited context.\n" +
+          "   The agent cannot read files or search code beyond the diff.\n" +
+          "   To fix this, add 'actions/checkout@v4' before the CodePress Review step in your workflow.\n" +
+          "   See: https://github.com/quantfive/codepress-review#quick-start\n",
+      );
       return [];
     }
   }

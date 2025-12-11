@@ -40,6 +40,12 @@ jobs:
   ai-review:
     runs-on: ubuntu-latest
     steps:
+      # Required: Checkout the repository for full code context
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: CodePress Review
         uses: quantfive/codepress-review@v4
         with:
@@ -50,6 +56,8 @@ jobs:
           # All trigger configurations use sensible defaults
           # + synchronize event runs automatically when included in workflow
 ```
+
+> **Important:** The `actions/checkout` step is required for CodePress v4 to access the full repository context. Without it, the agent cannot read files or search code beyond the diff.
 
 ## Configuration
 
