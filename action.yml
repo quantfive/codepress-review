@@ -1,0 +1,149 @@
+name: "CodePress Review"
+description: "Automatic code review using AI models (OpenAI, Anthropic, Google, etc.) with inline PR comments"
+author: "@quantfive"
+
+branding:
+  icon: "git-pull-request"
+  color: "green"
+
+inputs:
+  github_token:
+    description: "GitHub token for API access"
+    required: true
+    default: ${{ github.token }}
+
+  model_provider:
+    description: "AI model provider (openai, anthropic, gemini, cohere, mistral, perplexity, fireworks, groq, xai, deepseek, openai-compatible, ollama, etc.)"
+    required: true
+    default: "openai"
+
+  model_name:
+    description: "AI model name (e.g., gpt-5.1, gpt-5.1-codex, claude-sonnet-4-5, claude-opus-4-5,gemini-2.5-flash, command-r-plus, etc.)"
+    required: true
+    default: "gpt-5.1"
+
+  openai_api_key:
+    description: "OpenAI API key (required if using OpenAI)"
+    required: false
+
+  anthropic_api_key:
+    description: "Anthropic API key (required if using Anthropic)"
+    required: false
+
+  gemini_api_key:
+    description: "Google Gemini API key (required if using Gemini/Google)"
+    required: false
+
+  cohere_api_key:
+    description: "Cohere API key (required if using Cohere)"
+    required: false
+
+  mistral_api_key:
+    description: "Mistral API key (required if using Mistral)"
+    required: false
+
+  perplexity_api_key:
+    description: "Perplexity API key (required if using Perplexity)"
+    required: false
+
+  fireworks_api_key:
+    description: "Fireworks API key (required if using Fireworks)"
+    required: false
+
+  groq_api_key:
+    description: "Groq API key (required if using Groq)"
+    required: false
+
+  xai_api_key:
+    description: "xAI API key (required if using xAI)"
+    required: false
+
+  deepseek_api_key:
+    description: "DeepSeek API key (required if using DeepSeek)"
+    required: false
+
+  openai_compatible_api_key:
+    description: "API key for OpenAI-compatible endpoints (required if using openai-compatible provider)"
+    required: false
+
+  openai_compatible_base_url:
+    description: "Base URL for OpenAI-compatible endpoints (required if using openai-compatible provider)"
+    required: false
+
+  ollama_api_key:
+    description: "Ollama API key (optional, often not needed for local Ollama instances)"
+    required: false
+
+  ollama_base_url:
+    description: "Ollama base URL (defaults to http://localhost:11434/v1)"
+    required: false
+
+  reasoning_effort:
+    description: "OpenAI reasoning effort level (none, minimal, low, medium, high). 'none' is only for GPT-5.1 models."
+    required: false
+    default: ""
+
+  anthropic_effort:
+    description: "Anthropic effort level (low, medium, high). Only for claude-opus-4-5. Affects thinking, text responses, and function calls."
+    required: false
+    default: ""
+
+  thinking_enabled:
+    description: "Enable Anthropic extended thinking (true/false). Only for Claude claude-opus-4-5, claude-sonnet-4-5, claude-3-7-sonnet models."
+    required: false
+    default: "false"
+
+  thinking_budget:
+    description: "Token budget for Anthropic extended thinking (e.g., 10000, 20000). Only used when thinking_enabled is true."
+    required: false
+    default: "10000"
+
+  max_turns:
+    description: "Maximum number of turns for the interactive agent"
+    required: false
+    default: "50"
+
+  update_pr_description:
+    description: "Whether to update the PR description with AI-generated summary (true/false)"
+    required: false
+    default: "true"
+
+  debug:
+    description: "Enable debug mode to show detailed console logs (true/false)"
+    required: false
+    default: "false"
+
+  # Trigger configuration inputs
+  run_on_pr_opened:
+    description: "Run review when PR is opened (true/false)"
+    required: false
+    default: "true"
+
+  run_on_pr_reopened:
+    description: "Run review when PR is reopened (true/false)"
+    required: false
+    default: "true"
+
+  run_on_review_requested:
+    description: "Run review when re-review is requested from github-actions[bot] (true/false)"
+    required: false
+    default: "true"
+
+  run_on_comment_trigger:
+    description: "Run review when comments contain trigger phrase (true/false)"
+    required: false
+    default: "true"
+
+  comment_trigger_phrase:
+    description: "Phrase that triggers review in comments (e.g., '@codepress/review')"
+    required: false
+    default: "@codepress/review"
+
+  blocking_only:
+    description: "Only output blocking/required comments, filter out optional/nit/fyi/praise comments (true/false)"
+    required: false
+    default: "false"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
