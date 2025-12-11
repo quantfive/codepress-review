@@ -40,7 +40,6 @@ jobs:
   ai-review:
     runs-on: ubuntu-latest
     steps:
-      # Required: Checkout the repository for full code context
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -82,38 +81,38 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ### Input Parameters
 
-| Input                        | Required | Default               | Description                                                   |
-| ---------------------------- | -------- | --------------------- | ------------------------------------------------------------- |
-| `github_token`               | ✅       | `${{ github.token }}` | GitHub token for API access                                   |
-| `model_provider`             | ✅       | `openai`              | AI provider (see [Supported Providers](#supported-providers)) |
-| `model_name`                 | ✅       | `gpt-5.1`             | Model name (see examples below)                               |
-| `openai_api_key`             | ⚠️       |                       | Required if using OpenAI                                      |
-| `anthropic_api_key`          | ⚠️       |                       | Required if using Anthropic                                   |
-| `gemini_api_key`             | ⚠️       |                       | Required if using Google/Gemini                               |
-| `cohere_api_key`             | ⚠️       |                       | Required if using Cohere                                      |
-| `mistral_api_key`            | ⚠️       |                       | Required if using Mistral                                     |
-| `perplexity_api_key`         | ⚠️       |                       | Required if using Perplexity                                  |
-| `fireworks_api_key`          | ⚠️       |                       | Required if using Fireworks                                   |
-| `groq_api_key`               | ⚠️       |                       | Required if using Groq                                        |
-| `xai_api_key`                | ⚠️       |                       | Required if using xAI                                         |
-| `deepseek_api_key`           | ⚠️       |                       | Required if using DeepSeek                                    |
-| `openai_compatible_api_key`  | ⚠️       |                       | Required if using OpenAI-compatible provider                  |
-| `openai_compatible_base_url` | ⚠️       |                       | Required if using OpenAI-compatible provider                  |
-| `ollama_api_key`             | ❌       |                       | API key for Ollama (optional, often not needed)               |
-| `ollama_base_url`            | ❌       | `localhost:11434/v1`  | Base URL for Ollama instance                                  |
-| `reasoning_effort`           | ❌       |                       | OpenAI reasoning effort: `none`, `minimal`, `low`, `medium`, `high` |
-| `anthropic_effort`           | ❌       |                       | Anthropic effort level: `low`, `medium`, `high` (claude-opus-4-5 only) |
+| Input                        | Required | Default               | Description                                                             |
+| ---------------------------- | -------- | --------------------- | ----------------------------------------------------------------------- |
+| `github_token`               | ✅       | `${{ github.token }}` | GitHub token for API access                                             |
+| `model_provider`             | ✅       | `openai`              | AI provider (see [Supported Providers](#supported-providers))           |
+| `model_name`                 | ✅       | `gpt-5.1`             | Model name (see examples below)                                         |
+| `openai_api_key`             | ⚠️       |                       | Required if using OpenAI                                                |
+| `anthropic_api_key`          | ⚠️       |                       | Required if using Anthropic                                             |
+| `gemini_api_key`             | ⚠️       |                       | Required if using Google/Gemini                                         |
+| `cohere_api_key`             | ⚠️       |                       | Required if using Cohere                                                |
+| `mistral_api_key`            | ⚠️       |                       | Required if using Mistral                                               |
+| `perplexity_api_key`         | ⚠️       |                       | Required if using Perplexity                                            |
+| `fireworks_api_key`          | ⚠️       |                       | Required if using Fireworks                                             |
+| `groq_api_key`               | ⚠️       |                       | Required if using Groq                                                  |
+| `xai_api_key`                | ⚠️       |                       | Required if using xAI                                                   |
+| `deepseek_api_key`           | ⚠️       |                       | Required if using DeepSeek                                              |
+| `openai_compatible_api_key`  | ⚠️       |                       | Required if using OpenAI-compatible provider                            |
+| `openai_compatible_base_url` | ⚠️       |                       | Required if using OpenAI-compatible provider                            |
+| `ollama_api_key`             | ❌       |                       | API key for Ollama (optional, often not needed)                         |
+| `ollama_base_url`            | ❌       | `localhost:11434/v1`  | Base URL for Ollama instance                                            |
+| `reasoning_effort`           | ❌       |                       | OpenAI reasoning effort: `none`, `minimal`, `low`, `medium`, `high`     |
+| `anthropic_effort`           | ❌       |                       | Anthropic effort level: `low`, `medium`, `high` (claude-opus-4-5 only)  |
 | `thinking_enabled`           | ❌       | `false`               | Enable Anthropic extended thinking (claude-opus-4-5, claude-sonnet-4-5) |
-| `thinking_budget`            | ❌       | `10000`               | Token budget for Anthropic extended thinking                  |
-| `max_turns`                  | ❌       | `50`                  | Maximum turns for autonomous agent review                     |
-| `update_pr_description`      | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                   |
-| `blocking_only`              | ❌       | `false`               | Only generate comments for critical/blocking issues           |
-| `debug`                      | ❌       | `false`               | Enable debug mode for detailed console logs                   |
-| `run_on_pr_opened`           | ❌       | `true`                | Run review when PR is opened                                  |
-| `run_on_pr_reopened`         | ❌       | `true`                | Run review when PR is reopened                                |
-| `run_on_review_requested`    | ❌       | `true`                | Run review when re-review requested from github-actions[bot]  |
-| `run_on_comment_trigger`     | ❌       | `true`                | Run review when comments contain trigger phrase               |
-| `comment_trigger_phrase`     | ❌       | `"@codepress/review"` | Phrase that triggers review in comments                       |
+| `thinking_budget`            | ❌       | `10000`               | Token budget for Anthropic extended thinking                            |
+| `max_turns`                  | ❌       | `50`                  | Maximum turns for autonomous agent review                               |
+| `update_pr_description`      | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                             |
+| `blocking_only`              | ❌       | `false`               | Only generate comments for critical/blocking issues                     |
+| `debug`                      | ❌       | `false`               | Enable debug mode for detailed console logs                             |
+| `run_on_pr_opened`           | ❌       | `true`                | Run review when PR is opened                                            |
+| `run_on_pr_reopened`         | ❌       | `true`                | Run review when PR is reopened                                          |
+| `run_on_review_requested`    | ❌       | `true`                | Run review when re-review requested from github-actions[bot]            |
+| `run_on_comment_trigger`     | ❌       | `true`                | Run review when comments contain trigger phrase                         |
+| `comment_trigger_phrase`     | ❌       | `"@codepress/review"` | Phrase that triggers review in comments                                 |
 
 ## Triggering Reviews
 
@@ -217,18 +216,18 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ### Cloud Providers
 
-| Provider       | Models Available                                             | Notes                         |
-| -------------- | ------------------------------------------------------------ | ----------------------------- |
-| **OpenAI**     | `gpt-5.1`, `gpt-5.1-mini`, `o3`, `o4-mini`                   | Most popular, reliable        |
-| **Anthropic**  | `claude-sonnet-4-5`, `claude-opus-4-5`                       | Excellent for code review     |
-| **Google**     | `gemini-2.5-pro`, `gemini-2.5-flash`                         | Fast and cost-effective       |
-| **Cohere**     | `command-r-plus`, `command-r`                                | Strong reasoning capabilities |
-| **Mistral**    | `mistral-large-latest`, `mistral-small-latest`               | European AI alternative       |
-| **Perplexity** | `llama-3.1-sonar-large-128k-online`                          | Web-connected models          |
-| **Fireworks**  | `llama-v3p1-70b-instruct`, `mixtral-8x7b-instruct`           | Fast inference                |
-| **Groq**       | `llama-3.1-70b-versatile`, `mixtral-8x7b-32768`              | Ultra-fast inference          |
-| **xAI**        | `grok-beta`                                                  | Elon Musk's AI company        |
-| **DeepSeek**   | `deepseek-chat`, `deepseek-coder`                            | Specialized coding models     |
+| Provider       | Models Available                                   | Notes                         |
+| -------------- | -------------------------------------------------- | ----------------------------- |
+| **OpenAI**     | `gpt-5.1`, `gpt-5.1-mini`, `o3`, `o4-mini`         | Most popular, reliable        |
+| **Anthropic**  | `claude-sonnet-4-5`, `claude-opus-4-5`             | Excellent for code review     |
+| **Google**     | `gemini-2.5-pro`, `gemini-2.5-flash`               | Fast and cost-effective       |
+| **Cohere**     | `command-r-plus`, `command-r`                      | Strong reasoning capabilities |
+| **Mistral**    | `mistral-large-latest`, `mistral-small-latest`     | European AI alternative       |
+| **Perplexity** | `llama-3.1-sonar-large-128k-online`                | Web-connected models          |
+| **Fireworks**  | `llama-v3p1-70b-instruct`, `mixtral-8x7b-instruct` | Fast inference                |
+| **Groq**       | `llama-3.1-70b-versatile`, `mixtral-8x7b-32768`    | Ultra-fast inference          |
+| **xAI**        | `grok-beta`                                        | Elon Musk's AI company        |
+| **DeepSeek**   | `deepseek-chat`, `deepseek-coder`                  | Specialized coding models     |
 
 ### Self-Hosted Options
 
@@ -419,7 +418,7 @@ For OpenAI models that support reasoning (like o3, o4-mini), you can control the
     model_provider: "openai"
     model_name: "o4-mini"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-    reasoning_effort: "high"  # none, minimal, low, medium, high
+    reasoning_effort: "high" # none, minimal, low, medium, high
 ```
 
 ### Anthropic with Extended Thinking
@@ -435,7 +434,7 @@ For Anthropic Claude models, you can enable extended thinking for deeper analysi
     model_name: "claude-sonnet-4-5"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     thinking_enabled: true
-    thinking_budget: 20000  # Token budget for thinking
+    thinking_budget: 20000 # Token budget for thinking
 ```
 
 ### Anthropic with Effort Control
@@ -450,7 +449,7 @@ For claude-opus-4-5, you can control the overall effort level:
     model_provider: "anthropic"
     model_name: "claude-opus-4-5"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-    anthropic_effort: "high"  # low, medium, high
+    anthropic_effort: "high" # low, medium, high
 ```
 
 ### Blocking-Only Mode (Critical Issues Only)
