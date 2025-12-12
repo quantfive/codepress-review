@@ -1,5 +1,5 @@
 
-<img width="219" height="92" alt="codepress-black" src="https://github.com/user-attachments/assets/3e0a82a0-d8da-4d2a-8c22-738ebc546952" />
+<img width="593" height="346" alt="white-background-logo (1)" src="https://github.com/user-attachments/assets/472fa3a5-3f0d-4c15-965a-d2b9401e9713" />
 
 # CodePress Review
 
