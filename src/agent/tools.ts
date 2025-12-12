@@ -1019,6 +1019,7 @@ export const todoTool = tool({
   name: "todo",
   description: `Manage your task list during the review. Use this to:
 - Add tasks you need to complete (e.g., "Update PR description - it was blank")
+- Add multiple tasks at once using the 'tasks' array parameter
 - Mark tasks as done when completed
 - View remaining tasks to ensure nothing is forgotten
 
@@ -1030,12 +1031,27 @@ This helps you stay organized and not forget important steps.`,
     task: z
       .string()
       .optional()
-      .describe("Task description (required for 'add' and 'done' actions)"),
+      .describe("Task description (for 'add' single task or 'done' actions)"),
+    tasks: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Array of task descriptions (for 'add' action to add multiple tasks at once)",
+      ),
   }),
-  execute: async ({ action, task }) => {
+  execute: async ({ action, task, tasks }) => {
     switch (action) {
       case "add": {
-        if (!task) return "Error: task description required for 'add' action";
+        // Handle multiple tasks
+        if (tasks && tasks.length > 0) {
+          for (const t of tasks) {
+            agentTodoList.push({ task: t, done: false });
+          }
+          return `✅ Added ${tasks.length} tasks:\n${tasks.map((t) => `  - "${t}"`).join("\n")}\n\nCurrent tasks:\n${formatTodoList()}`;
+        }
+        // Handle single task
+        if (!task)
+          return "Error: 'task' or 'tasks' required for 'add' action";
         agentTodoList.push({ task, done: false });
         return `✅ Added task: "${task}"\n\nCurrent tasks:\n${formatTodoList()}`;
       }

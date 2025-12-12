@@ -162,10 +162,12 @@ export function getInteractiveSystemPrompt(
 
     <tool name="todo">
       Manage your task list during the review. Actions:
-      • \`add\`: Add a task (e.g., "Update PR description")
+      • \`add\`: Add a single task with \`task\` param, or multiple tasks at once with \`tasks\` array
+        - Single: \`{ action: "add", task: "Update PR description" }\`
+        - Multiple: \`{ action: "add", tasks: ["Check tests", "Verify types", "Review docs"] }\`
       • \`done\`: Mark a task complete
       • \`list\`: View all tasks
-      Use this to track things you need to do before finishing the review.
+      Use this to track things you need to do before finishing the review. Prefer adding multiple tasks at once when planning.
     </tool>
   </tools>
 
