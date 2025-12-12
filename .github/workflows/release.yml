@@ -142,6 +142,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Commit built dist folder
+        run: |
+          git add -f dist/
+          git commit -m "Build dist for release" || echo "No changes to commit"
+
       - name: Create and push tag
         run: |
           NEW_VERSION=${{ steps.new_version.outputs.new_version }}
