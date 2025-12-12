@@ -1,6 +1,6 @@
 {
   "name": "CodePress Review",
-  "version": "4.1.2",
+  "version": "4.1.3",
   "description": "Turnkey AI code review system for GitHub Pull Requests",
   "main": "dist/index.js",
   "scripts": {
