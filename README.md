@@ -1,4 +1,6 @@
 <img height="50" alt="codepress-logo-larger" src="https://github.com/user-attachments/assets/d74bcba3-a2ee-435e-85cf-f3c6813815f4" />
+<img height="50" alt="dark-mode-logo" src="https://github.com/user-attachments/assets/67eeb3b4-aeb7-4b15-901e-89ca514cedd6" />
+
 
 # CodePress Review
 
