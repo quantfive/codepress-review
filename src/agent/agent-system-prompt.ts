@@ -47,8 +47,10 @@ const DEFAULT_REVIEW_GUIDELINES = `
 
 /**
  * Builds the interactive system prompt with review guidelines and tool capabilities.
- * Checks for custom-codepress-review-prompt.md file and uses it if available,
- * otherwise uses the default guidelines.
+ *
+ * Supports two customization files:
+ * - `custom-codepress-review-prompt.md`: Replaces the entire default guidelines
+ * - `codepress-review-rules.md`: Appends additional rules to the guidelines (takes precedence on conflicts)
  *
  * @param blockingOnly If true, instructs the LLM to only generate "required" severity comments
  * @param maxTurns Maximum number of turns the agent has to complete the review
@@ -71,6 +73,29 @@ export function getInteractiveSystemPrompt(
     } catch (error) {
       console.warn(`Failed to read custom prompt file: ${error}`);
       // Fall back to default guidelines
+    }
+  }
+
+  // Check for additional rules file (additive, does not replace defaults)
+  const additionalRulesPath = join(
+    process.cwd(),
+    "codepress-review-rules.md",
+  );
+
+  if (existsSync(additionalRulesPath)) {
+    try {
+      const additionalRules = readFileSync(additionalRulesPath, "utf8");
+      reviewGuidelines += `
+
+  <!-- ADDITIONAL PROJECT-SPECIFIC RULES -->
+  <projectRules>
+    The following rules are specific to this project.
+    **When these rules conflict with the default guidelines above, these project-specific rules take precedence.**
+
+    ${additionalRules}
+  </projectRules>`;
+    } catch (error) {
+      console.warn(`Failed to read additional rules file: ${error}`);
     }
   }
 
