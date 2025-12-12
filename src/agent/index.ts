@@ -51,7 +51,7 @@ export async function reviewFullDiff(
   modelConfig: ModelConfig,
   repoFilePaths: string[],
   prContext: PRContext,
-  maxTurns: number = 30,
+  maxTurns: number = 75,
   blockingOnly: boolean = false,
 ): Promise<void> {
   // Reset todo list for fresh review

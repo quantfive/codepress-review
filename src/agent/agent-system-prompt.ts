@@ -259,4 +259,4 @@ export function getInteractiveSystemPrompt(
 }
 
 // For backward compatibility, export a default prompt (used for tests/static analysis)
-export const INTERACTIVE_SYSTEM_PROMPT = getInteractiveSystemPrompt(false, 50);
+export const INTERACTIVE_SYSTEM_PROMPT = getInteractiveSystemPrompt(false, 75);
