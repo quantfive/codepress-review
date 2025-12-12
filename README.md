@@ -1,4 +1,5 @@
-<img height="50" alt="codepress-logo-larger" src="https://github.com/user-attachments/assets/d74bcba3-a2ee-435e-85cf-f3c6813815f4" />
+
+<img width="219" height="92" alt="codepress-black" src="https://github.com/user-attachments/assets/3e0a82a0-d8da-4d2a-8c22-738ebc546952" />
 
 # CodePress Review
 
