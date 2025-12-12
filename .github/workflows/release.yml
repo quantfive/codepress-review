@@ -1,8 +1,9 @@
 name: Release
 
 on:
-  push:
+  pull_request:
     branches: [main]
+    types: [closed]
   workflow_dispatch:
     inputs:
       version_type:
@@ -21,10 +22,13 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Only run if PR was merged (not just closed) or if manually triggered
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,33 +60,27 @@ jobs:
             echo "bump_type=${{ github.event.inputs.version_type }}" >> $GITHUB_OUTPUT
             echo "Using manual version type: ${{ github.event.inputs.version_type }}"
           else
-            # Auto-detect from commit messages since last tag
-            LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
+            # Check PR labels for version type
+            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            echo "PR Labels: $LABELS"
 
-            if [ -z "$LATEST_TAG" ]; then
-              COMMIT_RANGE="HEAD"
-            else
-              COMMIT_RANGE="$LATEST_TAG..HEAD"
-            fi
-
-            COMMITS=$(git log --pretty=format:"%s" $COMMIT_RANGE 2>/dev/null || git log --pretty=format:"%s" HEAD~10..HEAD)
-            echo "Analyzing commits:"
-            echo "$COMMITS"
-
-            # Check for explicit release markers first
-            if echo "$COMMITS" | grep -qiE '\[release:major\]|BREAKING CHANGE'; then
+            if echo "$LABELS" | grep -q "release:major"; then
               BUMP="major"
-            elif echo "$COMMITS" | grep -qiE '\[release:minor\]|^feat(\(.*\))?!:|^feat(\(.*\))?:'; then
+              echo "Found release:major label"
+            elif echo "$LABELS" | grep -q "release:minor"; then
               BUMP="minor"
-            elif echo "$COMMITS" | grep -qiE '\[release:patch\]|^fix(\(.*\))?:'; then
+              echo "Found release:minor label"
+            elif echo "$LABELS" | grep -q "release:patch"; then
               BUMP="patch"
+              echo "Found release:patch label"
             else
-              # Default to patch for any other commits
+              # Default to patch if no release label
               BUMP="patch"
+              echo "No release label found, defaulting to patch"
             fi
 
             echo "bump_type=$BUMP" >> $GITHUB_OUTPUT
-            echo "Auto-detected version type: $BUMP"
+            echo "Version bump type: $BUMP"
           fi
 
       - name: Get latest version tag
@@ -167,7 +165,7 @@ jobs:
           git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION"
           git push origin "$NEW_VERSION"
 
-          echo "✅ Tag $NEW_VERSION created and pushed"
+          echo "Tag $NEW_VERSION created and pushed"
 
       - name: Update major version tag
         run: |
@@ -177,7 +175,7 @@ jobs:
           git tag -f "$MAJOR_VERSION"
           git push origin "$MAJOR_VERSION" --force
 
-          echo "✅ Major version tag $MAJOR_VERSION updated"
+          echo "Major version tag $MAJOR_VERSION updated"
 
       - name: Generate release notes
         id: release_notes
@@ -212,7 +210,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## 🚀 Release Created!" >> $GITHUB_STEP_SUMMARY
+          echo "## Release Created!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Type:** ${{ steps.version_type.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
