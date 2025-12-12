@@ -1,5 +1,6 @@
 
-<img width="593" height="346" alt="white-background-logo (1)" src="https://github.com/user-attachments/assets/472fa3a5-3f0d-4c15-965a-d2b9401e9713" />
+<img width="593" height="346" alt="white-background-logo (2)" src="https://github.com/user-attachments/assets/31b2b793-6eb8-4e27-9219-e4517bf6bdea" />
+
 
 # CodePress Review
 
