@@ -1,6 +1,8 @@
-name: Create Release
+name: Release
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version_type:
@@ -24,29 +26,68 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout build branch
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: build
-          fetch-depth: 0 # Need full history for tags
+          fetch-depth: 0 # Need full history for tags and commit analysis
 
-      - name: Verify build branch is recent
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm run build
+
+      - name: Determine version bump type
+        id: version_type
         run: |
-          # Get the commit message which contains the main branch SHA
-          LAST_COMMIT_MSG=$(git log -1 --format=%s)
-          echo "Last build commit: $LAST_COMMIT_MSG"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - use provided input
+            echo "bump_type=${{ github.event.inputs.version_type }}" >> $GITHUB_OUTPUT
+            echo "Using manual version type: ${{ github.event.inputs.version_type }}"
+          else
+            # Auto-detect from commit messages since last tag
+            LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
 
-          # Check if build branch was updated recently (within last day)
-          LAST_COMMIT_DATE=$(git log -1 --format=%ci)
-          echo "Last build date: $LAST_COMMIT_DATE"
+            if [ -z "$LATEST_TAG" ]; then
+              COMMIT_RANGE="HEAD"
+            else
+              COMMIT_RANGE="$LATEST_TAG..HEAD"
+            fi
 
-          echo "⚠️  Make sure the build branch is up-to-date with main before releasing!"
-          echo "   Run 'Build and Deploy to Build Branch' workflow first if needed."
+            COMMITS=$(git log --pretty=format:"%s" $COMMIT_RANGE 2>/dev/null || git log --pretty=format:"%s" HEAD~10..HEAD)
+            echo "Analyzing commits:"
+            echo "$COMMITS"
+
+            # Check for explicit release markers first
+            if echo "$COMMITS" | grep -qiE '\[release:major\]|BREAKING CHANGE'; then
+              BUMP="major"
+            elif echo "$COMMITS" | grep -qiE '\[release:minor\]|^feat(\(.*\))?!:|^feat(\(.*\))?:'; then
+              BUMP="minor"
+            elif echo "$COMMITS" | grep -qiE '\[release:patch\]|^fix(\(.*\))?:'; then
+              BUMP="patch"
+            else
+              # Default to patch for any other commits
+              BUMP="patch"
+            fi
+
+            echo "bump_type=$BUMP" >> $GITHUB_OUTPUT
+            echo "Auto-detected version type: $BUMP"
+          fi
 
       - name: Get latest version tag
         id: get_version
         run: |
-          # Get the latest semver tag
           LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
 
           if [ -z "$LATEST_TAG" ]; then
@@ -74,7 +115,7 @@ jobs:
           MAJOR=${{ steps.get_version.outputs.major }}
           MINOR=${{ steps.get_version.outputs.minor }}
           PATCH=${{ steps.get_version.outputs.patch }}
-          BUMP_TYPE=${{ github.event.inputs.version_type }}
+          BUMP_TYPE=${{ steps.version_type.outputs.bump_type }}
 
           case $BUMP_TYPE in
             major)
@@ -94,7 +135,7 @@ jobs:
           NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
           echo "New version: $NEW_VERSION"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "version_number=$MAJOR.$MINOR.$PATCH" >> $GITHUB_OUTPUT
+          echo "major_version=v$MAJOR" >> $GITHUB_OUTPUT
 
       - name: Configure git
         run: |
@@ -111,6 +152,16 @@ jobs:
 
           echo "✅ Tag $NEW_VERSION created and pushed"
 
+      - name: Update major version tag
+        run: |
+          MAJOR_VERSION=${{ steps.new_version.outputs.major_version }}
+          echo "Updating major version tag $MAJOR_VERSION..."
+
+          git tag -f "$MAJOR_VERSION"
+          git push origin "$MAJOR_VERSION" --force
+
+          echo "✅ Major version tag $MAJOR_VERSION updated"
+
       - name: Generate release notes
         id: release_notes
         run: |
@@ -120,9 +171,7 @@ jobs:
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
 
-          # If we have a previous tag, show commits since then
           if [ "$LATEST_TAG" != "v0.0.0" ]; then
-            # Get commits from main branch between tags (approximation)
             echo "### Commits since $LATEST_TAG" >> release_notes.md
             echo "" >> release_notes.md
             git log --oneline $LATEST_TAG..HEAD 2>/dev/null | head -20 >> release_notes.md || echo "See commit history for changes." >> release_notes.md
@@ -149,7 +198,7 @@ jobs:
           echo "## 🚀 Release Created!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Type:** ${{ github.event.inputs.version_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Pre-release:** ${{ github.event.inputs.prerelease == 'true' && 'Yes' || 'No' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Type:** ${{ steps.version_type.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Major Tag:** ${{ steps.new_version.outputs.major_version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The \`update-major-tag\` workflow will automatically update the major version tag." >> $GITHUB_STEP_SUMMARY
+          echo "Users can now use \`quantfive/codepress-review@${{ steps.new_version.outputs.major_version }}\` or \`quantfive/codepress-review@${{ steps.new_version.outputs.new_version }}\`" >> $GITHUB_STEP_SUMMARY
