@@ -1,4 +1,4 @@
-import { Agent, run } from "@openai/agents";
+import { Agent, Runner } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
@@ -124,6 +124,11 @@ ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUS
 **Remember: Use the bash tool for all PR operations. You MUST submit a formal review at the end using \`gh pr review\`.**
 </instruction>`;
 
+  // Create a runner with custom workflow name for tracing
+  const runner = new Runner({
+    workflowName: `${prContext.repo}#${prContext.prNumber}`,
+  });
+
   try {
     const filesInDiff = extractFilesFromDiff(fullDiff);
     debugLog(`Starting full PR review. Diff size: ~${diffTokens} tokens`);
@@ -133,7 +138,7 @@ ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUS
     debugLog(`Max turns: ${maxTurns}`);
     debugLog(`PR: ${prContext.repo}#${prContext.prNumber}`);
 
-    const result = await run(agent, initialMessage, { maxTurns });
+    const result = await runner.run(agent, initialMessage, { maxTurns });
 
     if (result.finalOutput) {
       debugLog("Agent completed review. Final output:", result.finalOutput);
