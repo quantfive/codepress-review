@@ -95,7 +95,9 @@ Please review this pull request. You have the complete diff above.
 
 1. **Get PR context:**
    - Run \`gh pr view ${prContext.prNumber}\` to understand the PR purpose
-   - If description is blank, use \`todo add "Update PR description"\`
+   - Run \`gh pr view ${prContext.prNumber} --json body -q '.body'\` to check if description is blank
+   - **If body is empty/blank, you MUST update it immediately:**
+     \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
    - Run \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\` to check existing comments (avoid duplicates)
 
 2. **Deep review each changed file:**
@@ -112,9 +114,9 @@ Please review this pull request. You have the complete diff above.
 3. **Post inline comments** for issues found:
    \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
 
-4. **Complete remaining tasks:**
-   - Check your \`todo list\` and complete any remaining items
-   - Update PR description if blank: \`gh pr edit ${prContext.prNumber} --body "## Summary\n\n..."\`
+4. **Before submitting review, verify:**
+   - PR description is not blank (if it was, you should have updated it in step 1)
+   - Complete any items in your \`todo list\`
 
 5. **REQUIRED - Submit formal review:**
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`

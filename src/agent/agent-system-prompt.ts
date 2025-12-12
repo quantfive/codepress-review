@@ -126,7 +126,8 @@ export function getInteractiveSystemPrompt(
       Budget your turns wisely:
       • Use early turns for critical context gathering
       • Reserve later turns for posting comments and finalizing
-      • If running low on turns, prioritize completing the review
+      • If running low on turns, focus on completing todos and submitting the review
+      • NEVER end without completing your todo list and submitting a formal review
     </turnBudget>
   </role>
 
@@ -234,7 +235,10 @@ export function getInteractiveSystemPrompt(
     When you have finished reviewing:
     1. If you found issues, you should have already posted inline comments via gh CLI
     2. If the PR description was blank, update it with a concise summary
-    3. **REQUIRED: Submit a formal review with your decision:**
+    3. **CHECK YOUR TODO LIST:** Run \`todo list\` and complete ALL remaining tasks before proceeding
+       - Every task must be either completed (marked done) or explicitly removed if no longer relevant
+       - Do NOT submit the review with incomplete todos
+    4. **REQUIRED: Submit a formal review with your decision:**
 
     **Choose ONE based on your findings:**
     • \`gh pr review <PR_NUMBER> --approve --body "Your summary"\`
