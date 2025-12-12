@@ -92,36 +92,51 @@ ${fullDiff}
 Please review this pull request. You have the complete diff above.
 
 **Your workflow:**
-1. First, check the PR: \`gh pr view ${prContext.prNumber}\`
-   - If the description/body is blank, use \`todo\` tool: add "Update PR description"
-2. Check for existing review comments: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\`
-   - Avoid duplicating existing comments
-3. Review the diff thoroughly using your tools (bash, dep_graph) to:
-   - Understand how changes integrate with existing code
-   - Verify claims about unused code, missing imports, etc.
-   - Use \`todo\` to track issues you want to comment on
-4. Post inline comments for any issues you find using:
+
+1. **Get PR context:**
+   - Run \`gh pr view ${prContext.prNumber}\` to understand the PR purpose
+   - If description is blank, use \`todo add "Update PR description"\`
+   - Run \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\` to check existing comments (avoid duplicates)
+
+2. **Deep review each changed file:**
+   For each file in the diff:
+   - **Read full file context:** \`cat <filepath>\` to understand surrounding code
+   - **Check dependencies:** Use \`dep_graph\` or \`rg\` to see what calls this code and what it calls
+   - **Review the diff WITH context:** Look for:
+     • Logic errors and edge cases the diff introduces
+     • Error handling gaps in the new code
+     • Inconsistencies with patterns in the rest of the file/codebase
+     • Breaking changes to function signatures that affect callers
+     • DRY violations - does similar code exist elsewhere?
+
+3. **Post inline comments** for issues found:
    \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
-5. Before finishing, check your \`todo list\` - complete any remaining tasks:
-   - Update PR description if it was blank: \`gh pr edit ${prContext.prNumber} --body "## Summary\n\n..."\`
-6. **REQUIRED - Submit a formal review:**
+
+4. **Complete remaining tasks:**
+   - Check your \`todo list\` and complete any remaining items
+   - Update PR description if blank: \`gh pr edit ${prContext.prNumber} --body "## Summary\n\n..."\`
+
+5. **REQUIRED - Submit formal review:**
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
    - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
    - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
 
-**Use the \`todo\` tool to track tasks** - especially "Update PR description" if it was blank!
+**CRITICAL: Only comment on code IN THE DIFF.**
+- Use context (full file, dependencies) to UNDERSTAND the code
+- But ONLY comment on lines that are actually changed in this PR
+- Never comment on pre-existing code outside the diff
 
 **Comment guidelines:**
 ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUST be fixed (security, bugs, breaking changes)" : "- Focus on substantive issues: bugs, security problems, logic errors, significant design concerns\n- Skip minor style nits unless they indicate a real problem"}
 - Be constructive and explain WHY something is an issue
 - Include code suggestions when helpful
 
-**Important:**
-- The line number in \`-f line=N\` should be the line number in the NEW version of the file (right side of diff)
-- For lines starting with \`+\`, count from the @@ hunk header to find the line number
-- Always use commit_id="${prContext.commitSha}" for inline comments
+**Line numbers:**
+- Use the line number in the NEW version of the file (right side of diff)
+- For lines starting with \`+\`, count from the @@ hunk header
+- Always use commit_id="${prContext.commitSha}"
 
-**Remember: Use the bash tool for all PR operations. You MUST submit a formal review at the end using \`gh pr review\`.**
+**Remember: You MUST submit a formal review at the end using \`gh pr review\`.**
 </instruction>`;
 
   // Create a runner with custom workflow name for tracing
