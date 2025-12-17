@@ -2,6 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { ExistingReviewComment } from "./types";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -327,6 +328,48 @@ async function run(): Promise<void> {
       core.info(
         `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
       );
+
+      // Fetch existing review comments from other reviewers
+      const existingCommentsFile = resolve("pr-comments.json");
+      try {
+        const { data: reviewComments } =
+          await octokit.rest.pulls.listReviewComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: prNumber,
+          });
+
+        // Filter out bot comments and map to our interface
+        const existingComments: ExistingReviewComment[] = reviewComments
+          .filter(
+            (comment) =>
+              comment.user &&
+              !comment.user.login.includes("[bot]") &&
+              comment.user.login !== "github-actions",
+          )
+          .map((comment) => ({
+            id: comment.id,
+            author: comment.user?.login || "unknown",
+            body: comment.body,
+            path: comment.path,
+            line: comment.line ?? comment.original_line ?? null,
+            diffHunk: comment.diff_hunk,
+            createdAt: comment.created_at,
+          }));
+
+        writeFileSync(
+          existingCommentsFile,
+          JSON.stringify(existingComments, null, 2),
+        );
+        core.info(
+          `Found ${existingComments.length} existing review comments from other reviewers`,
+        );
+      } catch (commentError) {
+        core.warning(
+          `Failed to fetch existing comments (continuing without them): ${commentError}`,
+        );
+        writeFileSync(existingCommentsFile, "[]");
+      }
     } catch (error) {
       core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
       return;

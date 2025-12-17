@@ -29,3 +29,24 @@ export interface ParsedArgs {
   diff: string;
   pr: number;
 }
+
+/**
+ * Represents an existing review comment on the PR.
+ * These are comments made by other reviewers that the bot should be aware of.
+ */
+export interface ExistingReviewComment {
+  /** GitHub comment ID (for adding reactions) */
+  id: number;
+  /** GitHub username of the commenter */
+  author: string;
+  /** The comment body/text */
+  body: string;
+  /** File path the comment is on */
+  path: string;
+  /** Line number in the new version of the file (may be null for file-level comments) */
+  line: number | null;
+  /** The diff hunk context around the comment */
+  diffHunk: string;
+  /** ISO timestamp when the comment was created */
+  createdAt: string;
+}
