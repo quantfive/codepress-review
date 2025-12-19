@@ -89,6 +89,7 @@ diff --git a/src/test.ts b/src/test.ts
         }), // prContext
         20, // maxTurns
         false, // blockingOnly
+        [], // existingComments (empty when no pr-comments.json)
       );
     });
 
@@ -107,6 +108,7 @@ diff --git a/src/test.ts b/src/test.ts
         expect.any(Object),
         20,
         true, // blockingOnly should be true
+        [], // existingComments
       );
     });
 

@@ -5,7 +5,7 @@ import { resolve } from "path";
 import { PRContext, reviewFullDiff } from "./agent";
 import { getModelConfig } from "./config";
 import { debugLog } from "./debug";
-import type { ReviewConfig } from "./types";
+import type { ExistingReviewComment, ReviewConfig } from "./types";
 
 /**
  * Service class that orchestrates the review process.
@@ -81,6 +81,20 @@ export class ReviewService {
       console.error("COMMIT_SHA not set - agent will not be able to post inline comments");
     }
 
+    // Load existing review comments from other reviewers
+    const commentsFile = resolve("pr-comments.json");
+    let existingComments: ExistingReviewComment[] = [];
+    if (existsSync(commentsFile)) {
+      try {
+        existingComments = JSON.parse(readFileSync(commentsFile, "utf8"));
+        if (existingComments.length > 0) {
+          debugLog(`📝 Found ${existingComments.length} existing review comments from other reviewers`);
+        }
+      } catch (error) {
+        debugLog("⚠️ Failed to parse existing comments file, continuing without them");
+      }
+    }
+
     // Run the autonomous agent review
     debugLog("🚀 Starting autonomous PR review...");
     const modelConfig = getModelConfig();
@@ -93,6 +107,7 @@ export class ReviewService {
         prContext,
         this.config.maxTurns,
         this.config.blockingOnly,
+        existingComments,
       );
       debugLog("✅ Review completed!");
     } catch (error: unknown) {

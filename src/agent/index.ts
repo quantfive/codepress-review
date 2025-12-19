@@ -2,7 +2,7 @@ import { Agent, Runner } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
-import { ModelConfig } from "../types";
+import { ExistingReviewComment, ModelConfig } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { allTools, resetTodoList } from "./tools";
 
@@ -39,6 +39,41 @@ export interface PRContext {
 }
 
 /**
+ * Formats existing review comments into a readable string for the agent.
+ */
+function formatExistingComments(comments: ExistingReviewComment[]): string {
+  if (comments.length === 0) {
+    return "";
+  }
+
+  const formattedComments = comments.map((comment, index) => {
+    const lineInfo = comment.line ? `Line ${comment.line}` : "File-level";
+    return `<comment index="${index + 1}" id="${comment.id}">
+  <author>${comment.author}</author>
+  <file>${comment.path}</file>
+  <location>${lineInfo}</location>
+  <commentId>${comment.id}</commentId>
+  <body>${comment.body}</body>
+  <codeContext>
+${comment.diffHunk}
+  </codeContext>
+</comment>`;
+  });
+
+  return `
+<existingReviewComments count="${comments.length}">
+  These are review comments made by other reviewers on this PR.
+  Consider them in your review:
+  - DO NOT duplicate feedback that has already been given
+  - If you agree with a comment, you may reinforce it or add additional context
+  - If you disagree with a comment, you may respectfully provide a counter-opinion
+  - Factor these comments into your overall assessment of the PR
+
+${formattedComments.join("\n\n")}
+</existingReviewComments>`;
+}
+
+/**
  * Reviews an entire PR diff using a single interactive agent.
  * The agent has full autonomy to:
  * - Fetch additional context via bash/gh CLI
@@ -53,6 +88,7 @@ export async function reviewFullDiff(
   prContext: PRContext,
   maxTurns: number = 75,
   blockingOnly: boolean = false,
+  existingComments: ExistingReviewComment[] = [],
 ): Promise<void> {
   // Reset todo list for fresh review
   resetTodoList();
@@ -76,6 +112,12 @@ export async function reviewFullDiff(
     );
   }
 
+  // Format existing comments for inclusion
+  const existingCommentsSection = formatExistingComments(existingComments);
+  if (existingComments.length > 0) {
+    debugLog(`📝 Including ${existingComments.length} existing review comments in context`);
+  }
+
   const initialMessage = `
 You are reviewing PR #${prContext.prNumber} in repository ${prContext.repo}.
 Commit SHA: ${prContext.commitSha}
@@ -87,6 +129,7 @@ ${fileList}
 <fullDiff>
 ${fullDiff}
 </fullDiff>
+${existingCommentsSection}
 
 <instruction>
 Please review this pull request. You have the complete diff above.
@@ -98,7 +141,7 @@ Please review this pull request. You have the complete diff above.
    - Run \`gh pr view ${prContext.prNumber} --json body -q '.body'\` to check if description is blank
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
-   - Run \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\` to check existing comments (avoid duplicates)
+   - Review the <existingReviewComments> section above (if present) to understand what other reviewers have already commented on
 
 2. **Deep review each changed file:**
    For each file in the diff:

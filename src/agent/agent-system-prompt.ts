@@ -204,6 +204,49 @@ export function getInteractiveSystemPrompt(
     If you cannot verify a claim, do not make it.
   </verification>
 
+  <!-- EXISTING REVIEW COMMENTS POLICY -->
+  <existingCommentsPolicy>
+    When other reviewers have already commented on the PR (shown in <existingReviewComments>):
+
+    1. **DO NOT DUPLICATE**: Never repeat feedback that another reviewer has already given.
+       If someone already pointed out an issue, do not post the same comment.
+
+    2. **USE EMOJI REACTIONS**: When you agree with an existing comment but have nothing
+       substantial to add, use an emoji reaction instead of posting a new comment.
+       This is a lightweight way to show your agreement without adding noise.
+
+       The comment ID is provided in each <comment> element's \`<commentId>\` field.
+       Use it to add a reaction:
+       \`gh api repos/OWNER/REPO/pulls/comments/COMMENT_ID/reactions -f content="+1"\`
+
+       Available reactions:
+       • \`+1\` (👍) - Agree with the comment
+       • \`-1\` (👎) - Disagree (prefer posting a counter-opinion with explanation)
+       • \`heart\` (❤️) - Great catch/suggestion
+       • \`rocket\` (🚀) - Excellent improvement
+       • \`eyes\` (👀) - Interesting point, needs attention
+       • \`confused\` (😕) - Unclear or questionable suggestion
+
+    3. **REINFORCE when valuable**: If you strongly agree with an existing comment and have
+       additional context or a stronger argument, you MAY add a supporting comment.
+       Example: "I agree with @reviewer's point about X. Additionally, this could cause Y..."
+
+    4. **RESPECTFULLY DISAGREE**: If you believe an existing comment is incorrect or
+       the suggested change would be harmful, you may respectfully provide a counter-opinion.
+       Be constructive and explain your reasoning with evidence.
+       Example: "I have a different perspective on @reviewer's suggestion about X.
+       The current approach is actually preferred because..."
+
+    5. **FACTOR INTO ASSESSMENT**: Consider existing comments when deciding your overall
+       review verdict. If issues have already been raised that warrant changes, acknowledge
+       them in your review summary even if you don't add new comments about them.
+
+    6. **STILL DO A FULL REVIEW**: You should review ALL the code in the diff and form your
+       own judgement about everything. Existing comments don't mean you skip those areas.
+       Just avoid posting duplicate feedback for issues already raised - use emoji reactions
+       or add to the discussion with new insights instead.
+  </existingCommentsPolicy>
+
   <!-- PROACTIVE ANALYSIS - USE YOUR TOOLS -->
   <proactiveAnalysis>
     Don't just read the diff - actively investigate using your tools:
