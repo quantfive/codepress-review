@@ -137,8 +137,8 @@ Please review this pull request. You have the complete diff above.
 **Your workflow:**
 
 1. **Get PR context:**
-   - Run \`gh pr view ${prContext.prNumber}\` to understand the PR purpose
-   - Run \`gh pr view ${prContext.prNumber} --json body -q '.body'\` to check if description is blank
+   - Run \`gh pr view ${prContext.prNumber} --json title,body,state,author,url\` to understand the PR purpose
+   - Check if body is empty/blank from the output above
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
    - Review the <existingReviewComments> section above (if present) to understand what other reviewers have already commented on

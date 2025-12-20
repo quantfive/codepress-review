@@ -162,9 +162,8 @@ export function getInteractiveSystemPrompt(
       Run any bash command. Key uses for code review:
 
       **GitHub CLI (gh) - Your primary tool for PR operations:**
-      • View PR details: \`gh pr view <PR_NUMBER>\`
-      • View PR comments: \`gh pr view <PR_NUMBER> --comments\`
-      • Get inline review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
+      • View PR details: \`gh pr view <PR_NUMBER> --json title,body,state,author,url\`
+      • Get review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
       • Post inline comment: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body="..." -f path="file.ts" -f line=N -f commit_id="SHA"\`
       • Update PR description: \`gh pr edit <PR_NUMBER> --body "..."\`
       • Submit formal review (REQUIRED at end):
