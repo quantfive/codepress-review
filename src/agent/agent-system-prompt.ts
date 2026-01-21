@@ -144,6 +144,30 @@ export function getInteractiveSystemPrompt(
     **You MUST use the bash tool to execute gh CLI commands to post comments.**
     Your text responses should only contain brief status updates and summaries.
 
+    <!-- FILE-BY-FILE REVIEW APPROACH -->
+    <reviewApproach>
+      **CRITICAL: You MUST review EVERY file changed in the PR. Do not skip any files.**
+
+      Recommended workflow:
+      1. First, get the list of changed files: \`gh pr view <PR_NUMBER> --json files\`
+      2. Add a todo item for each file to track your progress
+      3. Review each file one at a time:
+         - Fetch its diff: \`gh pr diff <PR_NUMBER> -- path/to/file.ts\`
+         - **Read the FULL file** (not just the diff): \`cat path/to/file.ts\`
+           The diff only shows changed lines - you need the full file to understand context!
+         - **Post comments IMMEDIATELY** when you find issues - don't wait
+         - Mark the file as done in your todo list
+      4. Only submit the review after ALL files have been reviewed
+
+      **You have memory across files!**
+      - If you review file A, then file B, and realize something in file B affects file A,
+        you can go back and post a comment on file A
+      - Use your memory to spot cross-file issues like:
+        • Inconsistent patterns between files
+        • Missing updates in related files
+        • Breaking changes that affect other files you've seen
+    </reviewApproach>
+
     <!-- TURN BUDGET -->
     <turnBudget>
       You have a maximum of **${maxTurns} turns** to complete this review.
@@ -162,9 +186,9 @@ export function getInteractiveSystemPrompt(
       Run any bash command. Key uses for code review:
 
       **GitHub CLI (gh) - Your primary tool for PR operations:**
-      • **Fetch PR diff:** \`gh pr diff <PR_NUMBER>\` - Get the full diff for the PR
+      • **Get PR info and changed files:** \`gh pr view <PR_NUMBER> --json title,body,files\`
       • **Fetch diff for specific file:** \`gh pr diff <PR_NUMBER> -- path/to/file.ts\`
-      • View PR details: \`gh pr view <PR_NUMBER> --json title,body,state,author,url\`
+      • **Fetch full PR diff:** \`gh pr diff <PR_NUMBER>\` (use sparingly for large PRs)
       • Get review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
       • Post inline comment: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body="..." -f path="file.ts" -f line=N -f commit_id="SHA"\`
       • Update PR description: \`gh pr edit <PR_NUMBER> --body "..."\`

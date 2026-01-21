@@ -101,38 +101,46 @@ Please review this pull request.
 
 **Your workflow:**
 
-1. **Fetch the diff:**
-   - Run \`gh pr diff ${prContext.prNumber}\` to see all changes
-   - Or fetch specific files: \`gh pr diff ${prContext.prNumber} -- path/to/file.ts\`
-   - For large PRs, you can fetch the diff in chunks by file
-
-2. **Get PR context:**
-   - Run \`gh pr view ${prContext.prNumber} --json title,body,state,author,url\` to understand the PR purpose
+1. **Get PR context and list of changed files:**
+   - Run \`gh pr view ${prContext.prNumber} --json title,body,files\` to get the PR info and list of ALL changed files
    - Check if body is empty/blank
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
    - Review the <existingReviewComments> section above (if present) to understand what other reviewers have already commented on
+   - **Add a todo item for EACH changed file** to ensure you review every single one
 
-3. **Deep review each changed file:**
-   For each file in the diff:
-   - **Read full file context:** \`cat <filepath>\` to understand surrounding code
-   - **Check dependencies:** Use \`dep_graph\` or \`rg\` to see what calls this code and what it calls
-   - **Look up documentation if needed:** Use \`web_fetch\` to read package docs, or \`web_search\` to find relevant information
-   - **Review the diff WITH context:** Look for:
-     • Logic errors and edge cases the diff introduces
-     • Error handling gaps in the new code
-     • Inconsistencies with patterns in the rest of the file/codebase
-     • Breaking changes to function signatures that affect callers
-     • DRY violations - does similar code exist elsewhere?
+2. **Review EVERY changed file (one at a time):**
+   For EACH file in the changed files list:
+   a. **Fetch the diff for this specific file:**
+      \`gh pr diff ${prContext.prNumber} -- path/to/file.ts\`
+   b. **Read the FULL file for context:** \`cat <filepath>\` - Don't just look at the diff!
+      The diff only shows changed lines. Read the entire file to understand:
+      • How the changed code fits into the broader context
+      • What functions/variables are defined elsewhere in the file
+      • The overall structure and patterns used
+   c. **Check dependencies if needed:** Use \`dep_graph\` or \`rg\` to see what calls this code
+   d. **Look up documentation if needed:** Use \`web_fetch\` or \`web_search\` for unfamiliar libraries/patterns
+   e. **Review the changes WITH full file context:** Look for:
+      • Logic errors and edge cases the diff introduces
+      • Error handling gaps in the new code
+      • Inconsistencies with patterns in the rest of the file/codebase
+      • Breaking changes to function signatures that affect callers
+      • DRY violations - does similar code exist elsewhere?
+   f. **Post comments IMMEDIATELY** when you find issues - don't wait until later:
+      \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
+   g. **Mark the file as reviewed** in your todo list before moving to the next file
 
-4. **Post inline comments** for issues found:
-   \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
+   **IMPORTANT:**
+   - You MUST review EVERY file. Do not skip any files.
+   - You have memory across files! If you notice something in file B that relates to file A you reviewed earlier, you can go back and post a comment on file A.
+   - Always read the FULL file, not just the diff - context matters!
 
-5. **Before submitting review, verify:**
+3. **Before submitting review, verify:**
    - PR description is not blank (if it was, you should have updated it in step 1)
-   - Complete any items in your \`todo list\`
+   - **ALL files have been reviewed** (check your todo list - every file should be marked done)
+   - Complete any other items in your todo list
 
-6. **REQUIRED - Submit formal review:**
+4. **REQUIRED - Submit formal review:**
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
    - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
    - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
