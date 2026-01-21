@@ -1,5 +1,4 @@
 export interface ReviewConfig {
-  diff: string;
   pr: number;
   provider: string;
   modelName: string;
@@ -26,7 +25,6 @@ export interface ModelConfig {
 }
 
 export interface ParsedArgs {
-  diff: string;
   pr: number;
 }
 

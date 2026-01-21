@@ -8,7 +8,9 @@ module.exports = {
   transform: {
     ...tsJestTransformCfg,
   },
-  transformIgnorePatterns: ["node_modules/(?!(@octokit/.*|@openai/.*)/)"],
+  transformIgnorePatterns: [
+    "node_modules/(?!(@octokit/.*|@openai/.*|@exodus/.*|html-encoding-sniffer|whatwg-.*|data-urls|webidl-conversions|tr46)/)",
+  ],
   testMatch: ["**/test/**/*.test.(ts|js)", "!**/dist/**"],
   testPathIgnorePatterns: ["/node_modules/", "/dist/"],
 };

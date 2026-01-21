@@ -2,7 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { ExistingReviewComment } from "./types";
+import type { ExistingReviewComment } from "./types";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -149,6 +149,9 @@ async function run(): Promise<void> {
     // Handle blocking_only input
     const blockingOnly = core.getBooleanInput("blocking_only");
 
+    // Get web search configuration
+    const enableWebSearch = core.getBooleanInput("enable_web_search");
+
     // Get trigger configuration inputs
     const runOnPrOpened = core.getBooleanInput("run_on_pr_opened");
     const runOnPrReopened = core.getBooleanInput("run_on_pr_reopened");
@@ -243,6 +246,9 @@ async function run(): Promise<void> {
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
 
+    // Set web search configuration
+    process.env.ENABLE_WEB_SEARCH = enableWebSearch.toString();
+
     let prNumber: number;
 
     core.info(`Triggered by event: ${context.eventName}`);
@@ -296,12 +302,11 @@ async function run(): Promise<void> {
     core.info(`Running CodePress Review for PR #${prNumber}`);
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
-    // Generate diff and get commit SHA
-    const diffFile = resolve("pr.diff");
+    // Get commit SHA for the PR
     let commitSha: string;
 
     try {
-      core.info("Fetching PR info and diff from GitHub API...");
+      core.info("Fetching PR info from GitHub API...");
       const octokit = github.getOctokit(githubToken);
 
       // Get PR info to get the commit SHA
@@ -312,22 +317,6 @@ async function run(): Promise<void> {
       });
       commitSha = prInfo.data.head.sha;
       core.info(`Commit SHA: ${commitSha}`);
-
-      // Get the diff
-      const diffResponse = await octokit.rest.pulls.get({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        pull_number: prNumber,
-        mediaType: {
-          format: "diff",
-        },
-      });
-
-      const diffOutput = diffResponse.data as unknown as string;
-      writeFileSync(diffFile, diffOutput);
-      core.info(
-        `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
-      );
 
       // Fetch existing review comments from other reviewers
       const existingCommentsFile = resolve("pr-comments.json");
@@ -371,7 +360,7 @@ async function run(): Promise<void> {
         writeFileSync(existingCommentsFile, "[]");
       }
     } catch (error) {
-      core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
+      core.setFailed(`Failed to fetch PR info from GitHub API: ${error}`);
       return;
     }
 
@@ -382,14 +371,7 @@ async function run(): Promise<void> {
     // Run the AI review script
     try {
       // Set up process arguments for the ai-review script
-      process.argv = [
-        process.argv[0],
-        process.argv[1],
-        "--diff",
-        diffFile,
-        "--pr",
-        prNumber.toString(),
-      ];
+      process.argv = [process.argv[0], process.argv[1], "--pr", prNumber.toString()];
 
       const { main } = await import("./ai-review");
       await main();

@@ -21,6 +21,11 @@ export default [
         require: "readonly",
         module: "readonly",
         exports: "readonly",
+        // Node.js 18+ built-in fetch API
+        fetch: "readonly",
+        AbortSignal: "readonly",
+        // DOM types from jsdom (used in web_fetch/web_search tools)
+        HTMLAnchorElement: "readonly",
       },
     },
     plugins: {

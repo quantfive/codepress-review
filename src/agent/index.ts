@@ -6,32 +6,6 @@ import { ExistingReviewComment, ModelConfig } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { allTools, resetTodoList } from "./tools";
 
-/**
- * Estimates token count for a string (rough approximation: 4 chars per token).
- */
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-/**
- * Extracts unique file paths from a diff string.
- */
-function extractFilesFromDiff(diffText: string): string[] {
-  const files: Set<string> = new Set();
-  const regex = /^diff --git a\/(.+?) b\//gm;
-  let match;
-  while ((match = regex.exec(diffText)) !== null) {
-    files.add(match[1]);
-  }
-  return Array.from(files);
-}
-
-/**
- * Maximum tokens we're willing to send to the model in one request.
- * This leaves room for the system prompt and response.
- */
-const MAX_DIFF_TOKENS = 80000;
-
 export interface PRContext {
   repo: string; // owner/repo format
   prNumber: number;
@@ -74,15 +48,16 @@ ${formattedComments.join("\n\n")}
 }
 
 /**
- * Reviews an entire PR diff using a single interactive agent.
+ * Reviews a PR using a single interactive agent with agentic diff exploration.
  * The agent has full autonomy to:
- * - Fetch additional context via bash/gh CLI
+ * - Fetch the diff via gh CLI (on demand)
+ * - Explore the codebase with bash, search, and file tools
+ * - Search the web for documentation and references
  * - View existing PR comments
  * - Post review comments directly
  * - Update PR description if blank
  */
 export async function reviewFullDiff(
-  fullDiff: string,
   modelConfig: ModelConfig,
   repoFilePaths: string[],
   prContext: PRContext,
@@ -104,18 +79,12 @@ export async function reviewFullDiff(
 
   const fileList = repoFilePaths.join("\n");
 
-  // Check if diff is too large
-  const diffTokens = estimateTokens(fullDiff);
-  if (diffTokens > MAX_DIFF_TOKENS) {
-    debugLog(
-      `⚠️ Diff is large (~${diffTokens} tokens). Agent will need to use tools for context.`,
-    );
-  }
-
   // Format existing comments for inclusion
   const existingCommentsSection = formatExistingComments(existingComments);
   if (existingComments.length > 0) {
-    debugLog(`📝 Including ${existingComments.length} existing review comments in context`);
+    debugLog(
+      `📝 Including ${existingComments.length} existing review comments in context`,
+    );
   }
 
   const initialMessage = `
@@ -125,28 +94,30 @@ Commit SHA: ${prContext.commitSha}
 <repositoryFiles>
 ${fileList}
 </repositoryFiles>
-
-<fullDiff>
-${fullDiff}
-</fullDiff>
 ${existingCommentsSection}
 
 <instruction>
-Please review this pull request. You have the complete diff above.
+Please review this pull request.
 
 **Your workflow:**
 
-1. **Get PR context:**
+1. **Fetch the diff:**
+   - Run \`gh pr diff ${prContext.prNumber}\` to see all changes
+   - Or fetch specific files: \`gh pr diff ${prContext.prNumber} -- path/to/file.ts\`
+   - For large PRs, you can fetch the diff in chunks by file
+
+2. **Get PR context:**
    - Run \`gh pr view ${prContext.prNumber} --json title,body,state,author,url\` to understand the PR purpose
-   - Check if body is empty/blank from the output above
+   - Check if body is empty/blank
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
    - Review the <existingReviewComments> section above (if present) to understand what other reviewers have already commented on
 
-2. **Deep review each changed file:**
+3. **Deep review each changed file:**
    For each file in the diff:
    - **Read full file context:** \`cat <filepath>\` to understand surrounding code
    - **Check dependencies:** Use \`dep_graph\` or \`rg\` to see what calls this code and what it calls
+   - **Look up documentation if needed:** Use \`web_fetch\` to read package docs, or \`web_search\` to find relevant information
    - **Review the diff WITH context:** Look for:
      • Logic errors and edge cases the diff introduces
      • Error handling gaps in the new code
@@ -154,14 +125,14 @@ Please review this pull request. You have the complete diff above.
      • Breaking changes to function signatures that affect callers
      • DRY violations - does similar code exist elsewhere?
 
-3. **Post inline comments** for issues found:
+4. **Post inline comments** for issues found:
    \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
 
-4. **Before submitting review, verify:**
+5. **Before submitting review, verify:**
    - PR description is not blank (if it was, you should have updated it in step 1)
    - Complete any items in your \`todo list\`
 
-5. **REQUIRED - Submit formal review:**
+6. **REQUIRED - Submit formal review:**
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
    - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
    - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
@@ -190,13 +161,10 @@ ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUS
   });
 
   try {
-    const filesInDiff = extractFilesFromDiff(fullDiff);
-    debugLog(`Starting full PR review. Diff size: ~${diffTokens} tokens`);
-    debugLog(
-      `Files in context (${filesInDiff.length}): ${filesInDiff.join(", ")}`,
-    );
+    debugLog(`Starting agentic PR review`);
     debugLog(`Max turns: ${maxTurns}`);
     debugLog(`PR: ${prContext.repo}#${prContext.prNumber}`);
+    debugLog(`Repository files available: ${repoFilePaths.length}`);
 
     const result = await runner.run(agent, initialMessage, { maxTurns });
 

@@ -2,22 +2,18 @@ import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 
 export function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
-  let diff = "",
-    pr = "";
+  let pr = "";
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--diff") diff = args[++i];
     if (args[i] === "--pr") pr = args[++i];
   }
 
-  if (!diff || !pr) {
-    console.error(
-      "Usage: ts-node scripts/ai-review.ts --diff <diff-file> --pr <pr-number>",
-    );
+  if (!pr) {
+    console.error("Usage: ts-node scripts/ai-review.ts --pr <pr-number>");
     process.exit(1);
   }
 
-  return { diff, pr: Number(pr) };
+  return { pr: Number(pr) };
 }
 
 /**
@@ -112,7 +108,7 @@ export function getModelConfig(): ModelConfig {
 }
 
 export function getReviewConfig(): ReviewConfig {
-  const { diff, pr } = parseArgs();
+  const { pr } = parseArgs();
   const { provider, modelName } = getModelConfig();
 
   const githubToken = process.env.GITHUB_TOKEN;
@@ -141,7 +137,6 @@ export function getReviewConfig(): ReviewConfig {
   const blockingOnly = blockingOnlyEnv.toLowerCase() === "true";
 
   return {
-    diff,
     pr,
     provider,
     modelName,

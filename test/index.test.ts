@@ -270,9 +270,10 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(reviewMain).toHaveBeenCalled();
+    // We now write the comments file instead of the diff file
     expect(nodeFs.writeFileSync).toHaveBeenCalledWith(
-      expect.stringContaining("pr.diff"),
-      "diff",
+      expect.stringContaining("pr-comments.json"),
+      expect.any(String),
     );
   });
 
@@ -361,7 +362,7 @@ describe("GitHub Action main run function", () => {
     );
   });
 
-  it("should fail if diff generation fails", async () => {
+  it("should fail if PR info fetch fails", async () => {
     Object.defineProperty(github, "context", {
       value: {
         repo: { owner: "test-owner", repo: "test-repo" },
@@ -382,7 +383,7 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
-      "Failed to fetch diff from GitHub API: Error: GitHub API Error",
+      "Failed to fetch PR info from GitHub API: Error: GitHub API Error",
     );
   });
 

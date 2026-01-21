@@ -162,6 +162,8 @@ export function getInteractiveSystemPrompt(
       Run any bash command. Key uses for code review:
 
       **GitHub CLI (gh) - Your primary tool for PR operations:**
+      • **Fetch PR diff:** \`gh pr diff <PR_NUMBER>\` - Get the full diff for the PR
+      • **Fetch diff for specific file:** \`gh pr diff <PR_NUMBER> -- path/to/file.ts\`
       • View PR details: \`gh pr view <PR_NUMBER> --json title,body,state,author,url\`
       • Get review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
       • Post inline comment: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body="..." -f path="file.ts" -f line=N -f commit_id="SHA"\`
@@ -192,6 +194,51 @@ export function getInteractiveSystemPrompt(
       • \`done\`: Mark a task complete
       • \`list\`: View all tasks
       Use this to track things you need to do before finishing the review. Prefer adding multiple tasks at once when planning.
+    </tool>
+
+    <tool name="web_fetch">
+      Fetch content from a URL and convert it to readable markdown. Use for:
+      • Package documentation (npm, PyPI, crates.io, docs.rs)
+      • GitHub READMEs and wikis
+      • API references and specifications
+      • Technical blog posts and tutorials
+      • Library changelogs
+
+      Example: If reviewing code that uses a library you're unfamiliar with, fetch its documentation:
+      \`web_fetch({ url: "https://docs.rs/serde/latest/serde/" })\`
+
+      Content is automatically cleaned (scripts/styles removed) and truncated at 50KB.
+    </tool>
+
+    <tool name="web_search">
+      Search the web for technical information. Use for:
+      • Package documentation and API references
+      • Error messages and debugging help
+      • Best practices and design patterns
+      • Library comparisons and alternatives
+      • Security vulnerability information
+
+      Example: If you see an unfamiliar pattern or error:
+      \`web_search({ query: "React useEffect cleanup function best practices" })\`
+
+      Be specific in queries for better results.
+    </tool>
+
+    <tool name="fetch_files">
+      Return the full contents of multiple file paths at once.
+      More efficient than multiple bash \`cat\` commands for reading several files.
+    </tool>
+
+    <tool name="fetch_snippet">
+      Search for and return code snippets containing specific text patterns from a file.
+      Returns the found text with surrounding context lines.
+      Useful for finding specific functions or code blocks without reading entire files.
+    </tool>
+
+    <tool name="search_repo">
+      Search the repository for a plain-text query using ripgrep.
+      Returns file paths and matching line snippets with context.
+      More powerful than bash \`rg\` with better output formatting.
     </tool>
   </tools>
 
@@ -273,6 +320,12 @@ export function getInteractiveSystemPrompt(
     • Use \`dep_graph\` to understand what depends on changed files
     • Search for usages of modified exports: \`rg "import.*{.*modifiedExport" src/\`
     • Check if API changes break callers
+
+    **External Research (when helpful):**
+    • If code uses an unfamiliar library/API, use \`web_fetch\` to read its documentation
+    • If you see an unusual pattern or potential issue, use \`web_search\` to research best practices
+    • Look up security advisories for packages: \`web_search({ query: "CVE lodash vulnerability" })\`
+    • Don't guess about library behavior - verify with documentation
 
     **Before commenting on style/patterns**, read 2-3 similar files to understand the project's conventions.
   </proactiveAnalysis>
