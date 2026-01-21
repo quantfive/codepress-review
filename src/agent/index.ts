@@ -4,7 +4,7 @@ import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
 import { ExistingReviewComment, ModelConfig } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
-import { allTools, resetTodoList } from "./tools";
+import { getAllTools, resetTodoList } from "./tools";
 
 export interface PRContext {
   repo: string; // owner/repo format
@@ -74,7 +74,7 @@ export async function reviewFullDiff(
     model: aisdk(model),
     name: "CodePressReviewAgent",
     instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
-    tools: allTools,
+    tools: getAllTools(),
   });
 
   const fileList = repoFilePaths.join("\n");

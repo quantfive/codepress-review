@@ -1322,13 +1322,27 @@ Be specific in your queries for better results.`,
   },
 });
 
-export const allTools = [
+// Base tools always included
+const baseTools = [
   bashTool,
   depGraphTool,
   todoTool,
-  webFetchTool,
-  webSearchTool,
   fetchFilesTool,
   fetchSnippetTool,
   searchRepoTool,
 ];
+
+// Web tools (enabled by default, can be disabled via ENABLE_WEB_SEARCH=false)
+const webTools = [webFetchTool, webSearchTool];
+
+/**
+ * Returns all tools for the agent.
+ * Web search tools are enabled by default but can be disabled via ENABLE_WEB_SEARCH=false.
+ */
+export function getAllTools() {
+  const enableWebSearch = process.env.ENABLE_WEB_SEARCH?.toLowerCase() !== "false";
+  return enableWebSearch ? [...baseTools, ...webTools] : baseTools;
+}
+
+// For backward compatibility - static export (always includes all tools)
+export const allTools = [...baseTools, ...webTools];
