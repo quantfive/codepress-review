@@ -102,18 +102,21 @@ Please review this pull request.
 **Your workflow:**
 
 1. **Get PR context and list of changed files:**
-   - Run \`gh pr view ${prContext.prNumber} --json title,body,files\` to get the PR info and list of ALL changed files
+   - Run \`gh pr view ${prContext.prNumber} --json title,body,files\` to get PR info and list of changed files
    - Check if body is empty/blank
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
    - Review the <existingReviewComments> section above (if present) to understand what other reviewers have already commented on
    - **Add a todo item for EACH changed file** to ensure you review every single one
+   - **Decide how to fetch patches:**
+     • Small PRs (< 10 files): fetch all patches at once with \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files\`
+     • Large PRs: fetch patches one at a time as you review each file
 
 2. **Review EVERY changed file (one at a time):**
    For EACH file in the changed files list:
-   a. **Fetch the diff for this specific file:**
-      \`gh pr diff ${prContext.prNumber} -- path/to/file.ts\`
-   b. **Read the FULL file for context:** \`cat <filepath>\` - Don't just look at the diff!
+   a. **Get the patch** (if not already fetched):
+      \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files --jq '.[] | select(.filename=="<filepath>")'\`
+   b. **Read the FULL file for context:** \`cat <filepath>\` - Don't just look at the patch!
       The diff only shows changed lines. Read the entire file to understand:
       • How the changed code fits into the broader context
       • What functions/variables are defined elsewhere in the file
@@ -144,6 +147,12 @@ Please review this pull request.
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
    - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
    - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
+
+   **Review summary should be concise:**
+   - Brief description of what the PR does (1-2 sentences)
+   - Key findings or concerns (if any)
+   - Your decision rationale
+   - **DO NOT list all the files you reviewed** - that's redundant since you review everything
 
 **CRITICAL: Only comment on code IN THE DIFF.**
 - Use context (full file, dependencies) to UNDERSTAND the code
