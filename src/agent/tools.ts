@@ -1022,10 +1022,11 @@ export const todoTool = tool({
   description: `Manage your task list during the review. Use this to:
 - Add tasks you need to complete (e.g., "Update PR description - it was blank")
 - Add multiple tasks at once using the 'tasks' array parameter
-- Mark tasks as done when completed
+- Mark tasks as done when completed (single or multiple at once)
 - View remaining tasks to ensure nothing is forgotten
 
-This helps you stay organized and not forget important steps.`,
+This helps you stay organized and not forget important steps.
+Use the 'tasks' array to add OR mark done multiple tasks in one call - saves time!`,
   parameters: z.object({
     action: z
       .enum(["add", "done", "list"])
@@ -1033,12 +1034,12 @@ This helps you stay organized and not forget important steps.`,
     task: z
       .string()
       .optional()
-      .describe("Task description (for 'add' single task or 'done' actions)"),
+      .describe("Task description (for 'add' or 'done' single task)"),
     tasks: z
       .array(z.string())
       .optional()
       .describe(
-        "Array of task descriptions (for 'add' action to add multiple tasks at once)",
+        "Array of task descriptions (for 'add' or 'done' to handle multiple tasks at once)",
       ),
   }),
   execute: async ({ action, task, tasks }) => {
@@ -1059,7 +1060,35 @@ This helps you stay organized and not forget important steps.`,
       }
 
       case "done": {
-        if (!task) return "Error: task description required for 'done' action";
+        // Handle multiple tasks at once
+        if (tasks && tasks.length > 0) {
+          const marked: string[] = [];
+          const notFound: string[] = [];
+          for (const t of tasks) {
+            const found = agentTodoList.find(
+              (item) =>
+                item.task.toLowerCase().includes(t.toLowerCase()) && !item.done,
+            );
+            if (found) {
+              found.done = true;
+              marked.push(found.task);
+            } else {
+              notFound.push(t);
+            }
+          }
+          let result = "";
+          if (marked.length > 0) {
+            result += `✅ Marked ${marked.length} tasks done:\n${marked.map((t) => `  - "${t}"`).join("\n")}\n`;
+          }
+          if (notFound.length > 0) {
+            result += `⚠️ Not found: ${notFound.join(", ")}\n`;
+          }
+          result += `\nRemaining tasks:\n${formatTodoList()}`;
+          return result;
+        }
+        // Handle single task
+        if (!task)
+          return "Error: 'task' or 'tasks' required for 'done' action";
         const found = agentTodoList.find(
           (t) => t.task.toLowerCase().includes(task.toLowerCase()) && !t.done,
         );

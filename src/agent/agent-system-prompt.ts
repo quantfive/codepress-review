@@ -212,12 +212,14 @@ export function getInteractiveSystemPrompt(
 
     <tool name="todo">
       Manage your task list during the review. Actions:
-      • \`add\`: Add a single task with \`task\` param, or multiple tasks at once with \`tasks\` array
+      • \`add\`: Add task(s) - single with \`task\` param, or multiple with \`tasks\` array
         - Single: \`{ action: "add", task: "Update PR description" }\`
-        - Multiple: \`{ action: "add", tasks: ["Check tests", "Verify types", "Review docs"] }\`
-      • \`done\`: Mark a task complete
+        - Multiple: \`{ action: "add", tasks: ["Review file1.ts", "Review file2.ts", "Review file3.ts"] }\`
+      • \`done\`: Mark task(s) complete - supports single or multiple at once!
+        - Single: \`{ action: "done", task: "file1" }\`
+        - Multiple: \`{ action: "done", tasks: ["file1", "file2", "file3"] }\` - saves time!
       • \`list\`: View all tasks
-      Use this to track things you need to do before finishing the review. Prefer adding multiple tasks at once when planning.
+      **Use batch operations to save time and tokens.** When you've reviewed several files, mark them all done at once.
     </tool>
 
     <tool name="web_fetch">
