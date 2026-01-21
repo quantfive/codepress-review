@@ -29,6 +29,21 @@ export interface ParsedArgs {
 }
 
 /**
+ * Context about how the review was triggered.
+ * Used to determine re-review behavior.
+ */
+export interface TriggerContext {
+  /** Whether this is a re-review (new commits pushed or re-review requested) */
+  isReReview: boolean;
+  /** The event that triggered the review */
+  triggerEvent: "opened" | "reopened" | "synchronize" | "review_requested" | "comment_trigger" | "workflow_dispatch";
+  /** The bot's previous review state on this PR, if any */
+  previousReviewState?: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING" | null;
+  /** The commit SHA of the previous review, if any */
+  previousReviewCommitSha?: string | null;
+}
+
+/**
  * Represents an existing review comment on the PR.
  * These are comments made by other reviewers that the bot should be aware of.
  */

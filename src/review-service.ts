@@ -4,7 +4,7 @@ import { resolve } from "path";
 import { PRContext, reviewFullDiff } from "./agent";
 import { getModelConfig } from "./config";
 import { debugLog } from "./debug";
-import type { ExistingReviewComment, ReviewConfig } from "./types";
+import type { ExistingReviewComment, ReviewConfig, TriggerContext } from "./types";
 
 /**
  * Service class that orchestrates the review process.
@@ -48,11 +48,25 @@ export class ReviewService {
     // Get all files in the repo (helps agent know what files exist)
     this.repoFilePaths = this.getRepoFilePaths();
 
+    // Build trigger context from environment variables
+    const triggerEvent = (process.env.TRIGGER_EVENT || "opened") as TriggerContext["triggerEvent"];
+    const isReReview = process.env.IS_RE_REVIEW === "true";
+    const previousReviewState = process.env.PREVIOUS_REVIEW_STATE as TriggerContext["previousReviewState"] || null;
+    const previousReviewCommitSha = process.env.PREVIOUS_REVIEW_COMMIT_SHA || null;
+
+    const triggerContext: TriggerContext = {
+      isReReview,
+      triggerEvent,
+      previousReviewState: previousReviewState || undefined,
+      previousReviewCommitSha: previousReviewCommitSha || undefined,
+    };
+
     // Build PR context for the agent
     const prContext: PRContext = {
       repo: this.config.githubRepository,
       prNumber: this.config.pr,
       commitSha: process.env.COMMIT_SHA || "",
+      triggerContext,
     };
 
     if (!prContext.commitSha) {

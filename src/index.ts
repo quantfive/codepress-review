@@ -2,7 +2,7 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ExistingReviewComment } from "./types";
+import type { ExistingReviewComment, TriggerContext } from "./types";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -10,6 +10,38 @@ interface TriggerConfig {
   runOnReviewRequested: boolean;
   runOnCommentTrigger: boolean;
   commentTriggerPhrase: string;
+}
+
+type TriggerEventType = TriggerContext["triggerEvent"];
+
+function getTriggerEvent(
+  context: typeof github.context,
+  config: TriggerConfig,
+): TriggerEventType {
+  const eventName = context.eventName;
+  const action = context.payload.action;
+
+  if (eventName === "pull_request" && action === "opened") {
+    return "opened";
+  }
+  if (eventName === "pull_request" && action === "reopened") {
+    return "reopened";
+  }
+  if (eventName === "pull_request" && action === "synchronize") {
+    return "synchronize";
+  }
+  if (eventName === "pull_request" && action === "review_requested") {
+    return "review_requested";
+  }
+  if (eventName === "issue_comment" && action === "created") {
+    const isPrComment = !!context.payload.issue?.pull_request;
+    const commentBody = context.payload.comment?.body || "";
+    const containsTrigger = commentBody.includes(config.commentTriggerPhrase);
+    if (isPrComment && containsTrigger) {
+      return "comment_trigger";
+    }
+  }
+  return "workflow_dispatch";
 }
 
 interface ShouldRunResult {
@@ -358,6 +390,72 @@ async function run(): Promise<void> {
           `Failed to fetch existing comments (continuing without them): ${commentError}`,
         );
         writeFileSync(existingCommentsFile, "[]");
+      }
+
+      // Determine trigger context for re-review behavior
+      const triggerEvent = getTriggerEvent(context, {
+        runOnPrOpened,
+        runOnPrReopened,
+        runOnReviewRequested,
+        runOnCommentTrigger,
+        commentTriggerPhrase,
+      });
+
+      // Fetch the bot's previous review state
+      let previousReviewState: TriggerContext["previousReviewState"] = null;
+      let previousReviewCommitSha: string | null = null;
+
+      try {
+        const { data: reviews } = await octokit.rest.pulls.listReviews({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: prNumber,
+        });
+
+        // Find the most recent review from the bot
+        const botReviews = reviews
+          .filter(
+            (review) =>
+              review.user?.login === "github-actions[bot]" ||
+              review.user?.type === "Bot",
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.submitted_at || 0).getTime() -
+              new Date(a.submitted_at || 0).getTime(),
+          );
+
+        if (botReviews.length > 0) {
+          const lastBotReview = botReviews[0];
+          previousReviewState = lastBotReview.state as TriggerContext["previousReviewState"];
+          previousReviewCommitSha = lastBotReview.commit_id || null;
+          core.info(
+            `Found previous bot review: ${previousReviewState} at commit ${previousReviewCommitSha?.substring(0, 7)}`,
+          );
+        }
+      } catch (reviewError) {
+        core.warning(
+          `Failed to fetch previous reviews (continuing without them): ${reviewError}`,
+        );
+      }
+
+      // Determine if this is a re-review based on whether the bot has previously
+      // submitted a formal review on this PR (not based on trigger event type)
+      const isReReview = previousReviewState !== null;
+
+      // Set trigger context environment variables
+      process.env.TRIGGER_EVENT = triggerEvent;
+      process.env.IS_RE_REVIEW = isReReview.toString();
+      process.env.PREVIOUS_REVIEW_STATE = previousReviewState || "";
+      process.env.PREVIOUS_REVIEW_COMMIT_SHA = previousReviewCommitSha || "";
+
+      if (isReReview) {
+        core.info(`Re-review detected (trigger: ${triggerEvent})`);
+        if (previousReviewCommitSha && previousReviewCommitSha !== commitSha) {
+          core.info(
+            `Commits changed: ${previousReviewCommitSha.substring(0, 7)} → ${commitSha.substring(0, 7)}`,
+          );
+        }
       }
     } catch (error) {
       core.setFailed(`Failed to fetch PR info from GitHub API: ${error}`);

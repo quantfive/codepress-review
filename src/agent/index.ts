@@ -2,7 +2,7 @@ import { Agent, Runner } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
-import { ExistingReviewComment, ModelConfig } from "../types";
+import { ExistingReviewComment, ModelConfig, TriggerContext } from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
 import { getAllTools, resetTodoList } from "./tools";
 
@@ -10,6 +10,7 @@ export interface PRContext {
   repo: string; // owner/repo format
   prNumber: number;
   commitSha: string;
+  triggerContext?: TriggerContext;
 }
 
 /**
@@ -87,6 +88,44 @@ export async function reviewFullDiff(
     );
   }
 
+  // Build re-review context section if applicable
+  const triggerCtx = prContext.triggerContext;
+  let reReviewSection = "";
+
+  if (triggerCtx?.isReReview) {
+    const prevState = triggerCtx.previousReviewState || "none";
+    const prevCommit = triggerCtx.previousReviewCommitSha || "unknown";
+    const trigger = triggerCtx.triggerEvent;
+
+    reReviewSection = `
+<reReviewContext>
+  **This is a RE-REVIEW.** You have previously reviewed this PR.
+
+  - Trigger: ${trigger === "synchronize" ? "New commits pushed" : trigger === "review_requested" ? "Re-review requested" : trigger === "comment_trigger" ? "Comment trigger" : trigger}
+  - Your previous review state: ${prevState}
+  - Previous review commit: ${prevCommit}
+  - Current commit: ${prContext.commitSha}
+
+  **IMPORTANT Re-review instructions:**
+  1. First, check what changed since your last review:
+     ${prevCommit !== "unknown" ? `\`git diff ${prevCommit}..${prContext.commitSha}\`` : "Fetch the current diff and compare to your previous feedback"}
+
+  2. Focus on the NEW changes first before doing a full review
+
+  3. Only post a new review/comments if:
+     - Your assessment has changed (e.g., previous issues were fixed, so you can now approve)
+     - You found NEW issues in the new commits
+     - You need to re-iterate unaddressed feedback
+
+  4. If your previous approval still stands and new changes don't introduce issues,
+     you may skip posting a redundant approval UNLESS the repo requires re-approval
+     after new commits (some repos have "dismiss stale reviews" enabled).
+
+  5. If you have nothing new to add, you can complete without posting a new review.
+</reReviewContext>
+`;
+  }
+
   const initialMessage = `
 You are reviewing PR #${prContext.prNumber} in repository ${prContext.repo}.
 Commit SHA: ${prContext.commitSha}
@@ -94,7 +133,7 @@ Commit SHA: ${prContext.commitSha}
 <repositoryFiles>
 ${fileList}
 </repositoryFiles>
-${existingCommentsSection}
+${reReviewSection}${existingCommentsSection}
 
 <instruction>
 Please review this pull request.
