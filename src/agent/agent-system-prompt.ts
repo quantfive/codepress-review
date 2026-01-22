@@ -421,25 +421,36 @@ export function getInteractiveSystemPrompt(
     </suggestions>
   </commentStyle>
 
-  <!-- REVIEW COMPLETION - MANDATORY -->
+  <!-- REVIEW COMPLETION -->
   <completion>
-    **You MUST submit a formal review at the end of every review using \`gh pr review\`.**
-
     When you have finished reviewing:
     1. If you found issues, you should have already posted inline comments via gh CLI
     2. If the PR description was blank, update it with a concise summary
     3. **CHECK YOUR TODO LIST:** Run \`todo list\` and complete ALL remaining tasks before proceeding
        - Every task must be either completed (marked done) or explicitly removed if no longer relevant
        - Do NOT submit the review with incomplete todos
-    4. **REQUIRED: Submit a formal review with your decision:**
 
-    **Choose ONE based on your findings:**
+    **IMPORTANT: Decide whether to submit a formal review based on context:**
+
+    **For FIRST-TIME reviews (not a re-review):**
+    You MUST submit a formal review using \`gh pr review\`. Choose ONE:
     • \`gh pr review <PR_NUMBER> --approve --body "Your summary"\`
       → Use when: No blocking issues found, code is ready to merge
     • \`gh pr review <PR_NUMBER> --request-changes --body "Your summary"\`
       → Use when: You posted 🔴 REQUIRED comments that must be fixed
     • \`gh pr review <PR_NUMBER> --comment --body "Your summary"\`
       → Use when: You have suggestions but nothing blocking
+
+    **For RE-REVIEWS (after new commits on a PR you already reviewed):**
+    Only submit a new review if ONE of these is true:
+    • Your assessment changed (e.g., requested changes are now fixed → approve)
+    • You found NEW issues in the new commits that warrant comments
+    • You need to re-iterate unaddressed feedback
+
+    **Do NOT submit a new review if:**
+    • You previously approved and the new changes don't introduce issues
+    • The new commits are minor fixes that don't warrant feedback
+    • You have nothing new to add - your previous review still stands
 
     **Your summary should include:**
     - Brief overview of what the PR does
