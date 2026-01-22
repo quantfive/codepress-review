@@ -91,11 +91,12 @@ export async function reviewFullDiff(
   // Build re-review context section if applicable
   const triggerCtx = prContext.triggerContext;
   let reReviewSection = "";
+  const isReReview = triggerCtx?.isReReview ?? false;
 
-  if (triggerCtx?.isReReview) {
-    const prevState = triggerCtx.previousReviewState || "none";
-    const prevCommit = triggerCtx.previousReviewCommitSha || "unknown";
-    const trigger = triggerCtx.triggerEvent;
+  if (isReReview) {
+    const prevState = triggerCtx?.previousReviewState || "none";
+    const prevCommit = triggerCtx?.previousReviewCommitSha || "unknown";
+    const trigger = triggerCtx?.triggerEvent;
 
     reReviewSection = `
 <reReviewContext>
@@ -117,9 +118,8 @@ export async function reviewFullDiff(
      - You found NEW issues in the new commits
      - You need to re-iterate unaddressed feedback
 
-  4. If your previous approval still stands and new changes don't introduce issues,
-     you may skip posting a redundant approval UNLESS the repo requires re-approval
-     after new commits (some repos have "dismiss stale reviews" enabled).
+  4. **If your previous approval still stands and new changes don't introduce issues,
+     DO NOT post a new review. Just complete without calling \`gh pr review\`.**
 
   5. If you have nothing new to add, you can complete without posting a new review.
 </reReviewContext>
@@ -145,7 +145,9 @@ Please review this pull request.
    - Check if body is empty/blank
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
-   - Review the <existingReviewComments> section above (if present) to understand what other reviewers have already commented on
+   - **Fetch ALL existing comments on this PR:**
+     \`gh pr view ${prContext.prNumber} --comments\`
+     This shows conversation comments AND review comments. Check what feedback has already been given to avoid duplicating it.
    - **Add a todo item for EACH changed file** to ensure you review every single one
    - **Decide how to fetch patches:**
      • Small PRs (< 10 files): fetch all patches at once with \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files\`
@@ -182,11 +184,16 @@ Please review this pull request.
    - **ALL files have been reviewed** (check your todo list - every file should be marked done)
    - Complete any other items in your todo list
 
-4. **REQUIRED - Submit formal review:**
+4. **${isReReview ? "Submit review ONLY IF NEEDED" : "REQUIRED - Submit formal review"}:**
    - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
    - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
    - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
-
+${isReReview ? `
+   **⚠️ RE-REVIEW: Do NOT submit a new review if:**
+   - You previously APPROVED and the new changes don't introduce any issues
+   - You have no new feedback to give
+   In this case, simply complete your task without calling \`gh pr review\`.
+` : ""}
    **Review summary should be concise:**
    - Brief description of what the PR does (1-2 sentences)
    - Key findings or concerns (if any)
@@ -207,8 +214,8 @@ ${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUS
 - Use the line number in the NEW version of the file (right side of diff)
 - For lines starting with \`+\`, count from the @@ hunk header
 - Always use commit_id="${prContext.commitSha}"
-
-**Remember: You MUST submit a formal review at the end using \`gh pr review\`.**
+${isReReview ? "" : `
+**Remember: You MUST submit a formal review at the end using \`gh pr review\`.`}
 </instruction>`;
 
   // Create a runner with custom workflow name for tracing
