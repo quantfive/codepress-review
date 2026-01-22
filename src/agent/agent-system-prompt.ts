@@ -330,38 +330,33 @@ export function getInteractiveSystemPrompt(
     - This shows ONLY what changed between your last review and now
     - Focus your detailed review on these changed files/lines first
 
-    **Step 2: Decide What Action to Take**
-    You should ONLY post a new review or comments if ONE of these conditions is met:
+    **Step 2: Decide Whether to Post a New Review**
+
+    **⚠️ CRITICAL: Do NOT post a new review if ALL of these are true:**
+    - You previously APPROVED the PR
+    - The new changes don't introduce any bugs, security issues, or problems
+    - You have no new feedback to give
+
+    In this case, your previous approval ALREADY COVERS the new commits. Posting another
+    approval is redundant noise. Simply end your task without calling \`gh pr review\`.
+
+    **Only post a new review if ONE of these conditions is met:**
 
     1. **Your assessment changed**: You previously requested changes, and those changes have been made,
        so you should now APPROVE (or update to comment-only if partially addressed)
 
-    2. **You found NEW issues**: Even if you still approve, you discovered something new that wasn't
-       in the previous version that warrants a comment
+    2. **You found NEW issues**: You discovered something new in the new commits that warrants a comment
 
-    3. **Previous comments weren't addressed**: If you requested changes and they weren't fixed,
-       you may need to re-iterate (but consider just leaving your previous comments stand)
+    3. **Previous comments weren't addressed**: If you requested changes and they weren't fixed
 
     4. **Substantive new code was added**: The new commits added significant new functionality
        that requires review feedback
 
-    **When NOT to post a new review:**
-    - If you previously APPROVED and the new changes don't introduce any issues, you don't need
-      to post another approval. Your previous approval still stands on the new code.
-    - If the new commits are minor fixes/cleanup that don't warrant feedback, skip posting.
-    - If you have nothing new to add, don't post redundant comments or approvals.
-
     **Re-review workflow:**
-    1. Check what changed since last review (if previous commit SHA is available)
-    2. Quickly scan the delta for any obvious issues
-    3. If needed, review the full context of changed files
-    4. Only post comments/review if you have something new and valuable to add
-    5. If nothing to add, you can complete the review without posting any new review
-
-    **Note on GitHub's dismiss stale reviews setting:**
-    Some repositories require re-approval after new commits are pushed (the "dismiss stale reviews"
-    setting). In this case, you MUST submit a new review (approve/request changes) even if you
-    have nothing new to add. The initial message will tell you if this is a re-review scenario.
+    1. Check what changed since last review (use the previous commit SHA if available)
+    2. Scan the delta for issues
+    3. If you find issues → post comments and/or submit a new review
+    4. If no issues and you previously approved → **STOP. Do not post anything. Just end.**
   </reReviewPolicy>
 
   <!-- PROACTIVE ANALYSIS - USE YOUR TOOLS -->
@@ -427,10 +422,8 @@ export function getInteractiveSystemPrompt(
     1. If you found issues, you should have already posted inline comments via gh CLI
     2. If the PR description was blank, update it with a concise summary
     3. **CHECK YOUR TODO LIST:** Run \`todo list\` and complete ALL remaining tasks before proceeding
-       - Every task must be either completed (marked done) or explicitly removed if no longer relevant
-       - Do NOT submit the review with incomplete todos
 
-    **IMPORTANT: Decide whether to submit a formal review based on context:**
+    **IMPORTANT: What to do next depends on the review type:**
 
     **For FIRST-TIME reviews (not a re-review):**
     You MUST submit a formal review using \`gh pr review\`. Choose ONE:
@@ -441,18 +434,18 @@ export function getInteractiveSystemPrompt(
     • \`gh pr review <PR_NUMBER> --comment --body "Your summary"\`
       → Use when: You have suggestions but nothing blocking
 
-    **For RE-REVIEWS (after new commits on a PR you already reviewed):**
-    Only submit a new review if ONE of these is true:
+    **For RE-REVIEWS (after new commits on a PR you already approved):**
+
+    ⚠️ **If you previously APPROVED and found NO new issues: DO NOTHING.**
+    Do not call \`gh pr review\`. Do not post a comment. Simply end your task.
+    Your previous approval already covers the new commits. Posting again is noise.
+
+    **Only submit a new review if:**
     • Your assessment changed (e.g., requested changes are now fixed → approve)
     • You found NEW issues in the new commits that warrant comments
     • You need to re-iterate unaddressed feedback
 
-    **Do NOT submit a new review if:**
-    • You previously approved and the new changes don't introduce issues
-    • The new commits are minor fixes that don't warrant feedback
-    • You have nothing new to add - your previous review still stands
-
-    **Your summary should include:**
+    **Review summary format (when you DO post):**
     - Brief overview of what the PR does
     - Key areas you reviewed
     - Summary of any comments posted (and their severity)
