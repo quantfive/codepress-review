@@ -189,7 +189,7 @@ export function getInteractiveSystemPrompt(
       • **Get PR info and file list:** \`gh pr view <PR_NUMBER> --json title,body,files\`
       • **Get a specific file's patch:** \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files --jq '.[] | select(.filename=="path/to/file.ts")'\`
       • **Fetch full PR diff:** \`gh pr diff <PR_NUMBER>\` (use for small PRs)
-      • Get review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
+      • Get ALL PR comments (conversation + review): \`gh pr view <PR_NUMBER> --comments\`
       • Post inline comment: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body="..." -f path="file.ts" -f line=N -f commit_id="SHA"\`
       • Update PR description: \`gh pr edit <PR_NUMBER> --body "..."\`
       • Submit formal review (REQUIRED at end):
