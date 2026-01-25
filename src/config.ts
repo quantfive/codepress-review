@@ -123,9 +123,15 @@ export function getReviewConfig(): ReviewConfig {
   }
 
   // Parse maxTurns from environment variable
-  const maxTurns = parseInt(process.env.MAX_TURNS!, 10);
-  if (isNaN(maxTurns) || maxTurns <= 0) {
-    throw new Error("MAX_TURNS must be a positive number");
+  // 0 or empty = unlimited (will be handled as null downstream)
+  const maxTurnsEnv = process.env.MAX_TURNS;
+  let maxTurns = 0; // 0 means unlimited
+  if (maxTurnsEnv) {
+    const parsed = parseInt(maxTurnsEnv, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      maxTurns = parsed;
+    }
+    // If parsing fails or value is 0/negative, use unlimited (0)
   }
 
   // Parse debug from environment variable, default to false

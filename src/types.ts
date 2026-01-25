@@ -63,3 +63,74 @@ export interface ExistingReviewComment {
   /** ISO timestamp when the comment was created */
   createdAt: string;
 }
+
+/**
+ * Represents a previous comment posted by the bot itself.
+ * Used for deduplication to prevent posting duplicate comments.
+ */
+export interface BotComment {
+  /** GitHub comment ID */
+  id: number;
+  /** File path the comment is on */
+  path: string;
+  /** Line number in the new version of the file */
+  line: number | null;
+  /** Original line number (may differ from line due to subsequent changes) */
+  originalLine: number | null;
+  /** The comment body/text */
+  body: string;
+  /** The diff hunk context around the comment */
+  diffHunk: string;
+  /** ISO timestamp when the comment was created */
+  createdAt: string;
+}
+
+/**
+ * Configuration for a related repository that can be accessed for context.
+ */
+export interface RelatedRepo {
+  /** Repository in owner/repo format */
+  repo: string;
+  /** Git ref to checkout (branch, tag, or commit) */
+  ref: string;
+  /** Description of what this repo contains and when to use it */
+  description: string;
+  /** Local path where the repo is cloned (set at runtime) */
+  localPath?: string;
+}
+
+/**
+ * State tracked across agent turns during a review.
+ * Used for intervention injection and progress tracking.
+ */
+export interface ReviewState {
+  /** Current turn number (1-indexed) */
+  currentTurn: number;
+  /** Maximum turns allowed (null = unlimited) */
+  maxTurns: number | null;
+  /** Tool calls made in the current turn */
+  toolCallsThisTurn: string[];
+
+  // Progress tracking
+  /** Whether the agent has checked its own previous comments */
+  hasCheckedExistingComments: boolean;
+  /** Whether the agent has submitted a formal review */
+  hasSubmittedReview: boolean;
+
+  // NOTE: filesChanged/filesReviewed tracking is commented out because:
+  // 1. We'd need an extra API call to get the list of changed files before the agent starts
+  // 2. The agent already tracks its own progress via the todo list (adds a todo per file)
+  // 3. The agent fetches changed files itself with `gh pr view --json files`
+  // If we want to enable the "speed up" intervention (warn when >50% turns used but <50% files reviewed),
+  // uncomment these fields and populate filesChanged from PR context before calling reviewFullDiff.
+  // /** List of files changed in the PR */
+  // filesChanged: string[];
+  // /** Set of files that have been reviewed */
+  // filesReviewed: Set<string>;
+
+  // Deduplication
+  /** Bot's previous comments on this PR */
+  botPreviousComments: BotComment[];
+  /** Comments posted during this run */
+  commentsPostedThisRun: Array<{ path: string; line: number; body: string }>;
+}

@@ -4,7 +4,13 @@ import { resolve } from "path";
 import { PRContext, reviewFullDiff } from "./agent";
 import { getModelConfig } from "./config";
 import { debugLog } from "./debug";
-import type { ExistingReviewComment, ReviewConfig, TriggerContext } from "./types";
+import type {
+  BotComment,
+  ExistingReviewComment,
+  RelatedRepo,
+  ReviewConfig,
+  TriggerContext,
+} from "./types";
 
 /**
  * Service class that orchestrates the review process.
@@ -93,19 +99,56 @@ export class ReviewService {
       }
     }
 
+    // Load bot's previous comments for deduplication
+    const botCommentsFile = resolve("bot-comments.json");
+    let botPreviousComments: BotComment[] = [];
+    if (existsSync(botCommentsFile)) {
+      try {
+        botPreviousComments = JSON.parse(readFileSync(botCommentsFile, "utf8"));
+        if (botPreviousComments.length > 0) {
+          debugLog(
+            `🔄 Found ${botPreviousComments.length} of your own previous comments for deduplication`,
+          );
+        }
+      } catch {
+        debugLog(
+          "⚠️ Failed to parse bot comments file, continuing without them",
+        );
+      }
+    }
+
+    // Load related repos from environment variable
+    let relatedRepos: RelatedRepo[] = [];
+    const relatedReposEnv = process.env.RELATED_REPOS;
+    if (relatedReposEnv) {
+      try {
+        relatedRepos = JSON.parse(relatedReposEnv);
+        if (relatedRepos.length > 0) {
+          debugLog(`🔗 Related repos available: ${relatedRepos.map((r) => r.repo).join(", ")}`);
+        }
+      } catch {
+        debugLog("⚠️ Failed to parse RELATED_REPOS environment variable");
+      }
+    }
+
     // Run the autonomous agent review
     debugLog("🚀 Starting agentic PR review...");
     debugLog(`📂 Repository files available: ${this.repoFilePaths.length}`);
     const modelConfig = getModelConfig();
+
+    // Determine maxTurns - use null for unlimited if 0 or not set
+    const maxTurns = this.config.maxTurns > 0 ? this.config.maxTurns : null;
 
     try {
       await reviewFullDiff(
         modelConfig,
         this.repoFilePaths,
         prContext,
-        this.config.maxTurns,
+        maxTurns,
         this.config.blockingOnly,
         existingComments,
+        botPreviousComments,
+        relatedRepos,
       );
       debugLog("✅ Review completed!");
     } catch (error: unknown) {

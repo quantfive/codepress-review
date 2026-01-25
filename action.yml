@@ -149,6 +149,25 @@ inputs:
     required: false
     default: "true"
 
+  # Multi-repo context inputs
+  related_repos:
+    description: |
+      YAML list of related repositories for cross-repo context. Example:
+      related_repos: |
+        - repo: owner/backend
+          ref: main
+          description: Backend API - check API contracts
+        - repo: owner/shared
+          ref: v2
+          description: Shared types and utilities
+    required: false
+    default: ""
+
+  related_repos_token:
+    description: "Token for accessing related repos (falls back to github_token for same-org repos)"
+    required: false
+    default: ""
+
 runs:
   using: "node20"
   main: "dist/index.js"

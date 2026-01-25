@@ -2,7 +2,16 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ExistingReviewComment, TriggerContext } from "./types";
+import { execSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type {
+  BotComment,
+  ExistingReviewComment,
+  RelatedRepo,
+  TriggerContext,
+} from "./types";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -184,6 +193,10 @@ async function run(): Promise<void> {
     // Get web search configuration
     const enableWebSearch = core.getBooleanInput("enable_web_search");
 
+    // Get related repos configuration
+    const relatedReposInput = core.getInput("related_repos");
+    const relatedReposToken = core.getInput("related_repos_token") || githubToken;
+
     // Get trigger configuration inputs
     const runOnPrOpened = core.getBooleanInput("run_on_pr_opened");
     const runOnPrReopened = core.getBooleanInput("run_on_pr_reopened");
@@ -350,8 +363,9 @@ async function run(): Promise<void> {
       commitSha = prInfo.data.head.sha;
       core.info(`Commit SHA: ${commitSha}`);
 
-      // Fetch existing review comments from other reviewers
+      // Fetch existing review comments (both from other reviewers and from the bot itself)
       const existingCommentsFile = resolve("pr-comments.json");
+      const botCommentsFile = resolve("bot-comments.json");
       try {
         const { data: reviewComments } =
           await octokit.rest.pulls.listReviewComments({
@@ -360,14 +374,15 @@ async function run(): Promise<void> {
             pull_number: prNumber,
           });
 
-        // Filter out bot comments and map to our interface
+        // Separate bot comments from other reviewers' comments
+        const isBotComment = (comment: (typeof reviewComments)[0]) =>
+          comment.user &&
+          (comment.user.login.includes("[bot]") ||
+            comment.user.login === "github-actions");
+
+        // Comments from other reviewers (for context)
         const existingComments: ExistingReviewComment[] = reviewComments
-          .filter(
-            (comment) =>
-              comment.user &&
-              !comment.user.login.includes("[bot]") &&
-              comment.user.login !== "github-actions",
-          )
+          .filter((comment) => comment.user && !isBotComment(comment))
           .map((comment) => ({
             id: comment.id,
             author: comment.user?.login || "unknown",
@@ -378,18 +393,39 @@ async function run(): Promise<void> {
             createdAt: comment.created_at,
           }));
 
+        // Bot's own previous comments (for deduplication)
+        const botComments: BotComment[] = reviewComments
+          .filter((comment) => isBotComment(comment))
+          .map((comment) => ({
+            id: comment.id,
+            path: comment.path,
+            line: comment.line ?? null,
+            originalLine: comment.original_line ?? null,
+            body: comment.body,
+            diffHunk: comment.diff_hunk,
+            createdAt: comment.created_at,
+          }));
+
         writeFileSync(
           existingCommentsFile,
           JSON.stringify(existingComments, null, 2),
         );
+        writeFileSync(botCommentsFile, JSON.stringify(botComments, null, 2));
+
         core.info(
-          `Found ${existingComments.length} existing review comments from other reviewers`,
+          `Found ${existingComments.length} review comments from other reviewers`,
         );
+        if (botComments.length > 0) {
+          core.info(
+            `Found ${botComments.length} of your own previous comments for deduplication`,
+          );
+        }
       } catch (commentError) {
         core.warning(
           `Failed to fetch existing comments (continuing without them): ${commentError}`,
         );
         writeFileSync(existingCommentsFile, "[]");
+        writeFileSync(botCommentsFile, "[]");
       }
 
       // Determine trigger context for re-review behavior
@@ -465,6 +501,67 @@ async function run(): Promise<void> {
     // Set PR context for the agent
     process.env.PR_NUMBER = prNumber.toString();
     process.env.COMMIT_SHA = commitSha;
+
+    // Clone related repos if configured
+    const relatedRepos: RelatedRepo[] = [];
+    if (relatedReposInput.trim()) {
+      try {
+        // Parse YAML-like input (simple line-based parsing)
+        const lines = relatedReposInput.trim().split("\n");
+        let currentRepo: Partial<RelatedRepo> | null = null;
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("- repo:")) {
+            if (currentRepo && currentRepo.repo) {
+              relatedRepos.push(currentRepo as RelatedRepo);
+            }
+            currentRepo = { repo: trimmed.replace("- repo:", "").trim() };
+          } else if (trimmed.startsWith("repo:") && currentRepo === null) {
+            currentRepo = { repo: trimmed.replace("repo:", "").trim() };
+          } else if (trimmed.startsWith("ref:") && currentRepo) {
+            currentRepo.ref = trimmed.replace("ref:", "").trim();
+          } else if (trimmed.startsWith("description:") && currentRepo) {
+            currentRepo.description = trimmed.replace("description:", "").trim();
+          }
+        }
+        if (currentRepo && currentRepo.repo) {
+          relatedRepos.push(currentRepo as RelatedRepo);
+        }
+
+        // Clone each related repo
+        if (relatedRepos.length > 0) {
+          const tempDir = mkdtempSync(join(tmpdir(), "codepress-related-"));
+          core.info(`Cloning ${relatedRepos.length} related repo(s) to ${tempDir}`);
+
+          for (const relatedRepo of relatedRepos) {
+            const repoName = relatedRepo.repo.split("/").pop() || relatedRepo.repo;
+            const localPath = join(tempDir, repoName);
+            const ref = relatedRepo.ref || "main";
+
+            try {
+              const cloneUrl = `https://x-access-token:${relatedReposToken}@github.com/${relatedRepo.repo}.git`;
+              execSync(
+                `git clone --depth 1 --branch ${ref} "${cloneUrl}" "${localPath}"`,
+                { stdio: "pipe" },
+              );
+              relatedRepo.localPath = localPath;
+              core.info(`  Cloned ${relatedRepo.repo}@${ref} → ${localPath}`);
+            } catch (cloneError) {
+              core.warning(`Failed to clone ${relatedRepo.repo}: ${cloneError}`);
+            }
+          }
+        }
+      } catch (parseError) {
+        core.warning(`Failed to parse related_repos config: ${parseError}`);
+      }
+    }
+
+    // Set related repos paths as environment variable for the agent
+    const clonedRepos = relatedRepos.filter((r) => r.localPath);
+    if (clonedRepos.length > 0) {
+      process.env.RELATED_REPOS = JSON.stringify(clonedRepos);
+    }
 
     // Run the AI review script
     try {

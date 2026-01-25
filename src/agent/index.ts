@@ -1,9 +1,23 @@
-import { Agent, Runner } from "@openai/agents";
+import { Agent, Runner, CallModelInputFilter } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
-import { ExistingReviewComment, ModelConfig, TriggerContext } from "../types";
+import {
+  BotComment,
+  ExistingReviewComment,
+  ModelConfig,
+  RelatedRepo,
+  ReviewState,
+  TriggerContext,
+} from "../types";
 import { getInteractiveSystemPrompt } from "./agent-system-prompt";
+import {
+  analyzeToolOutput,
+  generateInterventionBlock,
+  MAX_STEPS_PROMPT,
+  shouldForceTextOnly,
+} from "./interventions";
+import { advanceTurn, createReviewState, recordToolCall } from "./review-state";
 import { getAllTools, resetTodoList } from "./tools";
 
 export interface PRContext {
@@ -14,7 +28,7 @@ export interface PRContext {
 }
 
 /**
- * Formats existing review comments into a readable string for the agent.
+ * Formats existing review comments from OTHER reviewers into a readable string.
  */
 function formatExistingComments(comments: ExistingReviewComment[]): string {
   if (comments.length === 0) {
@@ -49,6 +63,117 @@ ${formattedComments.join("\n\n")}
 }
 
 /**
+ * Formats the bot's own previous comments for deduplication.
+ */
+function formatBotPreviousComments(comments: BotComment[]): string {
+  if (comments.length === 0) {
+    return "";
+  }
+
+  const formattedComments = comments.map((comment) => {
+    const lineInfo = comment.line ? `line="${comment.line}"` : "";
+    return `  <previousComment path="${comment.path}" ${lineInfo}>
+${comment.body}
+  </previousComment>`;
+  });
+
+  return `
+<yourPreviousComments count="${comments.length}">
+  You have previously posted these comments on this PR.
+  **DO NOT post duplicate or similar comments.**
+
+  Review each before posting anything new:
+
+${formattedComments.join("\n\n")}
+</yourPreviousComments>`;
+}
+
+/**
+ * Formats related repos for the agent context.
+ */
+function formatRelatedRepos(repos: RelatedRepo[]): string {
+  if (repos.length === 0) {
+    return "";
+  }
+
+  const repoList = repos
+    .filter((r) => r.localPath) // Only include successfully cloned repos
+    .map((r) => {
+      return `  <repo name="${r.repo}" path="${r.localPath}">
+    ${r.description || "Related repository for cross-repo context"}
+  </repo>`;
+    })
+    .join("\n\n");
+
+  return `
+<relatedRepos count="${repos.length}">
+  The following related repositories are available for context:
+
+${repoList}
+
+  **Use these repos when you need to:**
+  - Verify API contracts match between repos
+  - Check if similar code/utilities exist elsewhere
+  - Understand cross-repo dependencies
+  - Find shared type definitions
+
+  **To search/read related repos, use full paths:**
+  - Read files: \`cat /path/to/related/repo/src/file.ts\`
+  - Search: \`rg "pattern" /path/to/related/repo/\`
+</relatedRepos>`;
+}
+
+/**
+ * Creates a callModelInputFilter that injects interventions into the input.
+ */
+function createInterventionFilter(
+  state: ReviewState,
+): CallModelInputFilter<unknown> {
+  return (args) => {
+    // Advance turn counter
+    advanceTurn(state);
+    debugLog(`Turn ${state.currentTurn}${state.maxTurns ? `/${state.maxTurns}` : ""}`);
+
+    // Check if we should force text-only response (at max turns)
+    if (shouldForceTextOnly(state)) {
+      debugLog("At max turns - forcing text-only response");
+      // Prepend urgent system message to instructions to force completion
+      args.modelData.instructions = `🛑 **FINAL TURN - MUST COMPLETE NOW** 🛑
+
+${MAX_STEPS_PROMPT}
+
+---
+
+${args.modelData.instructions || ""}`;
+      return args.modelData;
+    }
+
+    // Generate and inject interventions
+    const interventionBlock = generateInterventionBlock(state);
+    if (interventionBlock) {
+      debugLog("Injecting intervention reminder");
+      // Find the last user message and prepend the intervention
+      const lastUserMsgIndex = args.modelData.input
+        .map((item, i) => ({ item, i }))
+        .filter((x) => (x.item as { role?: string }).role === "user")
+        .pop()?.i;
+
+      if (lastUserMsgIndex !== undefined) {
+        const lastUserMsg = args.modelData.input[lastUserMsgIndex] as {
+          role: string;
+          content: string | unknown[];
+        };
+        if (typeof lastUserMsg.content === "string") {
+          lastUserMsg.content = `${interventionBlock}\n\n${lastUserMsg.content}`;
+        }
+      }
+    }
+
+    return args.modelData;
+  };
+}
+
+/**
  * Reviews a PR using a single interactive agent with agentic diff exploration.
  * The agent has full autonomy to:
  * - Fetch the diff via gh CLI (on demand)
@@ -62,14 +187,25 @@ export async function reviewFullDiff(
   modelConfig: ModelConfig,
   repoFilePaths: string[],
   prContext: PRContext,
-  maxTurns: number = 75,
+  maxTurns: number | null = null, // null = unlimited (default)
   blockingOnly: boolean = false,
   existingComments: ExistingReviewComment[] = [],
+  botPreviousComments: BotComment[] = [],
+  relatedRepos: RelatedRepo[] = [],
 ): Promise<void> {
   // Reset todo list for fresh review
   resetTodoList();
 
+  // Initialize review state for intervention tracking
+  const reviewState = createReviewState({
+    maxTurns,
+    botPreviousComments,
+  });
+
   const model = await createModel(modelConfig);
+
+  // Create the intervention filter
+  const interventionFilter = createInterventionFilter(reviewState);
 
   const agent = new Agent({
     model: aisdk(model),
@@ -80,11 +216,27 @@ export async function reviewFullDiff(
 
   const fileList = repoFilePaths.join("\n");
 
-  // Format existing comments for inclusion
+  // Format existing comments from other reviewers
   const existingCommentsSection = formatExistingComments(existingComments);
   if (existingComments.length > 0) {
     debugLog(
-      `📝 Including ${existingComments.length} existing review comments in context`,
+      `📝 Including ${existingComments.length} existing review comments from other reviewers`,
+    );
+  }
+
+  // Format bot's own previous comments for deduplication
+  const botCommentsSection = formatBotPreviousComments(botPreviousComments);
+  if (botPreviousComments.length > 0) {
+    debugLog(
+      `🔄 Including ${botPreviousComments.length} of your own previous comments for deduplication`,
+    );
+  }
+
+  // Format related repos context
+  const relatedReposSection = formatRelatedRepos(relatedRepos);
+  if (relatedRepos.length > 0) {
+    debugLog(
+      `🔗 Including ${relatedRepos.length} related repo(s) for cross-repo context`,
     );
   }
 
@@ -133,7 +285,7 @@ Commit SHA: ${prContext.commitSha}
 <repositoryFiles>
 ${fileList}
 </repositoryFiles>
-${reReviewSection}${existingCommentsSection}
+${reReviewSection}${botCommentsSection}${existingCommentsSection}${relatedReposSection}
 
 <instruction>
 Please review this pull request.
@@ -223,13 +375,37 @@ ${isReReview ? "" : `
     workflowName: `${prContext.repo}#${prContext.prNumber}`,
   });
 
+  // Set up tool tracking via runner hooks
+  runner.on("agent_tool_start", (_context, _agent, tool, _details) => {
+    recordToolCall(reviewState, tool.name);
+    debugLog(`Tool start: ${tool.name}`);
+  });
+
+  runner.on("agent_tool_end", (_context, _agent, tool, result, details) => {
+    // Analyze tool output to update state (track comment posting, review submission, etc.)
+    analyzeToolOutput(reviewState, tool.name, details.toolCall, result);
+  });
+
   try {
     debugLog(`Starting agentic PR review`);
-    debugLog(`Max turns: ${maxTurns}`);
+    debugLog(`Max turns: ${maxTurns === null ? "unlimited" : maxTurns}`);
     debugLog(`PR: ${prContext.repo}#${prContext.prNumber}`);
     debugLog(`Repository files available: ${repoFilePaths.length}`);
+    if (botPreviousComments.length > 0) {
+      debugLog(`Bot previous comments for deduplication: ${botPreviousComments.length}`);
+    }
 
-    const result = await runner.run(agent, initialMessage, { maxTurns });
+    // Build run options
+    const runOptions: { maxTurns?: number; callModelInputFilter: typeof interventionFilter } = {
+      callModelInputFilter: interventionFilter,
+    };
+
+    // Only set maxTurns if it's not null (unlimited)
+    if (maxTurns !== null) {
+      runOptions.maxTurns = maxTurns;
+    }
+
+    const result = await runner.run(agent, initialMessage, runOptions);
 
     if (result.finalOutput) {
       debugLog("Agent completed review. Final output:", result.finalOutput);

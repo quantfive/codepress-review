@@ -403,28 +403,25 @@ describe("Configuration", () => {
       expect(result.debug).toBe(true);
     });
 
-    it("should throw error if MAX_TURNS is invalid", () => {
+    it("should treat invalid MAX_TURNS as unlimited (0)", () => {
       process.env.MAX_TURNS = "invalid";
 
-      expect(() => getReviewConfig()).toThrow(
-        "MAX_TURNS must be a positive number",
-      );
+      const result = getReviewConfig();
+      expect(result.maxTurns).toBe(0);
     });
 
-    it("should throw error if MAX_TURNS is zero", () => {
+    it("should treat zero MAX_TURNS as unlimited (0)", () => {
       process.env.MAX_TURNS = "0";
 
-      expect(() => getReviewConfig()).toThrow(
-        "MAX_TURNS must be a positive number",
-      );
+      const result = getReviewConfig();
+      expect(result.maxTurns).toBe(0);
     });
 
-    it("should throw error if MAX_TURNS is negative", () => {
+    it("should treat negative MAX_TURNS as unlimited (0)", () => {
       process.env.MAX_TURNS = "-5";
 
-      expect(() => getReviewConfig()).toThrow(
-        "MAX_TURNS must be a positive number",
-      );
+      const result = getReviewConfig();
+      expect(result.maxTurns).toBe(0);
     });
 
     it("should throw error if GITHUB_TOKEN is missing", () => {
