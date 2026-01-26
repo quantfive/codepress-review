@@ -1,6 +1,5 @@
 import { Agent, Runner, CallModelInputFilter } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
-import { z } from "zod";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
 import {
@@ -22,22 +21,14 @@ import { advanceTurn, createReviewState, recordToolCall } from "./review-state";
 import { getAllTools, resetTodoList } from "./tools";
 
 /**
- * Schema for the agent's final output.
- * The agent MUST produce this structured output to signal completion.
- * This prevents the agent from stopping prematurely on text-only responses.
+ * Type for the review completion result from the complete_review tool.
  */
-const ReviewCompletionSchema = z.object({
-  /** Whether the review has been completed and submitted */
-  completed: z.boolean().describe("Set to true only when the review has been fully completed and submitted via gh pr review"),
-  /** Brief summary of the review outcome */
-  summary: z.string().describe("A brief summary of the review: what was found, comments posted, and final verdict"),
-  /** Number of comments posted during this review */
-  commentsPosted: z.number().describe("Number of inline comments posted during this review"),
-  /** The review verdict submitted */
-  verdict: z.enum(["APPROVE", "REQUEST_CHANGES", "COMMENT", "NONE"]).describe("The verdict submitted with gh pr review, or NONE if no review was submitted"),
-});
-
-export type ReviewCompletion = z.infer<typeof ReviewCompletionSchema>;
+export interface ReviewCompletion {
+  completed: boolean;
+  summary: string;
+  commentsPosted: number;
+  verdict: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NONE";
+}
 
 export interface PRContext {
   repo: string; // owner/repo format
@@ -232,9 +223,8 @@ export async function reviewFullDiff(
     name: "CodePressReviewAgent",
     instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
     tools: getAllTools(),
-    // Structured output type - the loop continues until this is produced
-    // This prevents the agent from stopping on text-only responses
-    outputType: ReviewCompletionSchema,
+    // No outputType - the agent terminates by calling the complete_review tool
+    // This prevents accidental termination on text-only responses
   });
 
   const fileList = repoFilePaths.join("\n");
@@ -421,6 +411,9 @@ ${isReReview ? "" : `
     workflowName: `${prContext.repo}#${prContext.prNumber}`,
   });
 
+  // Track completion from complete_review tool
+  let reviewCompletion: ReviewCompletion | null = null;
+
   // Set up tool tracking via runner hooks
   runner.on("agent_tool_start", (_context, _agent, tool, _details) => {
     recordToolCall(reviewState, tool.name);
@@ -430,6 +423,25 @@ ${isReReview ? "" : `
   runner.on("agent_tool_end", (_context, _agent, tool, result, details) => {
     // Analyze tool output to update state (track comment posting, review submission, etc.)
     analyzeToolOutput(reviewState, tool.name, details.toolCall, result);
+
+    // Check if complete_review was called
+    if (tool.name === "complete_review" && result) {
+      const resultObj = typeof result === "object" ? result : {};
+      const typedResult = resultObj as {
+        completed?: boolean;
+        verdict?: string;
+        summary?: string;
+      };
+      if (typedResult.completed) {
+        reviewCompletion = {
+          completed: true,
+          verdict: (typedResult.verdict as ReviewCompletion["verdict"]) || "NONE",
+          summary: typedResult.summary || "",
+          commentsPosted: reviewState.commentsPostedThisRun.length,
+        };
+        debugLog("[Review] complete_review tool called - review will terminate");
+      }
+    }
   });
 
   try {
@@ -442,21 +454,27 @@ ${isReReview ? "" : `
     }
 
     // Build run options
-    const runOptions: { maxTurns?: number; callModelInputFilter: typeof interventionFilter } = {
+    // Note: The @openai/agents SDK defaults to 10 turns if maxTurns is not provided.
+    // When maxTurns is null (meaning "unlimited"), we pass a very large number.
+    const effectiveMaxTurns = maxTurns ?? Number.MAX_SAFE_INTEGER;
+    const runOptions = {
       callModelInputFilter: interventionFilter,
+      maxTurns: effectiveMaxTurns,
     };
 
-    // Only set maxTurns if it's not null (unlimited)
-    if (maxTurns !== null) {
-      runOptions.maxTurns = maxTurns;
-    }
+    await runner.run(agent, initialMessage, runOptions);
 
-    const result = await runner.run(agent, initialMessage, runOptions);
-
-    if (result.finalOutput) {
-      debugLog("Agent completed review. Final output:", result.finalOutput);
+    // Check completion status (assigned in the agent_tool_end callback)
+    const completion = reviewCompletion as ReviewCompletion | null;
+    if (completion) {
+      debugLog("Agent completed review via complete_review tool.");
+      debugLog(`  Verdict: ${completion.verdict}`);
+      debugLog(`  Summary: ${completion.summary}`);
+      debugLog(`  Comments posted: ${completion.commentsPosted}`);
     } else {
-      debugLog("Agent completed without final output.");
+      debugLog("Agent completed without calling complete_review tool.");
+      debugLog(`  Comments posted this run: ${reviewState.commentsPostedThisRun.length}`);
+      debugLog(`  Review submitted: ${reviewState.hasSubmittedReview}`);
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
