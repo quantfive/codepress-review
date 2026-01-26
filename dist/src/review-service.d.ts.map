@@ -1,0 +1,1 @@
+{"version":3,"file":"review-service.d.ts","sourceRoot":"","sources":["../../src/review-service.ts"],"names":[],"mappings":"AAOA,OAAO,KAAK,EAIV,YAAY,EAEb,MAAM,SAAS,CAAC;AAajB;;;;;;;GAOG;AACH,qBAAa,aAAa;IACxB,OAAO,CAAC,MAAM,CAAe;IAC7B,OAAO,CAAC,aAAa,CAAgB;gBAEzB,MAAM,EAAE,YAAY;IAIhC;;OAEG;IACH,OAAO,CAAC,gBAAgB;IAexB;;;OAGG;IACG,OAAO,IAAI,OAAO,CAAC,IAAI,CAAC;CAwI/B"}
