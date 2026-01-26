@@ -86,7 +86,7 @@ describe("ReviewService", () => {
       await service.execute();
 
       expect(agent.reviewFullDiff).toHaveBeenCalledTimes(1);
-      // The new signature: (modelConfig, repoFilePaths, prContext, maxTurns, blockingOnly, existingComments, botPreviousComments, relatedRepos)
+      // The new signature: (modelConfig, repoFilePaths, prContext, maxTurns, blockingOnly, existingComments, botPreviousComments, relatedRepos, prFilesFormatted)
       expect(agent.reviewFullDiff).toHaveBeenCalledWith(
         expect.any(Object), // modelConfig
         expect.any(Array), // repoFilePaths
@@ -100,6 +100,7 @@ describe("ReviewService", () => {
         [], // existingComments (empty when no pr-comments.json)
         [], // botPreviousComments (empty when no bot-comments.json)
         [], // relatedRepos (empty when no RELATED_REPOS env var)
+        "", // prFilesFormatted (empty when no pr-files.json)
       );
     });
 
@@ -120,6 +121,7 @@ describe("ReviewService", () => {
         [], // existingComments
         [], // botPreviousComments
         [], // relatedRepos
+        "", // prFilesFormatted
       );
     });
 

@@ -9,8 +9,8 @@ import TurndownService from "turndown";
 import { z } from "zod";
 import { DEFAULT_IGNORE_PATTERNS } from "../constants";
 
-// Maximum output size for bash commands (100KB)
-const MAX_BASH_OUTPUT = 100 * 1024;
+// Maximum output size for bash commands (2MB)
+const MAX_BASH_OUTPUT = 2 * 1024 * 1024;
 // Default timeout for bash commands (30 seconds)
 const BASH_TIMEOUT_MS = 30 * 1000;
 

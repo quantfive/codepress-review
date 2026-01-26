@@ -12,6 +12,13 @@ import type {
   RelatedRepo,
   TriggerContext,
 } from "./types";
+import {
+  filterPRFiles,
+  formatPRFilesForPrompt,
+  shouldIncludePatches,
+  getFilterStats,
+  type PRFile,
+} from "./pr-files";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -426,6 +433,49 @@ async function run(): Promise<void> {
         );
         writeFileSync(existingCommentsFile, "[]");
         writeFileSync(botCommentsFile, "[]");
+      }
+
+      // Fetch PR files and filter out ignored patterns (lock files, build outputs, etc.)
+      const prFilesFile = resolve("pr-files.json");
+      try {
+        const { data: prFilesData } = await octokit.rest.pulls.listFiles({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: prNumber,
+          per_page: 300, // Max allowed by GitHub API
+        });
+
+        const allFiles: PRFile[] = prFilesData.map((file) => ({
+          filename: file.filename,
+          status: file.status as PRFile["status"],
+          additions: file.additions,
+          deletions: file.deletions,
+          changes: file.changes,
+          patch: file.patch,
+          previousFilename: file.previous_filename,
+        }));
+
+        const filteredFiles = filterPRFiles(allFiles);
+        const filterStats = getFilterStats(allFiles.length, filteredFiles);
+        const includePatches = shouldIncludePatches(filteredFiles);
+        const formattedFiles = formatPRFilesForPrompt(filteredFiles, includePatches);
+
+        // Save both raw filtered files and formatted prompt section
+        writeFileSync(prFilesFile, JSON.stringify({
+          files: filteredFiles,
+          formatted: formattedFiles,
+          includePatches,
+          originalCount: allFiles.length,
+          filteredCount: filteredFiles.length,
+        }, null, 2));
+
+        core.info(`Found ${allFiles.length} changed files, ${filteredFiles.length} to review${filterStats}`);
+        if (includePatches) {
+          core.info("Including patches in initial context (small PR)");
+        }
+      } catch (filesError) {
+        core.warning(`Failed to fetch PR files (agent will fetch them): ${filesError}`);
+        writeFileSync(prFilesFile, JSON.stringify({ files: [], formatted: "", originalCount: 0, filteredCount: 0 }, null, 2));
       }
 
       // Determine trigger context for re-review behavior

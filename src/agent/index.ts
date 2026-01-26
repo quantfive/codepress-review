@@ -211,6 +211,7 @@ export async function reviewFullDiff(
   existingComments: ExistingReviewComment[] = [],
   botPreviousComments: BotComment[] = [],
   relatedRepos: RelatedRepo[] = [],
+  prFilesFormatted: string = "", // Pre-filtered PR files section
 ): Promise<void> {
   // Reset todo list for fresh review
   resetTodoList();
@@ -300,6 +301,18 @@ export async function reviewFullDiff(
 `;
   }
 
+  // Format PR files section - use pre-filtered if available, otherwise agent will fetch
+  const prFilesSection = prFilesFormatted
+    ? `\n${prFilesFormatted}
+⚠️ **IMPORTANT:** This file list is pre-filtered and authoritative. Do NOT fetch the full file list again.
+Lock files, build outputs (dist/, build/), and generated files have already been removed.
+Only review the files listed above. Fetch individual patches as needed, not the full list.
+`
+    : `\n<prFiles>
+Files will be fetched via: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files\`
+Note: Lock files, build outputs, and generated files should be skipped.
+</prFiles>\n`;
+
   const initialMessage = `
 You are reviewing PR #${prContext.prNumber} in repository ${prContext.repo}.
 Commit SHA: ${prContext.commitSha}
@@ -307,29 +320,38 @@ Commit SHA: ${prContext.commitSha}
 <repositoryFiles>
 ${fileList}
 </repositoryFiles>
-${reReviewSection}${botCommentsSection}${existingCommentsSection}${relatedReposSection}
+${prFilesSection}${reReviewSection}${botCommentsSection}${existingCommentsSection}${relatedReposSection}
 
 <instruction>
 Please review this pull request.
 
 **Your workflow:**
 
-1. **Get PR context and list of changed files:**
-   - Run \`gh pr view ${prContext.prNumber} --json title,body,files\` to get PR info and list of changed files
+1. **Get PR context:**
+   - Run \`gh pr view ${prContext.prNumber} --json title,body\` to get PR info
    - Check if body is empty/blank
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
    - **Fetch ALL existing comments on this PR:**
      \`gh pr view ${prContext.prNumber} --comments\`
      This shows conversation comments AND review comments. Check what feedback has already been given to avoid duplicating it.
-   - **Add a todo item for EACH changed file** to ensure you review every single one
-   - **Decide how to fetch patches:**
-     • Small PRs (< 10 files): fetch all patches at once with \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files\`
-     • Large PRs: fetch patches one at a time as you review each file
+   - **Add a todo item for EACH file in <prFiles>** to ensure you review every single one
+
+   ⚠️ **The \`<prFiles>\` list is authoritative and pre-filtered.**
+   Lock files, build outputs, and generated files have been removed. **Only review files listed in \`<prFiles>\`.**
+
+   **Fetching patches (if not in \`<patches>\` above):**
+   **ALWAYS use --jq to filter** - this keeps lock files and build outputs out of your context.
+
+   • Single file: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files --jq '.[] | select(.filename=="src/index.ts")'\`
+   • Multiple files: \`gh api ... --jq '[.[] | select(.filename=="src/a.ts" or .filename=="src/b.ts")]'\`
+   • By pattern: \`gh api ... --jq '[.[] | select(.filename | startswith("src/"))]'\`
+
+   ❌ **NEVER** run without --jq: \`gh api .../files\` dumps ALL files (including lock files) into context
 
 2. **Review EVERY changed file (one at a time):**
-   For EACH file in the changed files list:
-   a. **Get the patch** (if not already fetched):
+   For EACH file in the \`<prFiles>\` list:
+   a. **Get the patch** (if not in \`<patches>\` above):
       \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files --jq '.[] | select(.filename=="<filepath>")'\`
    b. **Read the FULL file for context:** \`cat <filepath>\` - Don't just look at the patch!
       The diff only shows changed lines. Read the entire file to understand:
