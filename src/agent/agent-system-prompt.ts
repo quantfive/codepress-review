@@ -227,27 +227,33 @@ export function getInteractiveSystemPrompt(
 
     <!-- FILE-BY-FILE REVIEW APPROACH -->
     <reviewApproach>
-      **First-time review:** Review ALL meaningful source files changed in the PR.
-      **Re-review:** Focus on files changed since your last review (see \`<reReviewPolicy>\`).
+      🚨 **CRITICAL: Determine scope BEFORE creating todos** 🚨
 
-      (Always skip auto-generated files listed in \`<filesToSkip>\` above.)
+      **Step 1: Check if this is a re-review**
+      Look at <yourPreviousComments> - if you have previous reviews on this PR, this is a re-review.
+      Also check if a previous commit SHA is provided in the context.
 
-      **Workflow:**
-      1. Determine your review scope:
-         - First review: \`gh pr view <PR_NUMBER> --json files\` for all changed files
-         - Re-review: \`git diff <previous_sha>..<current_sha>\` for new changes only
-      2. Filter out lock files, build outputs, and generated files
-      3. Add a todo item for each file IN YOUR SCOPE - this is your commitment
-      4. Review each file:
-         - Fetch the patch: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files --jq '.[] | select(.filename=="path/to/file.ts")'\`
-         - **Read the FULL file** (not just the patch) for context
-         - **Post comments IMMEDIATELY** when you find issues
-         - Mark the file as done in your todo list
-      5. Complete ALL todos before submitting the review
+      **Step 2: Get the appropriate file list based on scope**
+      - **First-time review:** \`gh pr view <PR_NUMBER> --json files\` → all changed files
+      - **Re-review (previously approved):** Get files from new commits only:
+        1. Try: \`git diff <previous_sha>..<current_sha> --name-only\`
+        2. Fallback: \`gh api repos/OWNER/REPO/compare/<previous_sha>...<current_sha> --jq '.files[].filename'\`
+      - **Re-review (previously requested changes):** New commit files + files where you left comments
 
-      **Impact analysis:**
-      When changes affect other files (imports, APIs, shared types), use \`rg\` to investigate.
-      This is part of reviewing - add a todo only if another file needs detailed review too.
+      **Step 3: Create todos ONLY for files in your scope**
+      Filter out lock files, build outputs, generated files (see \`<filesToSkip>\`).
+      ⛔ Do NOT add all PR files to todos if this is a re-review - only add scoped files.
+
+      **Step 4: Review each file**
+      - Read the FULL file (not just the patch) for context
+      - Post comments IMMEDIATELY when you find issues
+      - Mark the file as done in your todo list
+
+      **Step 5: Complete ALL todos before submitting**
+
+      **Impact analysis (no todos needed):**
+      Use \`rg\` to check if changes affect other files (imports, APIs, shared types).
+      Only add a todo if another file needs detailed review.
     </reviewApproach>
 
     <!-- TURN BUDGET -->
