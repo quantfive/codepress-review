@@ -122,35 +122,52 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 ### Model Aliases (Always Use Latest)
 
-Instead of specifying exact model versions, you can use aliases to always get the latest model:
+Instead of hardcoding specific model versions, use `-latest` aliases to **automatically get the newest models** without updating your workflow:
 
-| Alias | Provider | Example Resolution |
-| ----- | -------- | ------------------ |
-| `latest` | OpenAI | Latest GPT model |
-| `gpt-latest` | OpenAI | Latest GPT model |
-| `gpt-mini-latest` | OpenAI | Latest GPT mini model |
-| `latest` | Anthropic | Latest Claude Sonnet |
-| `sonnet-latest` | Anthropic | Latest Claude Sonnet |
-| `opus-latest` | Anthropic | Latest Claude Opus |
-| `haiku-latest` | Anthropic | Latest Claude Haiku |
-| `latest` | Google/Gemini | Latest Gemini model |
-| `gemini-flash-latest` | Google/Gemini | Latest Gemini Flash |
-
-**How it works:**
-- For OpenAI and Anthropic, aliases are resolved **dynamically at runtime** by querying the provider's model list API
-- The action finds all models matching the family (e.g., "sonnet") and picks the highest version
-- If the API call fails, falls back to a static mapping
-
-**Example usage:**
 ```yaml
 - uses: quantfive/codepress-review@v4
   with:
     model_provider: "anthropic"
-    model_name: "sonnet-latest"  # Dynamically resolves to latest Sonnet
+    model_name: "sonnet-latest"  # Always uses the latest Sonnet model
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-When Anthropic releases `claude-sonnet-4-7`, `sonnet-latest` will automatically use it without any config changes.
+When Anthropic releases `claude-sonnet-4-7`, your workflow will automatically use it — no config changes needed.
+
+#### Available Aliases by Provider
+
+| Provider | Alias | Resolves To |
+| -------- | ----- | ----------- |
+| **OpenAI** | `latest`, `gpt-latest` | Latest GPT model |
+| | `gpt-mini-latest` | Latest GPT mini model |
+| **Anthropic** | `latest`, `sonnet-latest` | Latest Claude Sonnet |
+| | `opus-latest` | Latest Claude Opus |
+| | `haiku-latest` | Latest Claude Haiku |
+| **Google/Gemini** | `latest`, `gemini-flash-latest` | Latest Gemini Flash |
+| | `gemini-pro-latest` | Latest Gemini Pro |
+| **Cohere** | `latest`, `command-latest` | Latest Command model |
+| **Groq** | `latest`, `llama-latest` | Latest Llama model |
+| **DeepSeek** | `latest`, `deepseek-chat-latest` | Latest DeepSeek Chat |
+| | `deepseek-reasoner-latest` | Latest DeepSeek Reasoner |
+| **xAI** | `latest`, `grok-latest` | Latest Grok model |
+| | `grok-mini-latest` | Latest Grok mini |
+| **Mistral** | `latest` | `mistral-large-latest` |
+| | `mistral-large-latest` | Mistral's own latest alias |
+| | `mistral-small-latest` | Mistral's own latest alias |
+| **Perplexity** | `latest`, `sonar-latest` | Latest Sonar model |
+
+#### How Dynamic Resolution Works
+
+For most providers, aliases are resolved **dynamically at runtime**:
+
+1. CodePress queries the provider's model list API (e.g., `GET /v1/models`)
+2. Filters models matching the family (e.g., all "claude-sonnet-*" models)
+3. Sorts by version number and picks the highest
+4. Falls back to a static mapping if the API call fails
+
+**Providers with dynamic resolution:** OpenAI, Anthropic, Google/Gemini, Cohere, Groq, DeepSeek, xAI, Ollama
+
+**Providers using static aliases:** Mistral (they maintain their own `-latest` aliases), Perplexity, Fireworks
 
 ## Triggering Reviews
 
