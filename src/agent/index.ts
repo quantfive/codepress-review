@@ -338,14 +338,18 @@ Please review this pull request.
    - **If body is empty/blank, you MUST update it immediately:**
      \`gh pr edit ${prContext.prNumber} --body $'## Summary\\n\\n<describe what this PR does>\\n\\n## Changes\\n\\n- <list key changes>'\`
      (Note: Use \`$'...'\` with \\n for newlines, NOT regular quotes which treat \\n as literal text)
-   - **Fetch existing comments on this PR (use REST API, more reliable):**
-     - Review comments: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\`
-     - Conversation comments: \`gh api repos/${prContext.repo}/issues/${prContext.prNumber}/comments\`
-     Check what feedback has already been given to avoid duplicating it.
-   - **Add a todo item for EACH file in <prFiles>** to ensure you review every single one
+   - **Review previous comments (already provided above in context if they exist):**
+     - \`<yourPreviousComments>\` = your previous feedback on this PR
+     - \`<existingReviewComments>\` = other reviewers' feedback
+     - Use \`rg\` to search for context about issues raised in these comments
 
-   ⚠️ **The \`<prFiles>\` list is authoritative and pre-filtered.**
-   Lock files, build outputs, and generated files have been removed. **Only review files listed in \`<prFiles>\`.**
+   - **Determine your review scope (see \`<reReviewContext>\` if present):**
+     - **First-time review:** Create todos for all files in \`<prFiles>\`
+     - **Re-review (previously approved):** Create todos ONLY for files changed since last review
+     - **Re-review (requested changes):** Create todos for new commit files + files where you left feedback
+
+   ⚠️ **The \`<prFiles>\` list is pre-filtered** (lock files, build outputs removed).
+   But for re-reviews, you may only need to review a SUBSET - check \`<reReviewContext>\`.
 
    **Fetching patches (if not in \`<patches>\` above):**
    **ALWAYS use --jq to filter** - this keeps lock files and build outputs out of your context.
@@ -356,8 +360,8 @@ Please review this pull request.
 
    ❌ **NEVER** run without --jq: \`gh api .../files\` dumps ALL files (including lock files) into context
 
-2. **Review EVERY changed file (one at a time):**
-   For EACH file in the \`<prFiles>\` list:
+2. **Review each file in your todo list (one at a time):**
+   For EACH file you added to your todos:
    a. **Get the patch** (if not in \`<patches>\` above):
       \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files --jq '.[] | select(.filename=="<filepath>")'\`
    b. **Read the FULL file for context:** \`cat <filepath>\` - Don't just look at the patch!
@@ -378,8 +382,9 @@ Please review this pull request.
    g. **Mark the file as reviewed** in your todo list before moving to the next file
 
    **IMPORTANT:**
-   - You MUST review EVERY file. Do not skip any files.
-   - You have memory across files! If you notice something in file B that relates to file A you reviewed earlier, you can go back and post a comment on file A.
+   - Complete ALL files in your todo list before finishing.
+   - Use \`rg\` to search for additional context (usages, callers, related code) when needed.
+   - You have memory across files! If file B relates to file A, you can go back and comment on file A.
    - Always read the FULL file, not just the diff - context matters!
 
 3. **Before submitting review, verify:**
