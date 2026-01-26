@@ -44,6 +44,18 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     "gpt-mini-latest": /^gpt-(\d+)o?-mini$/,
     latest: /^gpt-(\d+)o?$/, // Default to main GPT line
   },
+  gemini: {
+    "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
+    "gemini-flash-latest": /^gemini-(\d+)\.(\d+)-flash/,
+    "gemini-pro-latest": /^gemini-(\d+)\.(\d+)-pro/,
+    latest: /^gemini-(\d+)\.(\d+)-flash/, // Default to flash (fast + capable)
+  },
+  google: {
+    "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
+    "gemini-flash-latest": /^gemini-(\d+)\.(\d+)-flash/,
+    "gemini-pro-latest": /^gemini-(\d+)\.(\d+)-pro/,
+    latest: /^gemini-(\d+)\.(\d+)-flash/,
+  },
 };
 
 /**
@@ -131,7 +143,7 @@ export async function resolveModelAliasDynamic(
  */
 async function fetchAvailableModels(provider: string, apiKey: string): Promise<string[]> {
   let url: string;
-  let headers: Record<string, string>;
+  let headers: Record<string, string> = {};
 
   switch (provider) {
     case "anthropic":
@@ -147,6 +159,11 @@ async function fetchAvailableModels(provider: string, apiKey: string): Promise<s
         Authorization: `Bearer ${apiKey}`,
       };
       break;
+    case "gemini":
+    case "google":
+      // Google Gemini API uses query param for auth
+      url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+      break;
     default:
       throw new Error(`Dynamic model resolution not supported for provider: ${provider}`);
   }
@@ -158,9 +175,17 @@ async function fetchAvailableModels(provider: string, apiKey: string): Promise<s
 
   const data = await response.json();
 
-  // Both OpenAI and Anthropic return { data: [{ id: "model-name", ... }] }
+  // OpenAI and Anthropic return { data: [{ id: "model-name", ... }] }
   if (data.data && Array.isArray(data.data)) {
     return data.data.map((m: { id: string }) => m.id);
+  }
+
+  // Google returns { models: [{ name: "models/gemini-...", ... }] }
+  if (data.models && Array.isArray(data.models)) {
+    return data.models.map((m: { name: string }) => {
+      // Strip "models/" prefix from name
+      return m.name.replace(/^models\//, "");
+    });
   }
 
   throw new Error("Unexpected response format from models API");
