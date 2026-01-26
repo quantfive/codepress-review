@@ -454,14 +454,13 @@ ${isReReview ? "" : `
     }
 
     // Build run options
-    const runOptions: { maxTurns?: number; callModelInputFilter: typeof interventionFilter } = {
+    // Note: The @openai/agents SDK defaults to 10 turns if maxTurns is not provided.
+    // When maxTurns is null (meaning "unlimited"), we pass a very large number.
+    const effectiveMaxTurns = maxTurns ?? Number.MAX_SAFE_INTEGER;
+    const runOptions = {
       callModelInputFilter: interventionFilter,
+      maxTurns: effectiveMaxTurns,
     };
-
-    // Only set maxTurns if it's not null (unlimited)
-    if (maxTurns !== null) {
-      runOptions.maxTurns = maxTurns;
-    }
 
     await runner.run(agent, initialMessage, runOptions);
 
