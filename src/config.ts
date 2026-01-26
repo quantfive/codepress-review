@@ -20,11 +20,51 @@ const FALLBACK_MODEL_ALIASES: Record<string, Record<string, string>> = {
     latest: "gemini-2.0-flash",
     "gemini-latest": "gemini-2.0-flash",
     "gemini-flash-latest": "gemini-2.0-flash",
+    "gemini-pro-latest": "gemini-2.0-pro",
   },
   google: {
     latest: "gemini-2.0-flash",
     "gemini-latest": "gemini-2.0-flash",
     "gemini-flash-latest": "gemini-2.0-flash",
+    "gemini-pro-latest": "gemini-2.0-pro",
+  },
+  mistral: {
+    latest: "mistral-large-latest",
+    "mistral-large-latest": "mistral-large-latest",
+    "mistral-small-latest": "mistral-small-latest",
+    "codestral-latest": "codestral-latest",
+  },
+  cohere: {
+    latest: "command-a-03-2025",
+    "command-latest": "command-a-03-2025",
+    "command-r-latest": "command-r-plus",
+  },
+  groq: {
+    latest: "llama-3.3-70b-versatile",
+    "llama-latest": "llama-3.3-70b-versatile",
+  },
+  deepseek: {
+    latest: "deepseek-chat",
+    "deepseek-chat-latest": "deepseek-chat",
+    "deepseek-reasoner-latest": "deepseek-reasoner",
+  },
+  xai: {
+    latest: "grok-3",
+    "grok-latest": "grok-3",
+    "grok-mini-latest": "grok-3-mini",
+  },
+  perplexity: {
+    latest: "sonar-pro",
+    "sonar-latest": "sonar-pro",
+    "sonar-reasoning-latest": "sonar-reasoning-pro",
+  },
+  fireworks: {
+    latest: "accounts/fireworks/models/llama-v3p3-70b-instruct",
+    "llama-latest": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+  },
+  ollama: {
+    // Ollama models are local, fallbacks less useful but included for consistency
+    latest: "llama3.1:latest",
   },
 };
 
@@ -56,6 +96,38 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     "gemini-pro-latest": /^gemini-(\d+)\.(\d+)-pro/,
     latest: /^gemini-(\d+)\.(\d+)-flash/,
   },
+  mistral: {
+    "mistral-large-latest": /^mistral-large-(\d+)/,
+    "mistral-small-latest": /^mistral-small-(\d+)/,
+    "codestral-latest": /^codestral-(\d+)/,
+    latest: /^mistral-large-(\d+)/, // Default to large
+  },
+  cohere: {
+    "command-latest": /^command-a-(\d+)-(\d+)/,
+    "command-r-latest": /^command-r-plus/,
+    latest: /^command-a-(\d+)-(\d+)/, // Default to Command A (latest family)
+  },
+  groq: {
+    "llama-latest": /^llama-(\d+)\.(\d+)-(\d+)b-versatile/,
+    latest: /^llama-(\d+)\.(\d+)-(\d+)b-versatile/, // Default to versatile llama
+  },
+  deepseek: {
+    "deepseek-chat-latest": /^deepseek-chat/,
+    "deepseek-reasoner-latest": /^deepseek-reasoner/,
+    latest: /^deepseek-chat/, // Default to chat model
+  },
+  xai: {
+    "grok-latest": /^grok-(\d+)$/,
+    "grok-mini-latest": /^grok-(\d+)-mini$/,
+    latest: /^grok-(\d+)$/, // Default to main grok line
+  },
+  ollama: {
+    // Ollama models use name:tag format, match the base name
+    "llama-latest": /^llama(\d+)/,
+    latest: /^llama(\d+)/,
+  },
+  // Note: perplexity and fireworks don't have list models APIs that work well
+  // for dynamic resolution, so they use static fallbacks only
 };
 
 /**
@@ -164,6 +236,45 @@ async function fetchAvailableModels(provider: string, apiKey: string): Promise<s
       // Google Gemini API uses query param for auth
       url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
       break;
+    case "mistral":
+      url = "https://api.mistral.ai/v1/models";
+      headers = {
+        Authorization: `Bearer ${apiKey}`,
+      };
+      break;
+    case "cohere":
+      url = "https://api.cohere.com/v1/models";
+      headers = {
+        Authorization: `Bearer ${apiKey}`,
+      };
+      break;
+    case "groq":
+      // Groq uses OpenAI-compatible format
+      url = "https://api.groq.com/openai/v1/models";
+      headers = {
+        Authorization: `Bearer ${apiKey}`,
+      };
+      break;
+    case "deepseek":
+      url = "https://api.deepseek.com/models";
+      headers = {
+        Authorization: `Bearer ${apiKey}`,
+      };
+      break;
+    case "xai":
+      // xAI uses OpenAI-compatible format
+      url = "https://api.x.ai/v1/models";
+      headers = {
+        Authorization: `Bearer ${apiKey}`,
+      };
+      break;
+    case "ollama":
+      // Ollama runs locally, default to localhost
+      // Users can set OLLAMA_HOST env var if using a different host
+      const ollamaHost = process.env.OLLAMA_HOST || "http://localhost:11434";
+      url = `${ollamaHost}/api/tags`;
+      // Ollama typically doesn't require auth for local instances
+      break;
     default:
       throw new Error(`Dynamic model resolution not supported for provider: ${provider}`);
   }
@@ -175,7 +286,7 @@ async function fetchAvailableModels(provider: string, apiKey: string): Promise<s
 
   const data = await response.json();
 
-  // OpenAI and Anthropic return { data: [{ id: "model-name", ... }] }
+  // OpenAI, Anthropic, Mistral, Groq, DeepSeek, xAI return { data: [{ id: "model-name", ... }] }
   if (data.data && Array.isArray(data.data)) {
     return data.data.map((m: { id: string }) => m.id);
   }
@@ -186,6 +297,17 @@ async function fetchAvailableModels(provider: string, apiKey: string): Promise<s
       // Strip "models/" prefix from name
       return m.name.replace(/^models\//, "");
     });
+  }
+
+  // Cohere returns { models: [{ name: "command-r-plus", ... }] }
+  // but with 'name' field instead of 'id'
+  if (data.models && Array.isArray(data.models) && data.models[0]?.name) {
+    return data.models.map((m: { name: string }) => m.name);
+  }
+
+  // Ollama returns { models: [{ name: "llama3.1:latest", ... }] }
+  if (provider === "ollama" && data.models && Array.isArray(data.models)) {
+    return data.models.map((m: { name: string }) => m.name);
   }
 
   throw new Error("Unexpected response format from models API");
