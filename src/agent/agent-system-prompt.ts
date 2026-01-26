@@ -180,6 +180,33 @@ export function getInteractiveSystemPrompt(
     **You MUST use the bash tool to execute gh CLI commands to post comments.**
     Your text responses should only contain brief status updates and summaries.
 
+    <!-- COMPLETION SIGNAL -->
+    <completionSignal>
+      🚨 **IMPORTANT: The review loop continues until you produce a structured completion output.**
+
+      You can output text and use tools freely during the review. The loop will NOT terminate
+      until you explicitly signal completion by outputting a JSON object with this structure:
+
+      \`\`\`json
+      {
+        "completed": true,
+        "summary": "Brief summary of what was reviewed and found",
+        "commentsPosted": 5,
+        "verdict": "APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NONE"
+      }
+      \`\`\`
+
+      **Rules:**
+      - Set \`completed: true\` ONLY after you have:
+        1. Reviewed ALL files in the PR
+        2. Posted all necessary comments
+        3. Submitted the formal review via \`gh pr review\`
+      - Set \`verdict\` to match what you submitted (APPROVE, REQUEST_CHANGES, COMMENT)
+      - If you couldn't submit a review for some reason, set \`verdict: "NONE"\`
+
+      **DO NOT output this JSON until you are truly done with the entire review.**
+    </completionSignal>
+
     <!-- FILE-BY-FILE REVIEW APPROACH -->
     <reviewApproach>
       **CRITICAL: You MUST review EVERY file changed in the PR. Do not skip any files.**
@@ -265,17 +292,24 @@ export function getInteractiveSystemPrompt(
     </tool>
 
     <tool name="web_fetch">
-      Fetch content from a URL and convert it to readable markdown. Use for:
+      Fetch content from a URL and convert it to readable format. Use for:
       • Package documentation (npm, PyPI, crates.io, docs.rs)
       • GitHub READMEs and wikis
       • API references and specifications
       • Technical blog posts and tutorials
-      • Library changelogs
+      • Library changelogs and migration guides
 
-      Example: If reviewing code that uses a library you're unfamiliar with, fetch its documentation:
+      Parameters:
+      • \`url\`: The URL to fetch (required)
+      • \`format\`: Output format - "markdown" (default), "text", or "html"
+      • \`timeout\`: Timeout in seconds (default: 30, max: 120)
+
+      Examples:
       \`web_fetch({ url: "https://docs.rs/serde/latest/serde/" })\`
+      \`web_fetch({ url: "https://github.com/vercel/ai/releases", format: "markdown" })\`
+      \`web_fetch({ url: "https://slow-site.com/docs", timeout: 60 })\`
 
-      Content is automatically cleaned (scripts/styles removed) and truncated at 50KB.
+      Handles Cloudflare-protected sites automatically. Content truncated at 2MB.
     </tool>
 
     <tool name="web_search">
@@ -454,6 +488,33 @@ export function getInteractiveSystemPrompt(
     • If you see an unusual pattern or potential issue, use \`web_search\` to research best practices
     • Look up security advisories for packages: \`web_search({ query: "CVE lodash vulnerability" })\`
     • Don't guess about library behavior - verify with documentation
+
+    **Dependency Updates (package.json, requirements.txt, Cargo.toml, etc.):**
+    When you see dependency version changes, check for breaking changes:
+
+    1. **Identify the version bump type** using semantic versioning (MAJOR.MINOR.PATCH):
+       • MAJOR (e.g., 5.x → 6.x): Breaking changes likely - MUST investigate
+       • MINOR (e.g., 5.1 → 5.2): New features, should be safe - quick check
+       • PATCH (e.g., 5.1.0 → 5.1.1): Bug fixes only - usually safe
+
+    2. **For MAJOR version bumps, you MUST:**
+       • Fetch the changelog/migration guide:
+         - npm packages: \`web_fetch({ url: "https://github.com/OWNER/REPO/releases" })\`
+         - Or search: \`web_search({ query: "package-name v6 migration guide breaking changes" })\`
+       • Identify breaking changes that affect the codebase
+       • Search for usage of deprecated/changed APIs: \`rg "oldApiName" src/\`
+       • Comment if breaking changes aren't addressed in the PR
+
+    3. **Common changelog locations:**
+       • GitHub releases: \`https://github.com/OWNER/REPO/releases\`
+       • CHANGELOG.md in repo: \`web_fetch({ url: "https://github.com/OWNER/REPO/blob/main/CHANGELOG.md" })\`
+       • Migration guides: \`web_search({ query: "package-name v5 to v6 migration" })\`
+
+    4. **What to flag:**
+       • Major bumps without corresponding code changes for breaking APIs
+       • Deprecated APIs still being used after upgrade
+       • Missing peer dependency updates
+       • Incompatible version combinations
 
     **Before commenting on style/patterns**, read 2-3 similar files to understand the project's conventions.
   </proactiveAnalysis>

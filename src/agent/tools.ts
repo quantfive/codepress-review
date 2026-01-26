@@ -1130,102 +1130,201 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
+// Web fetch configuration
+const WEB_FETCH_CONFIG = {
+  MAX_RESPONSE_SIZE: 5 * 1024 * 1024, // 5MB
+  DEFAULT_TIMEOUT_MS: 30 * 1000, // 30 seconds
+  MAX_TIMEOUT_MS: 120 * 1000, // 2 minutes
+  TRUNCATE_SIZE: 2 * 1024 * 1024, // 2MB for output truncation
+} as const;
+
 /**
- * Tool to fetch content from a URL and convert it to readable markdown.
+ * Build Accept header based on requested format
+ */
+function buildAcceptHeader(format: "text" | "markdown" | "html"): string {
+  switch (format) {
+    case "markdown":
+      return "text/markdown;q=1.0, text/x-markdown;q=0.9, text/plain;q=0.8, text/html;q=0.7, */*;q=0.1";
+    case "text":
+      return "text/plain;q=1.0, text/markdown;q=0.9, text/html;q=0.8, */*;q=0.1";
+    case "html":
+      return "text/html;q=1.0, application/xhtml+xml;q=0.9, text/plain;q=0.8, text/markdown;q=0.7, */*;q=0.1";
+    default:
+      return "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+  }
+}
+
+/**
+ * Extract text content from HTML, removing scripts/styles
+ */
+function extractTextFromHTML(html: string): string {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  // Remove non-content elements
+  const removeSelectors = ["script", "style", "noscript", "iframe", "object", "embed"];
+  for (const selector of removeSelectors) {
+    doc.querySelectorAll(selector).forEach((el) => el.remove());
+  }
+
+  return doc.body?.textContent?.trim() || "";
+}
+
+/**
+ * Convert HTML to clean markdown
+ */
+function convertHTMLToMarkdown(html: string): string {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  // Remove non-content elements
+  const removeSelectors = [
+    "script",
+    "style",
+    "nav",
+    "footer",
+    "aside",
+    "header",
+    "noscript",
+    ".ads",
+    ".advertisement",
+    ".sidebar",
+    ".navigation",
+    ".menu",
+    ".cookie-banner",
+    ".popup",
+    "[role='navigation']",
+    "[role='banner']",
+    "[role='complementary']",
+  ];
+
+  for (const selector of removeSelectors) {
+    try {
+      doc.querySelectorAll(selector).forEach((el) => el.remove());
+    } catch {
+      // Skip invalid selectors
+    }
+  }
+
+  // Try to find main content area
+  const mainContent =
+    doc.querySelector(
+      "main, article, .content, #content, .markdown-body, .documentation, .doc-content, [role='main']",
+    ) || doc.body;
+
+  return turndown.turndown(mainContent?.innerHTML || "");
+}
+
+/**
+ * Tool to fetch content from a URL and convert it to readable format.
  * Useful for fetching documentation, READMEs, API references, etc.
  */
 export const webFetchTool = tool({
   name: "web_fetch",
-  description: `Fetch content from a URL and convert to readable markdown. Use for:
+  description: `Fetch content from a URL and convert to readable format. Use for:
 - Package documentation (npm, PyPI, crates.io, docs.rs)
 - GitHub READMEs and wikis
 - API references and specifications
 - Technical blog posts and tutorials
-- Library changelogs
+- Library changelogs and migration guides
 
-Returns the page content as clean markdown, with scripts/styles/navigation removed.
-Content is truncated at 50KB if too large.`,
+Returns the page content in the requested format (markdown by default).
+Supports configurable timeout and handles Cloudflare-protected sites.`,
   parameters: z.object({
     url: z.string().url().describe("The URL to fetch"),
+    format: z
+      .enum(["text", "markdown", "html"])
+      .default("markdown")
+      .describe("Output format: 'text' (plain text), 'markdown' (default), or 'html' (raw)"),
+    timeout: z
+      .number()
+      .int()
+      .min(5)
+      .max(120)
+      .optional()
+      .describe("Timeout in seconds (default: 30, max: 120)"),
   }),
-  execute: async ({ url }) => {
+  execute: async ({ url, format = "markdown", timeout }) => {
     try {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": "CodePress-Review-Bot/1.0",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        signal: AbortSignal.timeout(15000), // 15 second timeout
+      const timeoutMs = Math.min(
+        (timeout ?? WEB_FETCH_CONFIG.DEFAULT_TIMEOUT_MS / 1000) * 1000,
+        WEB_FETCH_CONFIG.MAX_TIMEOUT_MS,
+      );
+
+      const headers = {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+        Accept: buildAcceptHeader(format),
+        "Accept-Language": "en-US,en;q=0.9",
+      };
+
+      // Initial fetch
+      let response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
       });
+
+      // Retry with honest UA if blocked by Cloudflare bot detection
+      if (
+        response.status === 403 &&
+        response.headers.get("cf-mitigated") === "challenge"
+      ) {
+        response = await fetch(url, {
+          headers: { ...headers, "User-Agent": "CodePress-Review-Bot/1.0" },
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      }
 
       if (!response.ok) {
         return `Error: Failed to fetch URL (HTTP ${response.status}: ${response.statusText})`;
       }
 
+      // Check content length before downloading
+      const contentLength = response.headers.get("content-length");
+      if (contentLength && parseInt(contentLength) > WEB_FETCH_CONFIG.MAX_RESPONSE_SIZE) {
+        return `Error: Response too large (${Math.round(parseInt(contentLength) / 1024 / 1024)}MB exceeds 5MB limit)`;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > WEB_FETCH_CONFIG.MAX_RESPONSE_SIZE) {
+        return `Error: Response too large (exceeds 5MB limit)`;
+      }
+
+      const content = Buffer.from(arrayBuffer).toString("utf-8");
       const contentType = response.headers.get("content-type") || "";
-      const html = await response.text();
+      const isHTML =
+        contentType.includes("text/html") ||
+        contentType.includes("application/xhtml");
 
-      // If it's not HTML, return as-is (truncated)
-      if (
-        !contentType.includes("text/html") &&
-        !contentType.includes("application/xhtml")
-      ) {
-        if (html.length > 50000) {
-          return html.slice(0, 50000) + "\n\n[Content truncated at 50KB...]";
-        }
-        return html;
+      let output: string;
+
+      switch (format) {
+        case "markdown":
+          output = isHTML ? convertHTMLToMarkdown(content) : content;
+          break;
+        case "text":
+          output = isHTML ? extractTextFromHTML(content) : content;
+          break;
+        case "html":
+          output = content;
+          break;
+        default:
+          output = content;
       }
 
-      const dom = new JSDOM(html);
-      const doc = dom.window.document;
-
-      // Remove scripts, styles, nav, footer, ads, and other non-content elements
-      const removeSelectors = [
-        "script",
-        "style",
-        "nav",
-        "footer",
-        "aside",
-        "header",
-        ".ads",
-        ".advertisement",
-        ".sidebar",
-        ".navigation",
-        ".menu",
-        ".cookie-banner",
-        ".popup",
-        "[role='navigation']",
-        "[role='banner']",
-        "[role='complementary']",
-      ];
-
-      for (const selector of removeSelectors) {
-        try {
-          doc.querySelectorAll(selector).forEach((el) => el.remove());
-        } catch {
-          // Skip invalid selectors
-        }
+      // Truncate if too large
+      if (output.length > WEB_FETCH_CONFIG.TRUNCATE_SIZE) {
+        return (
+          output.slice(0, WEB_FETCH_CONFIG.TRUNCATE_SIZE) +
+          `\n\n[Content truncated at ${WEB_FETCH_CONFIG.TRUNCATE_SIZE / 1024}KB...]`
+        );
       }
 
-      // Try to find main content area
-      const mainContent =
-        doc.querySelector(
-          "main, article, .content, #content, .markdown-body, .documentation, .doc-content, [role='main']",
-        ) || doc.body;
-
-      const markdown = turndown.turndown(mainContent.innerHTML);
-
-      // Truncate if too large (50KB)
-      if (markdown.length > 50000) {
-        return markdown.slice(0, 50000) + "\n\n[Content truncated at 50KB...]";
-      }
-
-      return markdown;
+      return output;
     } catch (error: unknown) {
       const err = error as { name?: string; message?: string };
-      if (err.name === "AbortError") {
-        return "Error: Request timed out after 15 seconds";
+      if (err.name === "AbortError" || err.name === "TimeoutError") {
+        return `Error: Request timed out after ${timeout ?? 30} seconds`;
       }
       return `Error fetching URL: ${err.message || "Unknown error"}`;
     }
