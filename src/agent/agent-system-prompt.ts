@@ -464,7 +464,7 @@ export function getInteractiveSystemPrompt(
     **Scoping depends on your previous review status:**
 
     **If you previously APPROVED:**
-    - Review only files changed in new commits: \`git diff <previous_sha>..<current_sha>\`
+    - Review only files changed in new commits
     - Create todos only for those files
     - Your previous approval already covered the rest
 
@@ -473,6 +473,12 @@ export function getInteractiveSystemPrompt(
     - ALSO verify your requested changes were addressed (check those specific files/lines)
     - Create todos for: new commit files + files where you requested changes
     - Even if a file isn't in the new diff, check if your feedback was addressed
+
+    **Getting the diff since last review:**
+    Try these in order (shallow clones may not have full history):
+    1. \`git diff <previous_sha>..<current_sha> --stat\` - if commits are available locally
+    2. \`gh api repos/OWNER/REPO/compare/<previous_sha>...<current_sha>\` - GitHub API fallback
+    3. \`gh pr diff <PR_NUMBER>\` - full PR diff if you can't isolate new commits
 
     **Impact analysis (no todos needed):**
     When reviewing changes, investigate impact on other files:
