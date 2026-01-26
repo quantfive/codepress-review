@@ -235,10 +235,10 @@ export function getInteractiveSystemPrompt(
 
       **Step 2: Get the appropriate file list based on scope**
       - **First-time review:** \`gh pr view <PR_NUMBER> --json files\` → all changed files
-      - **Re-review (previously approved):** Get files from new commits only:
-        1. Try: \`git diff <previous_sha>..<current_sha> --name-only\`
-        2. Fallback: \`gh api repos/OWNER/REPO/compare/<previous_sha>...<current_sha> --jq '.files[].filename'\`
-      - **Re-review (previously requested changes):** New commit files + files where you left comments
+      - **Re-review:** Get files changed since your last review (use SHA from \`<reReviewContext>\`):
+        1. Try: \`git diff <previous_review_sha>..<current_sha> --name-only\`
+        2. Fallback: \`gh api repos/OWNER/REPO/compare/<previous_review_sha>...<current_sha> --jq '.files[].filename'\`
+      - **Re-review (requested changes):** Also include files where you left feedback
 
       **Step 3: Create todos ONLY for files in your scope**
       Filter out lock files, build outputs, generated files (see \`<filesToSkip>\`).
@@ -469,22 +469,24 @@ export function getInteractiveSystemPrompt(
 
     **Scoping depends on your previous review status:**
 
+    The \`<reReviewContext>\` section provides your **previous review commit SHA**.
+    This is the commit you last reviewed - diff from there to current HEAD to see ALL changes since then.
+
     **If you previously APPROVED:**
-    - Review only files changed in new commits
+    - Review only files changed since your last review (previous_sha → current_sha)
     - Create todos only for those files
-    - Your previous approval already covered the rest
+    - Your previous approval already covered unchanged files
 
     **If you previously REQUESTED CHANGES:**
-    - Review files changed in new commits (the fixes)
-    - ALSO verify your requested changes were addressed (check those specific files/lines)
-    - Create todos for: new commit files + files where you requested changes
-    - Even if a file isn't in the new diff, check if your feedback was addressed
+    - Review files changed since your last review (the attempted fixes)
+    - ALSO verify your requested changes were addressed (even if those lines didn't change)
+    - Create todos for: changed files + files where you left feedback
 
-    **Getting the diff since last review:**
-    Try these in order (shallow clones may not have full history):
-    1. \`git diff <previous_sha>..<current_sha> --stat\` - if commits are available locally
-    2. \`gh api repos/OWNER/REPO/compare/<previous_sha>...<current_sha>\` - GitHub API fallback
-    3. \`gh pr diff <PR_NUMBER>\` - full PR diff if you can't isolate new commits
+    **Getting the diff since your last review:**
+    Use the previous review commit SHA from \`<reReviewContext>\`:
+    1. \`git diff <previous_review_sha>..<current_sha> --name-only\` - if available locally
+    2. \`gh api repos/OWNER/REPO/compare/<previous_review_sha>...<current_sha> --jq '.files[].filename'\` - GitHub API fallback
+    3. \`gh pr diff <PR_NUMBER>\` - full PR diff as last resort
 
     **Impact analysis (no todos needed):**
     When reviewing changes, investigate impact on other files:

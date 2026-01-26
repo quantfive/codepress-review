@@ -345,8 +345,9 @@ Please review this pull request.
 
    - **Determine your review scope (see \`<reReviewContext>\` if present):**
      - **First-time review:** Create todos for all files in \`<prFiles>\`
-     - **Re-review (previously approved):** Create todos ONLY for files changed since last review
-     - **Re-review (requested changes):** Create todos for new commit files + files where you left feedback
+     - **Re-review:** Create todos ONLY for files changed since your last review
+       (diff from previous review SHA to current SHA - see \`<reReviewContext>\`)
+     - **Re-review (requested changes):** Also include files where you left feedback
 
    ⚠️ **The \`<prFiles>\` list is pre-filtered** (lock files, build outputs removed).
    But for re-reviews, you may only need to review a SUBSET - check \`<reReviewContext>\`.
