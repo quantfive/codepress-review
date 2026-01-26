@@ -488,6 +488,12 @@ export function getInteractiveSystemPrompt(
     2. \`gh api repos/OWNER/REPO/compare/<previous_review_sha>...<current_sha> --jq '.files[].filename'\` - GitHub API fallback
     3. \`gh pr diff <PR_NUMBER>\` - full PR diff as last resort
 
+    **If no files changed since your last review:**
+    If the diff is empty (no file changes), there's nothing new to review.
+    - Don't create any todos
+    - Don't post a new review (your previous feedback still stands)
+    - Complete immediately with \`verdict: "NONE"\` and summary explaining no changes detected
+
     **Impact analysis (no todos needed):**
     When reviewing changes, investigate impact on other files:
     - If an import/export changed, \`rg\` for usages elsewhere
