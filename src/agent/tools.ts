@@ -1290,7 +1290,7 @@ Supports configurable timeout and handles Cloudflare-protected sites.`,
         return `Error: Response too large (exceeds 5MB limit)`;
       }
 
-      const content = new TextDecoder().decode(arrayBuffer);
+      const content = Buffer.from(arrayBuffer).toString("utf-8");
       const contentType = response.headers.get("content-type") || "";
       const isHTML =
         contentType.includes("text/html") ||
