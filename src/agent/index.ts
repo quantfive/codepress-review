@@ -331,10 +331,12 @@ Please review this pull request.
    - Run \`gh pr view ${prContext.prNumber} --json title,body\` to get PR info
    - Check if body is empty/blank
    - **If body is empty/blank, you MUST update it immediately:**
-     \`gh pr edit ${prContext.prNumber} --body "## Summary\\n\\n<describe what this PR does based on the diff>\\n\\n## Changes\\n\\n- <list key changes>"\`
-   - **Fetch ALL existing comments on this PR:**
-     \`gh pr view ${prContext.prNumber} --comments\`
-     This shows conversation comments AND review comments. Check what feedback has already been given to avoid duplicating it.
+     \`gh pr edit ${prContext.prNumber} --body $'## Summary\\n\\n<describe what this PR does>\\n\\n## Changes\\n\\n- <list key changes>'\`
+     (Note: Use \`$'...'\` with \\n for newlines, NOT regular quotes which treat \\n as literal text)
+   - **Fetch existing comments on this PR (use REST API, more reliable):**
+     - Review comments: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments\`
+     - Conversation comments: \`gh api repos/${prContext.repo}/issues/${prContext.prNumber}/comments\`
+     Check what feedback has already been given to avoid duplicating it.
    - **Add a todo item for EACH file in <prFiles>** to ensure you review every single one
 
    ⚠️ **The \`<prFiles>\` list is authoritative and pre-filtered.**

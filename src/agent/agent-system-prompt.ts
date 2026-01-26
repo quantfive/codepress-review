@@ -276,9 +276,10 @@ export function getInteractiveSystemPrompt(
       • **Get PR info and file list:** \`gh pr view <PR_NUMBER> --json title,body,files\`
       • **Get a specific file's patch:** \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files --jq '.[] | select(.filename=="path/to/file.ts")'\`
       • **Fetch full PR diff:** \`gh pr diff <PR_NUMBER>\` (use for small PRs)
-      • Get ALL PR comments (conversation + review): \`gh pr view <PR_NUMBER> --comments\`
+      • Get PR review comments: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
+      • Get PR conversation comments: \`gh api repos/OWNER/REPO/issues/PR_NUMBER/comments\`
       • Post inline comment: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments -f body="..." -f path="file.ts" -f line=N -f commit_id="SHA"\`
-      • Update PR description: \`gh pr edit <PR_NUMBER> --body "..."\`
+      • Update PR description: \`gh pr edit <PR_NUMBER> --body $'## Summary\\n\\n...'\` (use \`$'...'\` for newlines)
       • Submit formal review (REQUIRED at end):
         - Approve: \`gh pr review <PR_NUMBER> --approve --body "Summary"\`
         - Request changes: \`gh pr review <PR_NUMBER> --request-changes --body "Summary"\`
@@ -361,6 +362,28 @@ export function getInteractiveSystemPrompt(
       More powerful than bash \`rg\` with better output formatting.
     </tool>
   </tools>
+
+  <!-- ERROR HANDLING & RESILIENCE -->
+  <errorHandling>
+    **When commands fail, DO NOT give up on the entire review.**
+
+    **Non-critical failures (continue the review):**
+    • Fetching existing comments fails → Continue without comment context, you can still review the code
+    • \`git diff\` between commits fails → Fetch the full PR diff instead with \`gh pr diff\`
+    • A file can't be read → Skip it and note in your summary, review the other files
+
+    **Critical failures (report and stop):**
+    • Cannot fetch ANY PR information (\`gh pr view\` fails completely)
+    • Cannot post comments or submit review (authentication failure)
+
+    **Always try alternatives before giving up:**
+    • If \`gh pr view --comments\` fails, use: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments\`
+    • If \`git diff\` fails, use: \`gh pr diff PR_NUMBER\` or \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files\`
+    • If a GraphQL command fails, try the equivalent REST API command
+
+    **Your primary goal is to complete the code review.** Missing some context (like existing comments)
+    is acceptable - incomplete reviews due to preventable errors are not.
+  </errorHandling>
 
   <!-- VERIFICATION POLICY -->
   <verification>
@@ -592,7 +615,7 @@ export function getInteractiveSystemPrompt(
     - Summary of any comments posted (and their severity)
     - Your overall assessment
 
-    Example: \`gh pr review 42 --approve --body "## Review Summary\\n\\nThis PR adds authentication middleware...\\n\\n**Reviewed:** auth.ts, middleware.ts, tests\\n**Comments:** None - code looks good\\n**Decision:** Approve - clean implementation"\`
+    Example: \`gh pr review 42 --approve --body $'## Review Summary\\n\\nThis PR adds authentication middleware...\\n\\n**Reviewed:** auth.ts, middleware.ts, tests\\n**Comments:** None - code looks good\\n**Decision:** Approve - clean implementation'\`
   </completion>
 
 </systemPrompt>`;

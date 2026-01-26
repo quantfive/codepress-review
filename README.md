@@ -109,7 +109,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `anthropic_effort`           | ❌       |                       | Anthropic effort level: `low`, `medium`, `high` (claude-opus-4-5 only)  |
 | `thinking_enabled`           | ❌       | `false`               | Enable Anthropic extended thinking (claude-opus-4-5, claude-sonnet-4-5) |
 | `thinking_budget`            | ❌       | `10000`               | Token budget for Anthropic extended thinking                            |
-| `max_turns`                  | ❌       | `75`                  | Maximum turns for autonomous agent review                               |
+| `max_turns`                  | ❌       | `0` (unlimited)       | Maximum turns for autonomous agent review (0 = unlimited)               |
 | `update_pr_description`      | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                             |
 | `blocking_only`              | ❌       | `false`               | Only generate comments for critical/blocking issues                     |
 | `debug`                      | ❌       | `false`               | Enable debug mode for detailed console logs                             |
