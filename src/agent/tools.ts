@@ -1135,7 +1135,7 @@ const WEB_FETCH_CONFIG = {
   MAX_RESPONSE_SIZE: 5 * 1024 * 1024, // 5MB
   DEFAULT_TIMEOUT_MS: 30 * 1000, // 30 seconds
   MAX_TIMEOUT_MS: 120 * 1000, // 2 minutes
-  TRUNCATE_SIZE: 500 * 1024, // 500KB for output truncation
+  TRUNCATE_SIZE: 2 * 1024 * 1024, // 2MB for output truncation
 } as const;
 
 /**

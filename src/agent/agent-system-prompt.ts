@@ -309,7 +309,7 @@ export function getInteractiveSystemPrompt(
       \`web_fetch({ url: "https://github.com/vercel/ai/releases", format: "markdown" })\`
       \`web_fetch({ url: "https://slow-site.com/docs", timeout: 60 })\`
 
-      Handles Cloudflare-protected sites automatically. Content truncated at 500KB.
+      Handles Cloudflare-protected sites automatically. Content truncated at 2MB.
     </tool>
 
     <tool name="web_search">
