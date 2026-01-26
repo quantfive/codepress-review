@@ -1,4 +1,4 @@
-import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
+import type { ModelConfig, ParsedArgs, ReviewConfig } from "./types";
 
 /**
  * Fallback model aliases used when dynamic resolution fails or is not available.
@@ -6,9 +6,9 @@ import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
  */
 const FALLBACK_MODEL_ALIASES: Record<string, Record<string, string>> = {
   openai: {
-    latest: "gpt-4o",
-    "gpt-latest": "gpt-4o",
-    "gpt-mini-latest": "gpt-4o-mini",
+    latest: "gpt-5.2",
+    "gpt-latest": "gpt-5.2",
+    "gpt-mini-latest": "gpt-5.2-mini",
   },
   anthropic: {
     latest: "claude-sonnet-4-5",
@@ -17,16 +17,16 @@ const FALLBACK_MODEL_ALIASES: Record<string, Record<string, string>> = {
     "haiku-latest": "claude-haiku-3-5",
   },
   gemini: {
-    latest: "gemini-2.0-flash",
-    "gemini-latest": "gemini-2.0-flash",
-    "gemini-flash-latest": "gemini-2.0-flash",
-    "gemini-pro-latest": "gemini-2.0-pro",
+    latest: "gemini-3.0-flash",
+    "gemini-latest": "gemini-3.0-flash",
+    "gemini-flash-latest": "gemini-3.0-flash",
+    "gemini-pro-latest": "gemini-2.5-pro",
   },
   google: {
-    latest: "gemini-2.0-flash",
-    "gemini-latest": "gemini-2.0-flash",
-    "gemini-flash-latest": "gemini-2.0-flash",
-    "gemini-pro-latest": "gemini-2.0-pro",
+    latest: "gemini-3.0-flash",
+    "gemini-latest": "gemini-3.0-flash",
+    "gemini-flash-latest": "gemini-3.0-flash",
+    "gemini-pro-latest": "gemini-2.5-pro",
   },
   mistral: {
     latest: "mistral-large-latest",
@@ -96,12 +96,8 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     "gemini-pro-latest": /^gemini-(\d+)\.(\d+)-pro/,
     latest: /^gemini-(\d+)\.(\d+)-flash/,
   },
-  mistral: {
-    "mistral-large-latest": /^mistral-large-(\d+)/,
-    "mistral-small-latest": /^mistral-small-(\d+)/,
-    "codestral-latest": /^codestral-(\d+)/,
-    latest: /^mistral-large-(\d+)/, // Default to large
-  },
+  // Note: Mistral maintains their own -latest aliases (e.g., mistral-large-latest)
+  // so we just pass those through via static fallback - no need for dynamic resolution
   cohere: {
     "command-latest": /^command-a-(\d+)-(\d+)/,
     "command-r-latest": /^command-r-plus/,
@@ -236,12 +232,7 @@ async function fetchAvailableModels(provider: string, apiKey: string): Promise<s
       // Google Gemini API uses query param for auth
       url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
       break;
-    case "mistral":
-      url = "https://api.mistral.ai/v1/models";
-      headers = {
-        Authorization: `Bearer ${apiKey}`,
-      };
-      break;
+    // Note: Mistral not included - they maintain their own -latest aliases
     case "cohere":
       url = "https://api.cohere.com/v1/models";
       headers = {
