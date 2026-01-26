@@ -207,12 +207,44 @@ jobs:
 
 ### Manually from the Actions Tab
 
-With `workflow_dispatch` enabled in your workflow file (as shown above), you can manually trigger a review for any branch:
+With `workflow_dispatch` enabled in your workflow file, you can manually trigger a review for any branch.
+
+**Basic workflow_dispatch:**
+```yaml
+on:
+  workflow_dispatch:
+```
+
+**With force_full_review option:**
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      force_full_review:
+        description: 'Force full review of all files'
+        type: boolean
+        default: false
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: quantfive/codepress-review@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model_provider: "openai"
+          model_name: "gpt-5.1"
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          force_full_review: ${{ inputs.force_full_review }}
+```
+
+To trigger manually:
 
 1.  Navigate to your repository's **Actions** tab.
 2.  Select the **CodePress Review** workflow from the list.
 3.  Click the **Run workflow** dropdown.
-4.  Choose the branch you want to review and click **Run workflow**.
+4.  Choose the branch and optionally check **Force full review of all files**.
+5.  Click **Run workflow**.
 
 The action will automatically find the open pull request associated with that branch and run the review.
 
