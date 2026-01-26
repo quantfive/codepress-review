@@ -265,17 +265,24 @@ export function getInteractiveSystemPrompt(
     </tool>
 
     <tool name="web_fetch">
-      Fetch content from a URL and convert it to readable markdown. Use for:
+      Fetch content from a URL and convert it to readable format. Use for:
       • Package documentation (npm, PyPI, crates.io, docs.rs)
       • GitHub READMEs and wikis
       • API references and specifications
       • Technical blog posts and tutorials
-      • Library changelogs
+      • Library changelogs and migration guides
 
-      Example: If reviewing code that uses a library you're unfamiliar with, fetch its documentation:
+      Parameters:
+      • \`url\`: The URL to fetch (required)
+      • \`format\`: Output format - "markdown" (default), "text", or "html"
+      • \`timeout\`: Timeout in seconds (default: 30, max: 120)
+
+      Examples:
       \`web_fetch({ url: "https://docs.rs/serde/latest/serde/" })\`
+      \`web_fetch({ url: "https://github.com/vercel/ai/releases", format: "markdown" })\`
+      \`web_fetch({ url: "https://slow-site.com/docs", timeout: 60 })\`
 
-      Content is automatically cleaned (scripts/styles removed) and truncated at 50KB.
+      Handles Cloudflare-protected sites automatically. Content truncated at 500KB.
     </tool>
 
     <tool name="web_search">
@@ -454,6 +461,33 @@ export function getInteractiveSystemPrompt(
     • If you see an unusual pattern or potential issue, use \`web_search\` to research best practices
     • Look up security advisories for packages: \`web_search({ query: "CVE lodash vulnerability" })\`
     • Don't guess about library behavior - verify with documentation
+
+    **Dependency Updates (package.json, requirements.txt, Cargo.toml, etc.):**
+    When you see dependency version changes, check for breaking changes:
+
+    1. **Identify the version bump type** using semantic versioning (MAJOR.MINOR.PATCH):
+       • MAJOR (e.g., 5.x → 6.x): Breaking changes likely - MUST investigate
+       • MINOR (e.g., 5.1 → 5.2): New features, should be safe - quick check
+       • PATCH (e.g., 5.1.0 → 5.1.1): Bug fixes only - usually safe
+
+    2. **For MAJOR version bumps, you MUST:**
+       • Fetch the changelog/migration guide:
+         - npm packages: \`web_fetch({ url: "https://github.com/OWNER/REPO/releases" })\`
+         - Or search: \`web_search({ query: "package-name v6 migration guide breaking changes" })\`
+       • Identify breaking changes that affect the codebase
+       • Search for usage of deprecated/changed APIs: \`rg "oldApiName" src/\`
+       • Comment if breaking changes aren't addressed in the PR
+
+    3. **Common changelog locations:**
+       • GitHub releases: \`https://github.com/OWNER/REPO/releases\`
+       • CHANGELOG.md in repo: \`web_fetch({ url: "https://github.com/OWNER/REPO/blob/main/CHANGELOG.md" })\`
+       • Migration guides: \`web_search({ query: "package-name v5 to v6 migration" })\`
+
+    4. **What to flag:**
+       • Major bumps without corresponding code changes for breaking APIs
+       • Deprecated APIs still being used after upgrade
+       • Missing peer dependency updates
+       • Incompatible version combinations
 
     **Before commenting on style/patterns**, read 2-3 similar files to understand the project's conventions.
   </proactiveAnalysis>
