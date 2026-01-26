@@ -3,38 +3,51 @@ import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 /**
  * Mapping of "latest" model aliases to actual model names.
  * Users can specify these instead of exact model versions.
+ *
+ * Where possible, we use provider-native aliases that auto-update:
+ * - Anthropic: claude-sonnet-4-5, claude-opus-4-5 (auto-update to latest snapshot)
+ * - OpenAI: gpt-4o, o3, o4-mini (may need manual updates for major versions)
+ * - Google: gemini-2.0-flash, etc. (may need manual updates)
+ *
+ * Last updated: 2025-01-26
+ * To update: Check provider docs for current flagship models.
  */
 const LATEST_MODEL_ALIASES: Record<string, Record<string, string>> = {
-  // Provider-level "latest" - flagship model for each provider
+  // OpenAI - https://platform.openai.com/docs/models
   openai: {
-    latest: "gpt-5.2",
-    "gpt-latest": "gpt-5.2",
-    "gpt-mini-latest": "gpt-5.2-mini",
+    latest: "gpt-4o",              // Current flagship multimodal
+    "gpt-latest": "gpt-4o",
+    "gpt-mini-latest": "gpt-4o-mini",
     "o3-latest": "o3",
     "o4-mini-latest": "o4-mini",
   },
+  // Anthropic - https://docs.anthropic.com/en/docs/about-claude/models
+  // These aliases auto-update to latest snapshots
   anthropic: {
-    latest: "claude-sonnet-4-5",
+    latest: "claude-sonnet-4-5",   // Auto-updates to latest snapshot
     "sonnet-latest": "claude-sonnet-4-5",
     "opus-latest": "claude-opus-4-5",
     "haiku-latest": "claude-haiku-3-5",
   },
+  // Google/Gemini - https://ai.google.dev/gemini-api/docs/models
   gemini: {
-    latest: "gemini-2.5-pro",
-    "gemini-latest": "gemini-2.5-pro",
-    "gemini-pro-latest": "gemini-2.5-pro",
-    "gemini-flash-latest": "gemini-2.5-flash",
+    latest: "gemini-2.0-flash",    // Current flagship
+    "gemini-latest": "gemini-2.0-flash",
+    "gemini-pro-latest": "gemini-2.0-pro-exp",
+    "gemini-flash-latest": "gemini-2.0-flash",
   },
   google: {
-    latest: "gemini-2.5-pro",
-    "gemini-latest": "gemini-2.5-pro",
-    "gemini-pro-latest": "gemini-2.5-pro",
-    "gemini-flash-latest": "gemini-2.5-flash",
+    latest: "gemini-2.0-flash",
+    "gemini-latest": "gemini-2.0-flash",
+    "gemini-pro-latest": "gemini-2.0-pro-exp",
+    "gemini-flash-latest": "gemini-2.0-flash",
   },
+  // xAI - https://docs.x.ai/docs
   xai: {
-    latest: "grok-3",
-    "grok-latest": "grok-3",
+    latest: "grok-2",
+    "grok-latest": "grok-2",
   },
+  // DeepSeek - https://platform.deepseek.com/
   deepseek: {
     latest: "deepseek-chat",
     "deepseek-latest": "deepseek-chat",

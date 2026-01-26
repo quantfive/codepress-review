@@ -124,26 +124,28 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 Instead of specifying exact model versions, you can use aliases to always get the latest model:
 
-| Alias | Provider | Resolves To |
-| ----- | -------- | ----------- |
-| `latest` | OpenAI | `gpt-5.2` |
-| `gpt-latest` | OpenAI | `gpt-5.2` |
-| `gpt-mini-latest` | OpenAI | `gpt-5.2-mini` |
-| `latest` | Anthropic | `claude-sonnet-4-5` |
-| `sonnet-latest` | Anthropic | `claude-sonnet-4-5` |
-| `opus-latest` | Anthropic | `claude-opus-4-5` |
-| `haiku-latest` | Anthropic | `claude-haiku-3-5` |
-| `latest` | Google/Gemini | `gemini-2.5-pro` |
-| `gemini-flash-latest` | Google/Gemini | `gemini-2.5-flash` |
-| `latest` | xAI | `grok-3` |
-| `latest` | DeepSeek | `deepseek-chat` |
+| Alias | Provider | Resolves To | Auto-updates? |
+| ----- | -------- | ----------- | ------------- |
+| `latest` | OpenAI | `gpt-4o` | ❌ Manual |
+| `gpt-latest` | OpenAI | `gpt-4o` | ❌ Manual |
+| `gpt-mini-latest` | OpenAI | `gpt-4o-mini` | ❌ Manual |
+| `latest` | Anthropic | `claude-sonnet-4-5` | ✅ Provider alias |
+| `sonnet-latest` | Anthropic | `claude-sonnet-4-5` | ✅ Provider alias |
+| `opus-latest` | Anthropic | `claude-opus-4-5` | ✅ Provider alias |
+| `haiku-latest` | Anthropic | `claude-haiku-3-5` | ✅ Provider alias |
+| `latest` | Google/Gemini | `gemini-2.0-flash` | ❌ Manual |
+| `gemini-flash-latest` | Google/Gemini | `gemini-2.0-flash` | ❌ Manual |
+| `latest` | xAI | `grok-2` | ❌ Manual |
+| `latest` | DeepSeek | `deepseek-chat` | ❌ Manual |
+
+> **Note:** Anthropic aliases like `claude-sonnet-4-5` are provider-native and auto-update to the latest snapshot. Other providers require manual updates to the mapping table in `src/config.ts`.
 
 **Example usage:**
 ```yaml
 - uses: quantfive/codepress-review@v4
   with:
     model_provider: "anthropic"
-    model_name: "sonnet-latest"  # Always uses the latest Sonnet model
+    model_name: "sonnet-latest"  # Uses claude-sonnet-4-5 (auto-updates)
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
