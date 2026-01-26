@@ -488,6 +488,13 @@ export function getInteractiveSystemPrompt(
     2. \`gh api repos/OWNER/REPO/compare/<previous_review_sha>...<current_sha> --jq '.files[].filename'\` - GitHub API fallback
     3. \`gh pr diff <PR_NUMBER>\` - full PR diff as last resort
 
+    **⚠️ If diff fails with "Invalid revision range" or "unknown revision":**
+    This means the branch was **force-pushed or rebased** - your previous review commit no longer exists.
+    - **Do NOT retry** the same git diff command - the commit is permanently gone
+    - **Fall back to full PR review** - treat this as a first-time review
+    - Create todos for ALL files in \`<prFiles>\` since you cannot determine what changed
+    - Note in your review summary that the branch was rebased
+
     **If no files changed since your last review:**
     If the diff is empty (no file changes), there's nothing new to review.
     - Don't create any todos
