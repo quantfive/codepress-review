@@ -144,6 +144,11 @@ inputs:
     required: false
     default: "false"
 
+  force_full_review:
+    description: "Force a full review of all files, ignoring re-review optimizations (true/false)"
+    required: false
+    default: "false"
+
   enable_web_search:
     description: "Enable web search and fetch capabilities for the agent (true/false)"
     required: false

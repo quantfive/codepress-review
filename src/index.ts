@@ -197,6 +197,9 @@ async function run(): Promise<void> {
     // Handle blocking_only input
     const blockingOnly = core.getBooleanInput("blocking_only");
 
+    // Handle force_full_review input
+    const forceFullReview = core.getBooleanInput("force_full_review");
+
     // Get web search configuration
     const enableWebSearch = core.getBooleanInput("enable_web_search");
 
@@ -534,6 +537,7 @@ async function run(): Promise<void> {
       process.env.IS_RE_REVIEW = isReReview.toString();
       process.env.PREVIOUS_REVIEW_STATE = previousReviewState || "";
       process.env.PREVIOUS_REVIEW_COMMIT_SHA = previousReviewCommitSha || "";
+      process.env.FORCE_FULL_REVIEW = forceFullReview.toString();
 
       if (isReReview) {
         core.info(`Re-review detected (trigger: ${triggerEvent})`);

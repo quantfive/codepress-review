@@ -227,27 +227,33 @@ export function getInteractiveSystemPrompt(
 
     <!-- FILE-BY-FILE REVIEW APPROACH -->
     <reviewApproach>
-      **First-time review:** Review ALL meaningful source files changed in the PR.
-      **Re-review:** Focus on files changed since your last review (see \`<reReviewPolicy>\`).
+      🚨 **CRITICAL: Determine scope BEFORE creating todos** 🚨
 
-      (Always skip auto-generated files listed in \`<filesToSkip>\` above.)
+      **Step 1: Check if this is a re-review**
+      Look at <yourPreviousComments> - if you have previous reviews on this PR, this is a re-review.
+      Also check if a previous commit SHA is provided in the context.
 
-      **Workflow:**
-      1. Determine your review scope:
-         - First review: \`gh pr view <PR_NUMBER> --json files\` for all changed files
-         - Re-review: \`git diff <previous_sha>..<current_sha>\` for new changes only
-      2. Filter out lock files, build outputs, and generated files
-      3. Add a todo item for each file IN YOUR SCOPE - this is your commitment
-      4. Review each file:
-         - Fetch the patch: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files --jq '.[] | select(.filename=="path/to/file.ts")'\`
-         - **Read the FULL file** (not just the patch) for context
-         - **Post comments IMMEDIATELY** when you find issues
-         - Mark the file as done in your todo list
-      5. Complete ALL todos before submitting the review
+      **Step 2: Get the appropriate file list based on scope**
+      - **First-time review:** \`gh pr view <PR_NUMBER> --json files\` → all changed files
+      - **Re-review:** Get files changed since your last review (use SHA from \`<reReviewContext>\`):
+        1. Try: \`git diff <previous_review_sha>..<current_sha> --name-only\`
+        2. Fallback: \`gh api repos/OWNER/REPO/compare/<previous_review_sha>...<current_sha> --jq '.files[].filename'\`
+      - **Re-review (requested changes):** Also include files where you left feedback
 
-      **Impact analysis:**
-      When changes affect other files (imports, APIs, shared types), use \`rg\` to investigate.
-      This is part of reviewing - add a todo only if another file needs detailed review too.
+      **Step 3: Create todos ONLY for files in your scope**
+      Filter out lock files, build outputs, generated files (see \`<filesToSkip>\`).
+      ⛔ Do NOT add all PR files to todos if this is a re-review - only add scoped files.
+
+      **Step 4: Review each file**
+      - Read the FULL file (not just the patch) for context
+      - Post comments IMMEDIATELY when you find issues
+      - Mark the file as done in your todo list
+
+      **Step 5: Complete ALL todos before submitting**
+
+      **Impact analysis (no todos needed):**
+      Use \`rg\` to check if changes affect other files (imports, APIs, shared types).
+      Only add a todo if another file needs detailed review.
     </reviewApproach>
 
     <!-- TURN BUDGET -->
@@ -463,16 +469,30 @@ export function getInteractiveSystemPrompt(
 
     **Scoping depends on your previous review status:**
 
+    The \`<reReviewContext>\` section provides your **previous review commit SHA**.
+    This is the commit you last reviewed - diff from there to current HEAD to see ALL changes since then.
+
     **If you previously APPROVED:**
-    - Review only files changed in new commits: \`git diff <previous_sha>..<current_sha>\`
+    - Review only files changed since your last review (previous_sha → current_sha)
     - Create todos only for those files
-    - Your previous approval already covered the rest
+    - Your previous approval already covered unchanged files
 
     **If you previously REQUESTED CHANGES:**
-    - Review files changed in new commits (the fixes)
-    - ALSO verify your requested changes were addressed (check those specific files/lines)
-    - Create todos for: new commit files + files where you requested changes
-    - Even if a file isn't in the new diff, check if your feedback was addressed
+    - Review files changed since your last review (the attempted fixes)
+    - ALSO verify your requested changes were addressed (even if those lines didn't change)
+    - Create todos for: changed files + files where you left feedback
+
+    **Getting the diff since your last review:**
+    Use the previous review commit SHA from \`<reReviewContext>\`:
+    1. \`git diff <previous_review_sha>..<current_sha> --name-only\` - if available locally
+    2. \`gh api repos/OWNER/REPO/compare/<previous_review_sha>...<current_sha> --jq '.files[].filename'\` - GitHub API fallback
+    3. \`gh pr diff <PR_NUMBER>\` - full PR diff as last resort
+
+    **If no files changed since your last review:**
+    If the diff is empty (no file changes), there's nothing new to review.
+    - Don't create any todos
+    - Don't post a new review (your previous feedback still stands)
+    - Complete immediately with \`verdict: "NONE"\` and summary explaining no changes detected
 
     **Impact analysis (no todos needed):**
     When reviewing changes, investigate impact on other files:

@@ -41,6 +41,8 @@ export interface TriggerContext {
   previousReviewState?: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING" | null;
   /** The commit SHA of the previous review, if any */
   previousReviewCommitSha?: string | null;
+  /** Force a full review of all files, ignoring re-review optimizations */
+  forceFullReview?: boolean;
 }
 
 /**

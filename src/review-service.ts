@@ -71,12 +71,14 @@ export class ReviewService {
     const isReReview = process.env.IS_RE_REVIEW === "true";
     const previousReviewState = process.env.PREVIOUS_REVIEW_STATE as TriggerContext["previousReviewState"] || null;
     const previousReviewCommitSha = process.env.PREVIOUS_REVIEW_COMMIT_SHA || null;
+    const forceFullReview = process.env.FORCE_FULL_REVIEW === "true";
 
     const triggerContext: TriggerContext = {
       isReReview,
       triggerEvent,
       previousReviewState: previousReviewState || undefined,
       previousReviewCommitSha: previousReviewCommitSha || undefined,
+      forceFullReview,
     };
 
     // Build PR context for the agent
