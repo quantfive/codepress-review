@@ -49,8 +49,8 @@ const FALLBACK_MODEL_ALIASES: Record<string, Record<string, string>> = {
     "deepseek-reasoner-latest": "deepseek-reasoner",
   },
   xai: {
-    latest: "grok-3",
-    "grok-latest": "grok-3",
+    latest: "grok-4",
+    "grok-latest": "grok-4",
     "grok-mini-latest": "grok-3-mini",
   },
   perplexity: {
