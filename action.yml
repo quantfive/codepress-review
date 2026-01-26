@@ -99,9 +99,9 @@ inputs:
     default: "10000"
 
   max_turns:
-    description: "Maximum number of turns for the interactive agent"
+    description: "Maximum number of turns for the interactive agent (0 = unlimited)"
     required: false
-    default: "75"
+    default: "0"
 
   update_pr_description:
     description: "Whether to update the PR description with AI-generated summary (true/false)"
