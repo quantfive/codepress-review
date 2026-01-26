@@ -1,5 +1,6 @@
 import { Agent, Runner, CallModelInputFilter } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
+import { z } from "zod";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
 import {
@@ -21,14 +22,25 @@ import { advanceTurn, createReviewState, recordToolCall } from "./review-state";
 import { getAllTools, resetTodoList } from "./tools";
 
 /**
- * Type for the review completion result from the complete_review tool.
+ * Schema for the agent's final output.
+ * The agent MUST produce this structured output to signal completion.
+ *
+ * IMPORTANT: Using z.literal(true) for `completed` ensures the loop only terminates
+ * when the agent explicitly sets completed to true. If the agent outputs JSON with
+ * completed: false, the schema won't match and the loop continues.
  */
-export interface ReviewCompletion {
-  completed: boolean;
-  summary: string;
-  commentsPosted: number;
-  verdict: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NONE";
-}
+const ReviewCompletionSchema = z.object({
+  /** Must be true to signal completion - z.literal(true) prevents premature termination */
+  completed: z.literal(true).describe("Must be true to signal the review is complete"),
+  /** Brief summary of the review outcome */
+  summary: z.string().describe("A brief summary of the review: what was found, comments posted, and final verdict"),
+  /** Number of comments posted during this review */
+  commentsPosted: z.number().describe("Number of inline comments posted during this review"),
+  /** The review verdict submitted */
+  verdict: z.enum(["APPROVE", "REQUEST_CHANGES", "COMMENT", "NONE"]).describe("The verdict submitted with gh pr review, or NONE if no review was submitted"),
+});
+
+export type ReviewCompletion = z.infer<typeof ReviewCompletionSchema>;
 
 export interface PRContext {
   repo: string; // owner/repo format
@@ -223,8 +235,11 @@ export async function reviewFullDiff(
     name: "CodePressReviewAgent",
     instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
     tools: getAllTools(),
-    // No outputType - the agent terminates by calling the complete_review tool
-    // This prevents accidental termination on text-only responses
+    // Structured output type - the loop continues until this is produced
+    // Using z.literal(true) for `completed` ensures the agent must explicitly
+    // set completed: true to terminate. Text-only responses or completed: false
+    // will not match the schema and the loop continues.
+    outputType: ReviewCompletionSchema,
   });
 
   const fileList = repoFilePaths.join("\n");
@@ -411,9 +426,6 @@ ${isReReview ? "" : `
     workflowName: `${prContext.repo}#${prContext.prNumber}`,
   });
 
-  // Track completion from complete_review tool
-  let reviewCompletion: ReviewCompletion | null = null;
-
   // Set up tool tracking via runner hooks
   runner.on("agent_tool_start", (_context, _agent, tool, _details) => {
     recordToolCall(reviewState, tool.name);
@@ -423,25 +435,6 @@ ${isReReview ? "" : `
   runner.on("agent_tool_end", (_context, _agent, tool, result, details) => {
     // Analyze tool output to update state (track comment posting, review submission, etc.)
     analyzeToolOutput(reviewState, tool.name, details.toolCall, result);
-
-    // Check if complete_review was called
-    if (tool.name === "complete_review" && result) {
-      const resultObj = typeof result === "object" ? result : {};
-      const typedResult = resultObj as {
-        completed?: boolean;
-        verdict?: string;
-        summary?: string;
-      };
-      if (typedResult.completed) {
-        reviewCompletion = {
-          completed: true,
-          verdict: (typedResult.verdict as ReviewCompletion["verdict"]) || "NONE",
-          summary: typedResult.summary || "",
-          commentsPosted: reviewState.commentsPostedThisRun.length,
-        };
-        debugLog("[Review] complete_review tool called - review will terminate");
-      }
-    }
   });
 
   try {
@@ -462,17 +455,16 @@ ${isReReview ? "" : `
       maxTurns: effectiveMaxTurns,
     };
 
-    await runner.run(agent, initialMessage, runOptions);
+    const result = await runner.run(agent, initialMessage, runOptions);
 
-    // Check completion status (assigned in the agent_tool_end callback)
-    const completion = reviewCompletion as ReviewCompletion | null;
-    if (completion) {
-      debugLog("Agent completed review via complete_review tool.");
-      debugLog(`  Verdict: ${completion.verdict}`);
-      debugLog(`  Summary: ${completion.summary}`);
-      debugLog(`  Comments posted: ${completion.commentsPosted}`);
+    if (result.finalOutput) {
+      debugLog("Agent completed review with structured output.");
+      debugLog(`  Verdict: ${result.finalOutput.verdict}`);
+      debugLog(`  Summary: ${result.finalOutput.summary}`);
+      debugLog(`  Comments posted (self-reported): ${result.finalOutput.commentsPosted}`);
+      debugLog(`  Comments posted (tracked): ${reviewState.commentsPostedThisRun.length}`);
     } else {
-      debugLog("Agent completed without calling complete_review tool.");
+      debugLog("Agent completed without structured output (unexpected).");
       debugLog(`  Comments posted this run: ${reviewState.commentsPostedThisRun.length}`);
       debugLog(`  Review submitted: ${reviewState.hasSubmittedReview}`);
     }

@@ -180,22 +180,34 @@ export function getInteractiveSystemPrompt(
     **You MUST use the bash tool to execute gh CLI commands to post comments.**
     Your text responses should only contain brief status updates and summaries.
 
-    <!-- REVIEW COMPLETION -->
-    <reviewCompletion>
-      When you have finished the review, call the \`complete_review\` tool.
+    <!-- COMPLETION SIGNAL -->
+    <completionSignal>
+      🚨 **IMPORTANT: The review loop continues until you produce a structured completion output.**
 
-      **Prerequisites before calling complete_review:**
-      1. Reviewed ALL files in your todo list (run \`todo list\` to verify)
-      2. Posted all necessary inline comments via \`gh api\`
-      3. Submitted the formal review via \`gh pr review\`
+      You can output text and use tools freely during the review. The loop will NOT terminate
+      until you explicitly signal completion by outputting a JSON object with this EXACT structure:
 
-      **Tool parameters:**
-      - \`verdict\`: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NONE"
-      - \`summary\`: Brief description of what you reviewed and found
+      \`\`\`json
+      {
+        "completed": true,
+        "summary": "Brief summary of what was reviewed and found",
+        "commentsPosted": 5,
+        "verdict": "APPROVE"
+      }
+      \`\`\`
 
-      **WARNING:** Calling \`complete_review\` TERMINATES the review immediately.
-      Do NOT call it until you have completed ALL steps above.
-    </reviewCompletion>
+      **Rules:**
+      - \`completed\` MUST be \`true\` to terminate - the schema requires exactly \`true\`
+      - Only output this JSON AFTER you have:
+        1. Reviewed ALL files in the PR (check your todo list)
+        2. Posted all necessary comments via \`gh api\`
+        3. Submitted the formal review via \`gh pr review\`
+      - \`verdict\` must be one of: "APPROVE", "REQUEST_CHANGES", "COMMENT", "NONE"
+      - Use "NONE" only if you couldn't submit a review (e.g., re-review with no new issues)
+
+      **DO NOT output this JSON until you are truly done with the entire review.**
+      If you output JSON with \`completed: false\` or any other text, the loop continues.
+    </completionSignal>
 
     <!-- FILES TO SKIP -->
     <filesToSkip>
@@ -350,22 +362,6 @@ export function getInteractiveSystemPrompt(
       Search the repository for a plain-text query using ripgrep.
       Returns file paths and matching line snippets with context.
       More powerful than bash \`rg\` with better output formatting.
-    </tool>
-
-    <tool name="complete_review">
-      **Signal that the code review is complete.**
-
-      Call this tool ONLY after you have:
-      1. Reviewed ALL files in your todo list
-      2. Posted all necessary inline comments via \`gh api\`
-      3. Submitted the formal review via \`gh pr review\` (unless re-review with no new issues)
-
-      Parameters:
-      • \`verdict\`: "APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NONE"
-      • \`summary\`: Brief description of what you reviewed and found
-
-      ⚠️ **WARNING:** This tool TERMINATES the review loop immediately.
-      Do NOT call it until you have completed ALL review steps.
     </tool>
   </tools>
 
@@ -622,11 +618,19 @@ export function getInteractiveSystemPrompt(
 
     Example: \`gh pr review 42 --approve --body $'## Review Summary\\n\\nThis PR adds authentication middleware...\\n\\n**Reviewed:** auth.ts, middleware.ts, tests\\n**Comments:** None - code looks good\\n**Decision:** Approve - clean implementation'\`
 
-    **FINAL STEP - ALWAYS call \`complete_review\` when done:**
-    After completing all review steps above, you MUST call the \`complete_review\` tool to signal completion:
-    \`complete_review({ verdict: "APPROVE", summary: "Brief summary of what was reviewed" })\`
+    **FINAL STEP - Output the completion JSON:**
+    After completing all review steps above, output this JSON to signal completion:
 
-    This terminates the review loop. The \`verdict\` should match what you submitted via \`gh pr review\`,
+    \`\`\`json
+    {
+      "completed": true,
+      "summary": "Brief summary of what was reviewed",
+      "commentsPosted": 3,
+      "verdict": "APPROVE"
+    }
+    \`\`\`
+
+    The \`verdict\` should match what you submitted via \`gh pr review\`,
     or use "NONE" if you didn't submit a review (e.g., re-review with no new issues).
   </completion>
 
