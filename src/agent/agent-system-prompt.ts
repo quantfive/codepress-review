@@ -584,42 +584,23 @@ export function getInteractiveSystemPrompt(
 
   <!-- REVIEW COMPLETION -->
   <completion>
-    When you have finished reviewing:
-    1. If you found issues, you should have already posted inline comments via gh CLI
-    2. If the PR description was blank, update it with a concise summary
-    3. **CHECK YOUR TODO LIST:** Run \`todo list\` and complete ALL remaining tasks before proceeding
+    🚨 **MANDATORY COMPLETION SEQUENCE** 🚨
 
-    **IMPORTANT: What to do next depends on the review type:**
+    When ALL files in your todo list are marked done, you MUST execute these steps IN ORDER:
 
-    **For FIRST-TIME reviews (not a re-review):**
-    You MUST submit a formal review using \`gh pr review\`. Choose ONE:
-    • \`gh pr review <PR_NUMBER> --approve --body "Your summary"\`
-      → Use when: No blocking issues found, code is ready to merge
-    • \`gh pr review <PR_NUMBER> --request-changes --body "Your summary"\`
-      → Use when: You posted 🔴 REQUIRED comments that must be fixed
-    • \`gh pr review <PR_NUMBER> --comment --body "Your summary"\`
-      → Use when: You have suggestions but nothing blocking
+    **STEP 1: Verify todos are complete**
+    Run \`todo list\` to confirm all tasks are done. If any remain, complete them first.
 
-    **For RE-REVIEWS (after new commits on a PR you already approved):**
+    **STEP 2: Submit the formal review**
+    You MUST call \`gh pr review\` (unless this is a re-review where you already approved and found no new issues).
 
-    ⚠️ **If you previously APPROVED and found NO new issues: DO NOTHING.**
-    Skip the \`gh pr review\` step. Your previous approval already covers the new commits.
+    Choose ONE command based on your findings:
+    • \`gh pr review <PR_NUMBER> --approve --body "Summary"\` → No blocking issues
+    • \`gh pr review <PR_NUMBER> --request-changes --body "Summary"\` → Posted 🔴 REQUIRED comments
+    • \`gh pr review <PR_NUMBER> --comment --body "Summary"\` → Suggestions but nothing blocking
 
-    **Only submit a new review if:**
-    • Your assessment changed (e.g., requested changes are now fixed → approve)
-    • You found NEW issues in the new commits that warrant comments
-    • You need to re-iterate unaddressed feedback
-
-    **Review summary format (when you DO post):**
-    - Brief overview of what the PR does
-    - Key areas you reviewed
-    - Summary of any comments posted (and their severity)
-    - Your overall assessment
-
-    Example: \`gh pr review 42 --approve --body $'## Review Summary\\n\\nThis PR adds authentication middleware...\\n\\n**Reviewed:** auth.ts, middleware.ts, tests\\n**Comments:** None - code looks good\\n**Decision:** Approve - clean implementation'\`
-
-    **FINAL STEP - Output the completion JSON:**
-    After completing all review steps above, output this JSON to signal completion:
+    **STEP 3: Output the completion JSON**
+    Immediately after submitting (or deciding to skip) the review, output this EXACT JSON structure:
 
     \`\`\`json
     {
@@ -630,8 +611,14 @@ export function getInteractiveSystemPrompt(
     }
     \`\`\`
 
-    The \`verdict\` should match what you submitted via \`gh pr review\`,
-    or use "NONE" if you didn't submit a review (e.g., re-review with no new issues).
+    The \`verdict\` must be: "APPROVE", "REQUEST_CHANGES", "COMMENT", or "NONE" (if skipped).
+
+    ⚠️ **DO NOT STOP after listing todos.** You MUST continue to STEP 2 and STEP 3.
+    ⚠️ **DO NOT make additional tool calls** after the completion JSON - it terminates the loop.
+
+    **Re-review exception:**
+    If you previously APPROVED this PR and found NO new issues in new commits, you may skip STEP 2.
+    But you MUST still do STEP 3 with \`verdict: "NONE"\`.
   </completion>
 
 </systemPrompt>`;
