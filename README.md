@@ -112,6 +112,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `max_turns`                  | ❌       | `0` (unlimited)       | Maximum turns for autonomous agent review (0 = unlimited)               |
 | `update_pr_description`      | ❌       | `true`                | Auto-generate PR descriptions for blank PRs                             |
 | `blocking_only`              | ❌       | `false`               | Only generate comments for critical/blocking issues                     |
+| `force_full_review`          | ❌       | `false`               | Force full review of all files, ignoring re-review optimizations        |
 | `debug`                      | ❌       | `false`               | Enable debug mode for detailed console logs                             |
 | `run_on_pr_opened`           | ❌       | `true`                | Run review when PR is opened                                            |
 | `run_on_pr_reopened`         | ❌       | `true`                | Run review when PR is reopened                                          |
