@@ -18,7 +18,7 @@ inputs:
     default: "openai"
 
   model_name:
-    description: "AI model name (e.g., gpt-5.1, gpt-5.1-codex, claude-sonnet-4-5, claude-opus-4-5,gemini-2.5-flash, command-r-plus, etc.)"
+    description: "AI model name or alias. Use exact names (gpt-5.2, claude-sonnet-4-5) or aliases like 'latest', 'sonnet-latest', 'gpt-mini-latest' to auto-resolve to the newest version."
     required: true
     default: "gpt-5.1"
 

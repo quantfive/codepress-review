@@ -90,7 +90,7 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | ---------------------------- | -------- | --------------------- | ----------------------------------------------------------------------- |
 | `github_token`               | ✅       | `${{ github.token }}` | GitHub token for API access                                             |
 | `model_provider`             | ✅       | `openai`              | AI provider (see [Supported Providers](#supported-providers))           |
-| `model_name`                 | ✅       | `gpt-5.1`             | Model name (see examples below)                                         |
+| `model_name`                 | ✅       | `gpt-5.1`             | Model name or alias like `latest`, `sonnet-latest` (see below)          |
 | `openai_api_key`             | ⚠️       |                       | Required if using OpenAI                                                |
 | `anthropic_api_key`          | ⚠️       |                       | Required if using Anthropic                                             |
 | `gemini_api_key`             | ⚠️       |                       | Required if using Google/Gemini                                         |
@@ -119,6 +119,33 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | `run_on_review_requested`    | ❌       | `true`                | Run review when re-review requested from github-actions[bot]            |
 | `run_on_comment_trigger`     | ❌       | `true`                | Run review when comments contain trigger phrase                         |
 | `comment_trigger_phrase`     | ❌       | `"@codepress/review"` | Phrase that triggers review in comments                                 |
+
+### Model Aliases (Always Use Latest)
+
+Instead of specifying exact model versions, you can use aliases to always get the latest model:
+
+| Alias | Provider | Resolves To |
+| ----- | -------- | ----------- |
+| `latest` | OpenAI | `gpt-5.2` |
+| `gpt-latest` | OpenAI | `gpt-5.2` |
+| `gpt-mini-latest` | OpenAI | `gpt-5.2-mini` |
+| `latest` | Anthropic | `claude-sonnet-4-5` |
+| `sonnet-latest` | Anthropic | `claude-sonnet-4-5` |
+| `opus-latest` | Anthropic | `claude-opus-4-5` |
+| `haiku-latest` | Anthropic | `claude-haiku-3-5` |
+| `latest` | Google/Gemini | `gemini-2.5-pro` |
+| `gemini-flash-latest` | Google/Gemini | `gemini-2.5-flash` |
+| `latest` | xAI | `grok-3` |
+| `latest` | DeepSeek | `deepseek-chat` |
+
+**Example usage:**
+```yaml
+- uses: quantfive/codepress-review@v4
+  with:
+    model_provider: "anthropic"
+    model_name: "sonnet-latest"  # Always uses the latest Sonnet model
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
 
 ## Triggering Reviews
 

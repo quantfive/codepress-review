@@ -1,5 +1,74 @@
 import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 
+/**
+ * Mapping of "latest" model aliases to actual model names.
+ * Users can specify these instead of exact model versions.
+ */
+const LATEST_MODEL_ALIASES: Record<string, Record<string, string>> = {
+  // Provider-level "latest" - flagship model for each provider
+  openai: {
+    latest: "gpt-5.2",
+    "gpt-latest": "gpt-5.2",
+    "gpt-mini-latest": "gpt-5.2-mini",
+    "o3-latest": "o3",
+    "o4-mini-latest": "o4-mini",
+  },
+  anthropic: {
+    latest: "claude-sonnet-4-5",
+    "sonnet-latest": "claude-sonnet-4-5",
+    "opus-latest": "claude-opus-4-5",
+    "haiku-latest": "claude-haiku-3-5",
+  },
+  gemini: {
+    latest: "gemini-2.5-pro",
+    "gemini-latest": "gemini-2.5-pro",
+    "gemini-pro-latest": "gemini-2.5-pro",
+    "gemini-flash-latest": "gemini-2.5-flash",
+  },
+  google: {
+    latest: "gemini-2.5-pro",
+    "gemini-latest": "gemini-2.5-pro",
+    "gemini-pro-latest": "gemini-2.5-pro",
+    "gemini-flash-latest": "gemini-2.5-flash",
+  },
+  xai: {
+    latest: "grok-3",
+    "grok-latest": "grok-3",
+  },
+  deepseek: {
+    latest: "deepseek-chat",
+    "deepseek-latest": "deepseek-chat",
+    "deepseek-reasoner-latest": "deepseek-reasoner",
+  },
+};
+
+/**
+ * Resolves "latest" model aliases to actual model names.
+ * Supports formats like:
+ *   - "latest" → provider's flagship model
+ *   - "gpt-latest" → latest GPT model
+ *   - "sonnet-latest" → latest Claude Sonnet
+ *   - "gpt latest" (with space) → normalized to "gpt-latest"
+ *
+ * @param provider The model provider (openai, anthropic, etc.)
+ * @param modelName The model name (may be an alias like "latest" or "sonnet-latest")
+ * @returns The resolved model name
+ */
+export function resolveModelAlias(provider: string, modelName: string): string {
+  const normalizedProvider = provider.toLowerCase();
+  const normalizedModel = modelName.toLowerCase().replace(/\s+/g, "-").trim();
+
+  const providerAliases = LATEST_MODEL_ALIASES[normalizedProvider];
+  if (providerAliases && providerAliases[normalizedModel]) {
+    const resolved = providerAliases[normalizedModel];
+    console.log(`Resolved model alias "${modelName}" → "${resolved}"`);
+    return resolved;
+  }
+
+  // No alias found, return original
+  return modelName;
+}
+
 export function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
   let pr = "";
@@ -37,11 +106,14 @@ const PROVIDER_API_KEY_MAP: Record<string, string> = {
 
 export function getModelConfig(): ModelConfig {
   const provider = process.env.MODEL_PROVIDER;
-  const modelName = process.env.MODEL_NAME;
+  const rawModelName = process.env.MODEL_NAME;
 
-  if (!provider || !modelName) {
+  if (!provider || !rawModelName) {
     throw new Error("MODEL_PROVIDER and MODEL_NAME are required");
   }
+
+  // Resolve "latest" aliases to actual model names
+  const modelName = resolveModelAlias(provider, rawModelName);
 
   // Get reasoning/thinking configuration
   const reasoningEffort = process.env.REASONING_EFFORT as
