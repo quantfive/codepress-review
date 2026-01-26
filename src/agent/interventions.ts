@@ -114,6 +114,13 @@ export function analyzeToolOutput(
   toolInput: unknown,
   _toolOutput: string,
 ): void {
+  // Detect complete_review tool call
+  if (toolName === "complete_review") {
+    console.log("[Review] complete_review tool called - review will terminate");
+    // The actual termination is handled in the runner's agent_tool_end hook
+    return;
+  }
+
   if (toolName === "bash") {
     const inputStr = typeof toolInput === "string" ? toolInput : JSON.stringify(toolInput);
 

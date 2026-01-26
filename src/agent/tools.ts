@@ -1450,6 +1450,40 @@ Be specific in your queries for better results.`,
   },
 });
 
+/**
+ * Tool to signal that the code review is complete.
+ * The agent must call this tool explicitly to terminate the review loop.
+ */
+export const completeReviewTool = tool({
+  name: "complete_review",
+  description: `Signal that the code review is complete. Only call this AFTER you have:
+1. Reviewed ALL files in your todo list
+2. Posted all necessary inline comments via gh CLI
+3. Submitted the formal review via 'gh pr review'
+
+This tool TERMINATES the review loop - do not call it until you are truly done.`,
+  parameters: z.object({
+    verdict: z
+      .enum(["APPROVE", "REQUEST_CHANGES", "COMMENT", "NONE"])
+      .describe(
+        "The review verdict you submitted. Use NONE only if you couldn't submit a review.",
+      ),
+    summary: z
+      .string()
+      .describe("Brief summary of what was reviewed and any issues found"),
+  }),
+  execute: async ({ verdict, summary }) => {
+    // The tool itself just returns confirmation
+    // The runner detects this tool call and terminates the loop
+    return {
+      completed: true,
+      verdict,
+      summary,
+      message: "Review marked as complete. Loop will terminate.",
+    };
+  },
+});
+
 // Base tools always included
 const baseTools = [
   bashTool,
@@ -1458,6 +1492,7 @@ const baseTools = [
   fetchFilesTool,
   fetchSnippetTool,
   searchRepoTool,
+  completeReviewTool,
 ];
 
 // Web tools (enabled by default, can be disabled via ENABLE_WEB_SEARCH=false)
