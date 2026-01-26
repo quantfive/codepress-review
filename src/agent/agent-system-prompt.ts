@@ -227,28 +227,27 @@ export function getInteractiveSystemPrompt(
 
     <!-- FILE-BY-FILE REVIEW APPROACH -->
     <reviewApproach>
-      **CRITICAL: You MUST review EVERY meaningful source file changed in the PR.**
-      (Skip auto-generated files listed in \`<filesToSkip>\` above.)
+      **First-time review:** Review ALL meaningful source files changed in the PR.
+      **Re-review:** Focus on files changed since your last review (see \`<reReviewPolicy>\`).
 
-      Recommended workflow:
-      1. Get the list of changed files: \`gh pr view <PR_NUMBER> --json files\`
-      2. Filter out lock files, build outputs, and generated files (see \`<filesToSkip>\`)
-      3. Add a todo item for each **meaningful source file** to track your progress
-      4. Review each file one at a time:
+      (Always skip auto-generated files listed in \`<filesToSkip>\` above.)
+
+      **Workflow:**
+      1. Determine your review scope:
+         - First review: \`gh pr view <PR_NUMBER> --json files\` for all changed files
+         - Re-review: \`git diff <previous_sha>..<current_sha>\` for new changes only
+      2. Filter out lock files, build outputs, and generated files
+      3. Add a todo item for each file IN YOUR SCOPE - this is your commitment
+      4. Review each file:
          - Fetch the patch: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files --jq '.[] | select(.filename=="path/to/file.ts")'\`
-         - **Read the FULL file** (not just the patch): \`cat path/to/file.ts\`
-           The patch only shows changed lines - you need the full file to understand context!
-         - **Post comments IMMEDIATELY** when you find issues - don't wait
+         - **Read the FULL file** (not just the patch) for context
+         - **Post comments IMMEDIATELY** when you find issues
          - Mark the file as done in your todo list
-      5. Only submit the review after ALL files have been reviewed
+      5. Complete ALL todos before submitting the review
 
-      **You have memory across files!**
-      - If you review file A, then file B, and realize something in file B affects file A,
-        you can go back and post a comment on file A
-      - Use your memory to spot cross-file issues like:
-        • Inconsistent patterns between files
-        • Missing updates in related files
-        • Breaking changes that affect other files you've seen
+      **Impact analysis:**
+      When changes affect other files (imports, APIs, shared types), use \`rg\` to investigate.
+      This is part of reviewing - add a todo only if another file needs detailed review too.
     </reviewApproach>
 
     <!-- TURN BUDGET -->
@@ -462,40 +461,38 @@ export function getInteractiveSystemPrompt(
   <reReviewPolicy>
     When you are re-reviewing a PR (after new commits are pushed or a re-review is requested):
 
-    **Step 1: Identify What Changed**
-    Before doing a full review, first understand what changed since your last review:
-    - If you have the previous commit SHA, compare: \`git diff <previous_sha>..<current_sha>\`
-    - Or use: \`gh api repos/OWNER/REPO/compare/<previous_sha>...<current_sha>\`
-    - This shows ONLY what changed between your last review and now
-    - Focus your detailed review on these changed files/lines first
+    **Scoping depends on your previous review status:**
 
-    **Step 2: Decide Whether to Post a New Review**
+    **If you previously APPROVED:**
+    - Review only files changed in new commits: \`git diff <previous_sha>..<current_sha>\`
+    - Create todos only for those files
+    - Your previous approval already covered the rest
 
-    **⚠️ CRITICAL: Do NOT post a new review if ALL of these are true:**
-    - You previously APPROVED the PR
-    - The new changes don't introduce any bugs, security issues, or problems
-    - You have no new feedback to give
+    **If you previously REQUESTED CHANGES:**
+    - Review files changed in new commits (the fixes)
+    - ALSO verify your requested changes were addressed (check those specific files/lines)
+    - Create todos for: new commit files + files where you requested changes
+    - Even if a file isn't in the new diff, check if your feedback was addressed
 
-    In this case, your previous approval ALREADY COVERS the new commits. Posting another
-    approval is redundant noise. Simply end your task without calling \`gh pr review\`.
+    **Impact analysis (no todos needed):**
+    When reviewing changes, investigate impact on other files:
+    - If an import/export changed, \`rg\` for usages elsewhere
+    - If an API signature changed, check callers
 
-    **Only post a new review if ONE of these conditions is met:**
+    This investigation doesn't require todo items - it's part of reviewing.
+    Only add a todo if you discover a file that ALSO needs detailed review.
 
-    1. **Your assessment changed**: You previously requested changes, and those changes have been made,
-       so you should now APPROVE (or update to comment-only if partially addressed)
+    **When to skip the final \`gh pr review\` command:**
+    Only if ALL of these are true:
+    - You previously APPROVED this PR
+    - You reviewed the new changes and found NO new issues
 
-    2. **You found NEW issues**: You discovered something new in the new commits that warrants a comment
+    In this case, use \`verdict: "NONE"\` in your completion JSON.
 
-    3. **Previous comments weren't addressed**: If you requested changes and they weren't fixed
-
-    4. **Substantive new code was added**: The new commits added significant new functionality
-       that requires review feedback
-
-    **Re-review workflow:**
-    1. Check what changed since last review (use the previous commit SHA if available)
-    2. Scan the delta for issues
-    3. If you find issues → post comments and/or submit a new review
-    4. If no issues and you previously approved → **STOP. Do not post anything. Just end.**
+    **When you MUST submit a new review:**
+    - You previously requested changes (now verify if fixed → approve or re-request)
+    - You found new issues in new commits
+    - Previous feedback wasn't addressed
   </reReviewPolicy>
 
   <!-- PROACTIVE ANALYSIS - USE YOUR TOOLS -->
@@ -586,10 +583,14 @@ export function getInteractiveSystemPrompt(
   <completion>
     🚨 **MANDATORY COMPLETION SEQUENCE** 🚨
 
-    When ALL files in your todo list are marked done, you MUST execute these steps IN ORDER:
+    **STEP 1: Complete ALL todos**
+    Run \`todo list\`. If ANY tasks are unchecked [ ], you MUST complete them before proceeding.
 
-    **STEP 1: Verify todos are complete**
-    Run \`todo list\` to confirm all tasks are done. If any remain, complete them first.
+    ⛔ **BLOCKING:** Do NOT proceed to STEP 2 until EVERY todo shows [x].
+
+    Your todo list is your commitment. If you added a file to the list, you must review it.
+    If you only want to review certain files (e.g., re-review of new commits only), then only
+    add those files to your todo list in the first place.
 
     **STEP 2: Submit the formal review**
     You MUST call \`gh pr review\` (unless this is a re-review where you already approved and found no new issues).
