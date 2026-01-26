@@ -272,8 +272,20 @@ export async function reviewFullDiff(
   const triggerCtx = prContext.triggerContext;
   let reReviewSection = "";
   const isReReview = triggerCtx?.isReReview ?? false;
+  const forceFullReview = triggerCtx?.forceFullReview ?? false;
 
-  if (isReReview) {
+  if (forceFullReview) {
+    // Force full review - treat as first-time review
+    reReviewSection = `
+<forceFullReview>
+  ⚠️ **FULL REVIEW MODE ENABLED** - Review ALL files in this PR.
+
+  Even though you may have reviewed this PR before, you have been asked to perform
+  a complete review of all files. Ignore any re-review optimizations and review
+  every file as if this were a first-time review.
+</forceFullReview>
+`;
+  } else if (isReReview) {
     const prevState = triggerCtx?.previousReviewState || "none";
     const prevCommit = triggerCtx?.previousReviewCommitSha || "unknown";
     const trigger = triggerCtx?.triggerEvent;
