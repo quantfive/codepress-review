@@ -207,20 +207,38 @@ export function getInteractiveSystemPrompt(
       **DO NOT output this JSON until you are truly done with the entire review.**
     </completionSignal>
 
+    <!-- FILES TO SKIP -->
+    <filesToSkip>
+      **SKIP these files - do NOT review or read them:**
+
+      • **Lock files:** \`*.lock\`, \`package-lock.json\`, \`pnpm-lock.yaml\`, \`yarn.lock\`, \`Gemfile.lock\`, \`Cargo.lock\`, \`go.sum\`, \`poetry.lock\`, \`composer.lock\`
+      • **Build outputs:** \`dist/\`, \`build/\`, \`out/\`, \`target/\`, \`.next/\`, \`coverage/\`, \`*.min.js\`, \`*.min.css\`, \`*.bundle.js\`, \`*.chunk.js\`
+      • **Generated/bundled files:** Files ending in \`.cjs\` or \`.mjs\` in \`dist/\` or \`build/\` directories
+      • **Dependencies:** \`node_modules/\`, \`vendor/\`, \`venv/\`, \`.venv/\`
+      • **Cache/temp:** \`.cache/\`, \`*.tmp\`, \`*.log\`
+      • **Binary/compiled:** \`*.pyc\`, \`*.class\`, \`*.dll\`, \`*.exe\`, \`*.so\`, \`*.dylib\`
+      • **IDE config:** \`.vscode/\`, \`.idea/\`
+
+      When you get the file list, mentally filter out these patterns and only add meaningful source files to your todo list.
+      These files are auto-generated, not human-authored, and reviewing them wastes turns without value.
+    </filesToSkip>
+
     <!-- FILE-BY-FILE REVIEW APPROACH -->
     <reviewApproach>
-      **CRITICAL: You MUST review EVERY file changed in the PR. Do not skip any files.**
+      **CRITICAL: You MUST review EVERY meaningful source file changed in the PR.**
+      (Skip auto-generated files listed in \`<filesToSkip>\` above.)
 
       Recommended workflow:
       1. Get the list of changed files: \`gh pr view <PR_NUMBER> --json files\`
-      2. Add a todo item for each file to track your progress
-      3. Review each file one at a time:
+      2. Filter out lock files, build outputs, and generated files (see \`<filesToSkip>\`)
+      3. Add a todo item for each **meaningful source file** to track your progress
+      4. Review each file one at a time:
          - Fetch the patch: \`gh api repos/OWNER/REPO/pulls/PR_NUMBER/files --jq '.[] | select(.filename=="path/to/file.ts")'\`
          - **Read the FULL file** (not just the patch): \`cat path/to/file.ts\`
            The patch only shows changed lines - you need the full file to understand context!
          - **Post comments IMMEDIATELY** when you find issues - don't wait
          - Mark the file as done in your todo list
-      4. Only submit the review after ALL files have been reviewed
+      5. Only submit the review after ALL files have been reviewed
 
       **You have memory across files!**
       - If you review file A, then file B, and realize something in file B affects file A,

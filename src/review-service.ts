@@ -4,6 +4,7 @@ import { resolve } from "path";
 import { PRContext, reviewFullDiff } from "./agent";
 import { getModelConfig } from "./config";
 import { debugLog } from "./debug";
+import type { PRFile } from "./pr-files";
 import type {
   BotComment,
   ExistingReviewComment,
@@ -11,6 +12,17 @@ import type {
   ReviewConfig,
   TriggerContext,
 } from "./types";
+
+/**
+ * Loaded PR files data from the pre-fetch step
+ */
+interface PRFilesData {
+  files: PRFile[];
+  formatted: string;
+  includePatches: boolean;
+  originalCount: number;
+  filteredCount: number;
+}
 
 /**
  * Service class that orchestrates the review process.
@@ -131,6 +143,33 @@ export class ReviewService {
       }
     }
 
+    // Load pre-fetched and filtered PR files
+    const prFilesFile = resolve("pr-files.json");
+    let prFilesData: PRFilesData = {
+      files: [],
+      formatted: "",
+      includePatches: false,
+      originalCount: 0,
+      filteredCount: 0,
+    };
+    if (existsSync(prFilesFile)) {
+      try {
+        prFilesData = JSON.parse(readFileSync(prFilesFile, "utf8"));
+        if (prFilesData.filteredCount > 0) {
+          const filtered = prFilesData.originalCount - prFilesData.filteredCount;
+          debugLog(
+            `📄 PR files: ${prFilesData.filteredCount} to review` +
+            (filtered > 0 ? ` (${filtered} filtered out)` : "")
+          );
+          if (prFilesData.includePatches) {
+            debugLog("📦 Patches included in initial context");
+          }
+        }
+      } catch {
+        debugLog("⚠️ Failed to parse PR files, agent will fetch them");
+      }
+    }
+
     // Run the autonomous agent review
     debugLog("🚀 Starting agentic PR review...");
     debugLog(`📂 Repository files available: ${this.repoFilePaths.length}`);
@@ -149,6 +188,7 @@ export class ReviewService {
         existingComments,
         botPreviousComments,
         relatedRepos,
+        prFilesData.formatted, // Pre-formatted PR files section for the agent
       );
       debugLog("✅ Review completed!");
     } catch (error: unknown) {
