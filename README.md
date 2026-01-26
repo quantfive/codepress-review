@@ -54,9 +54,9 @@ jobs:
         uses: quantfive/codepress-review@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          model_provider: "openai"
-          model_name: "gpt-5.1"
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          model_provider: "anthropic"
+          model_name: "sonnet-latest"  # Always uses the latest model
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # All trigger configurations use sensible defaults
           # + synchronize event runs automatically when included in workflow
 ```
@@ -89,8 +89,8 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 | Input                        | Required | Default               | Description                                                             |
 | ---------------------------- | -------- | --------------------- | ----------------------------------------------------------------------- |
 | `github_token`               | ✅       | `${{ github.token }}` | GitHub token for API access                                             |
-| `model_provider`             | ✅       | `openai`              | AI provider (see [Supported Providers](#supported-providers))           |
-| `model_name`                 | ✅       | `gpt-5.1`             | Model name or alias like `latest`, `sonnet-latest` (see below)          |
+| `model_provider`             | ✅       | `anthropic`           | AI provider (see [Supported Providers](#supported-providers))           |
+| `model_name`                 | ✅       | `sonnet-latest`       | Use `-latest` aliases to always get newest models (see below)           |
 | `openai_api_key`             | ⚠️       |                       | Required if using OpenAI                                                |
 | `anthropic_api_key`          | ⚠️       |                       | Required if using Anthropic                                             |
 | `gemini_api_key`             | ⚠️       |                       | Required if using Google/Gemini                                         |
@@ -221,7 +221,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
-          model_name: "gpt-5.1"
+          model_name: "gpt-latest"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           # Comment triggers are enabled by default
           # run_on_comment_trigger: true  # Default
@@ -236,7 +236,7 @@ jobs:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     run_on_comment_trigger: false # Disable comment triggers
 ```
@@ -249,7 +249,7 @@ jobs:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     comment_trigger_phrase: "please review" # Custom trigger phrase
 ```
@@ -282,7 +282,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           model_provider: "openai"
-          model_name: "gpt-5.1"
+          model_name: "gpt-latest"
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           force_full_review: ${{ inputs.force_full_review }}
 ```
@@ -325,7 +325,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
 
 ## Examples
 
-### OpenAI GPT-4o
+### OpenAI
 
 ```yaml
 - name: CodePress Review
@@ -333,7 +333,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
@@ -345,7 +345,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "anthropic"
-    model_name: "claude-sonnet-4-5"
+    model_name: "sonnet-latest"
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
@@ -357,7 +357,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "gemini"
-    model_name: "gemini-2.5-pro"
+    model_name: "gemini-flash-latest"
     gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
@@ -369,7 +369,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "groq"
-    model_name: "llama-3.1-70b-versatile"
+    model_name: "latest"
     groq_api_key: ${{ secrets.GROQ_API_KEY }}
 ```
 
@@ -381,11 +381,11 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "deepseek"
-    model_name: "deepseek-coder"
+    model_name: "latest"
     deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
 ```
 
-### Cohere Command R+
+### Cohere
 
 ```yaml
 - name: CodePress Review
@@ -393,7 +393,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "cohere"
-    model_name: "command-r-plus"
+    model_name: "latest"
     cohere_api_key: ${{ secrets.COHERE_API_KEY }}
 ```
 
@@ -448,7 +448,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "perplexity"
-    model_name: "llama-3.1-sonar-large-128k-online"
+    model_name: "sonar-latest"
     perplexity_api_key: ${{ secrets.PERPLEXITY_API_KEY }}
 ```
 
@@ -460,7 +460,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "fireworks"
-    model_name: "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    model_name: "llama-latest"
     fireworks_api_key: ${{ secrets.FIREWORKS_API_KEY }}
 ```
 
@@ -472,7 +472,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "xai"
-    model_name: "grok-beta"
+    model_name: "grok-latest"
     xai_api_key: ${{ secrets.XAI_API_KEY }}
 ```
 
@@ -486,7 +486,7 @@ CodePress Review supports **11+ LLM providers** through the [Vercel AI SDK](http
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     debug: true
     max_turns: 20
@@ -549,7 +549,7 @@ For high-velocity teams or repositories that only want comments on truly blockin
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     blocking_only: true
 ```
@@ -701,7 +701,7 @@ The feature is controlled by the `update_pr_description` parameter:
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     update_pr_description: "true" # Enable (default)
     # update_pr_description: "false"  # Disable
@@ -859,7 +859,7 @@ When troubleshooting issues or developing locally, you can enable detailed debug
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     model_provider: "openai"
-    model_name: "gpt-5.1"
+    model_name: "gpt-latest"
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     debug: true # Enable detailed logging
 ```
