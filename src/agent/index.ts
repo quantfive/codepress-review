@@ -465,11 +465,13 @@ ${isReReview ? "" : `
 
     await runner.run(agent, initialMessage, runOptions);
 
-    if (reviewCompletion) {
+    // Check completion status (assigned in the agent_tool_end callback)
+    const completion = reviewCompletion as ReviewCompletion | null;
+    if (completion) {
       debugLog("Agent completed review via complete_review tool.");
-      debugLog(`  Verdict: ${reviewCompletion.verdict}`);
-      debugLog(`  Summary: ${reviewCompletion.summary}`);
-      debugLog(`  Comments posted: ${reviewCompletion.commentsPosted}`);
+      debugLog(`  Verdict: ${completion.verdict}`);
+      debugLog(`  Summary: ${completion.summary}`);
+      debugLog(`  Comments posted: ${completion.commentsPosted}`);
     } else {
       debugLog("Agent completed without calling complete_review tool.");
       debugLog(`  Comments posted this run: ${reviewState.commentsPostedThisRun.length}`);
