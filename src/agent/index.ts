@@ -1,5 +1,6 @@
 import { Agent, Runner, CallModelInputFilter } from "@openai/agents";
 import { aisdk } from "@openai/agents-extensions";
+import { z } from "zod";
 import { debugError, debugLog } from "../debug";
 import { createModel } from "../model-factory";
 import {
@@ -19,6 +20,24 @@ import {
 } from "./interventions";
 import { advanceTurn, createReviewState, recordToolCall } from "./review-state";
 import { getAllTools, resetTodoList } from "./tools";
+
+/**
+ * Schema for the agent's final output.
+ * The agent MUST produce this structured output to signal completion.
+ * This prevents the agent from stopping prematurely on text-only responses.
+ */
+const ReviewCompletionSchema = z.object({
+  /** Whether the review has been completed and submitted */
+  completed: z.boolean().describe("Set to true only when the review has been fully completed and submitted via gh pr review"),
+  /** Brief summary of the review outcome */
+  summary: z.string().describe("A brief summary of the review: what was found, comments posted, and final verdict"),
+  /** Number of comments posted during this review */
+  commentsPosted: z.number().describe("Number of inline comments posted during this review"),
+  /** The review verdict submitted */
+  verdict: z.enum(["APPROVE", "REQUEST_CHANGES", "COMMENT", "NONE"]).describe("The verdict submitted with gh pr review, or NONE if no review was submitted"),
+});
+
+export type ReviewCompletion = z.infer<typeof ReviewCompletionSchema>;
 
 export interface PRContext {
   repo: string; // owner/repo format
@@ -212,6 +231,9 @@ export async function reviewFullDiff(
     name: "CodePressReviewAgent",
     instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
     tools: getAllTools(),
+    // Structured output type - the loop continues until this is produced
+    // This prevents the agent from stopping on text-only responses
+    outputType: ReviewCompletionSchema,
   });
 
   const fileList = repoFilePaths.join("\n");

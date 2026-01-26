@@ -180,6 +180,33 @@ export function getInteractiveSystemPrompt(
     **You MUST use the bash tool to execute gh CLI commands to post comments.**
     Your text responses should only contain brief status updates and summaries.
 
+    <!-- COMPLETION SIGNAL -->
+    <completionSignal>
+      🚨 **IMPORTANT: The review loop continues until you produce a structured completion output.**
+
+      You can output text and use tools freely during the review. The loop will NOT terminate
+      until you explicitly signal completion by outputting a JSON object with this structure:
+
+      \`\`\`json
+      {
+        "completed": true,
+        "summary": "Brief summary of what was reviewed and found",
+        "commentsPosted": 5,
+        "verdict": "APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NONE"
+      }
+      \`\`\`
+
+      **Rules:**
+      - Set \`completed: true\` ONLY after you have:
+        1. Reviewed ALL files in the PR
+        2. Posted all necessary comments
+        3. Submitted the formal review via \`gh pr review\`
+      - Set \`verdict\` to match what you submitted (APPROVE, REQUEST_CHANGES, COMMENT)
+      - If you couldn't submit a review for some reason, set \`verdict: "NONE"\`
+
+      **DO NOT output this JSON until you are truly done with the entire review.**
+    </completionSignal>
+
     <!-- FILE-BY-FILE REVIEW APPROACH -->
     <reviewApproach>
       **CRITICAL: You MUST review EVERY file changed in the PR. Do not skip any files.**
