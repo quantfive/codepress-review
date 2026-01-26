@@ -21,6 +21,11 @@ export default [
         require: "readonly",
         module: "readonly",
         exports: "readonly",
+        // Node.js 18+ built-in fetch API
+        fetch: "readonly",
+        AbortSignal: "readonly",
+        // DOM types from jsdom (used in web_fetch/web_search tools)
+        HTMLAnchorElement: "readonly",
       },
     },
     plugins: {
@@ -28,7 +33,7 @@ export default [
     },
     rules: {
       ...typescript.configs.recommended.rules,
-      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "no-console": "off",

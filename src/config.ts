@@ -2,22 +2,18 @@ import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 
 export function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
-  let diff = "",
-    pr = "";
+  let pr = "";
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--diff") diff = args[++i];
     if (args[i] === "--pr") pr = args[++i];
   }
 
-  if (!diff || !pr) {
-    console.error(
-      "Usage: ts-node scripts/ai-review.ts --diff <diff-file> --pr <pr-number>",
-    );
+  if (!pr) {
+    console.error("Usage: ts-node scripts/ai-review.ts --pr <pr-number>");
     process.exit(1);
   }
 
-  return { diff, pr: Number(pr) };
+  return { pr: Number(pr) };
 }
 
 /**
@@ -112,7 +108,7 @@ export function getModelConfig(): ModelConfig {
 }
 
 export function getReviewConfig(): ReviewConfig {
-  const { diff, pr } = parseArgs();
+  const { pr } = parseArgs();
   const { provider, modelName } = getModelConfig();
 
   const githubToken = process.env.GITHUB_TOKEN;
@@ -127,9 +123,15 @@ export function getReviewConfig(): ReviewConfig {
   }
 
   // Parse maxTurns from environment variable
-  const maxTurns = parseInt(process.env.MAX_TURNS!, 10);
-  if (isNaN(maxTurns) || maxTurns <= 0) {
-    throw new Error("MAX_TURNS must be a positive number");
+  // 0 or empty = unlimited (will be handled as null downstream)
+  const maxTurnsEnv = process.env.MAX_TURNS;
+  let maxTurns = 0; // 0 means unlimited
+  if (maxTurnsEnv) {
+    const parsed = parseInt(maxTurnsEnv, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      maxTurns = parsed;
+    }
+    // If parsing fails or value is 0/negative, use unlimited (0)
   }
 
   // Parse debug from environment variable, default to false
@@ -141,7 +143,6 @@ export function getReviewConfig(): ReviewConfig {
   const blockingOnly = blockingOnlyEnv.toLowerCase() === "true";
 
   return {
-    diff,
     pr,
     provider,
     modelName,

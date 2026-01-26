@@ -2,7 +2,16 @@ import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { ExistingReviewComment } from "./types";
+import { execSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type {
+  BotComment,
+  ExistingReviewComment,
+  RelatedRepo,
+  TriggerContext,
+} from "./types";
 
 interface TriggerConfig {
   runOnPrOpened: boolean;
@@ -10,6 +19,38 @@ interface TriggerConfig {
   runOnReviewRequested: boolean;
   runOnCommentTrigger: boolean;
   commentTriggerPhrase: string;
+}
+
+type TriggerEventType = TriggerContext["triggerEvent"];
+
+function getTriggerEvent(
+  context: typeof github.context,
+  config: TriggerConfig,
+): TriggerEventType {
+  const eventName = context.eventName;
+  const action = context.payload.action;
+
+  if (eventName === "pull_request" && action === "opened") {
+    return "opened";
+  }
+  if (eventName === "pull_request" && action === "reopened") {
+    return "reopened";
+  }
+  if (eventName === "pull_request" && action === "synchronize") {
+    return "synchronize";
+  }
+  if (eventName === "pull_request" && action === "review_requested") {
+    return "review_requested";
+  }
+  if (eventName === "issue_comment" && action === "created") {
+    const isPrComment = !!context.payload.issue?.pull_request;
+    const commentBody = context.payload.comment?.body || "";
+    const containsTrigger = commentBody.includes(config.commentTriggerPhrase);
+    if (isPrComment && containsTrigger) {
+      return "comment_trigger";
+    }
+  }
+  return "workflow_dispatch";
 }
 
 interface ShouldRunResult {
@@ -149,6 +190,13 @@ async function run(): Promise<void> {
     // Handle blocking_only input
     const blockingOnly = core.getBooleanInput("blocking_only");
 
+    // Get web search configuration
+    const enableWebSearch = core.getBooleanInput("enable_web_search");
+
+    // Get related repos configuration
+    const relatedReposInput = core.getInput("related_repos");
+    const relatedReposToken = core.getInput("related_repos_token") || githubToken;
+
     // Get trigger configuration inputs
     const runOnPrOpened = core.getBooleanInput("run_on_pr_opened");
     const runOnPrReopened = core.getBooleanInput("run_on_pr_reopened");
@@ -243,6 +291,9 @@ async function run(): Promise<void> {
     process.env.GITHUB_REPOSITORY =
       context.repo.owner + "/" + context.repo.repo;
 
+    // Set web search configuration
+    process.env.ENABLE_WEB_SEARCH = enableWebSearch.toString();
+
     let prNumber: number;
 
     core.info(`Triggered by event: ${context.eventName}`);
@@ -296,12 +347,11 @@ async function run(): Promise<void> {
     core.info(`Running CodePress Review for PR #${prNumber}`);
     core.info(`Provider: ${modelProvider}, Model: ${modelName}`);
 
-    // Generate diff and get commit SHA
-    const diffFile = resolve("pr.diff");
+    // Get commit SHA for the PR
     let commitSha: string;
 
     try {
-      core.info("Fetching PR info and diff from GitHub API...");
+      core.info("Fetching PR info from GitHub API...");
       const octokit = github.getOctokit(githubToken);
 
       // Get PR info to get the commit SHA
@@ -313,24 +363,9 @@ async function run(): Promise<void> {
       commitSha = prInfo.data.head.sha;
       core.info(`Commit SHA: ${commitSha}`);
 
-      // Get the diff
-      const diffResponse = await octokit.rest.pulls.get({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        pull_number: prNumber,
-        mediaType: {
-          format: "diff",
-        },
-      });
-
-      const diffOutput = diffResponse.data as unknown as string;
-      writeFileSync(diffFile, diffOutput);
-      core.info(
-        `Generated diff file: ${diffFile} (${diffOutput.length} bytes)`,
-      );
-
-      // Fetch existing review comments from other reviewers
+      // Fetch existing review comments (both from other reviewers and from the bot itself)
       const existingCommentsFile = resolve("pr-comments.json");
+      const botCommentsFile = resolve("bot-comments.json");
       try {
         const { data: reviewComments } =
           await octokit.rest.pulls.listReviewComments({
@@ -339,14 +374,15 @@ async function run(): Promise<void> {
             pull_number: prNumber,
           });
 
-        // Filter out bot comments and map to our interface
+        // Separate bot comments from other reviewers' comments
+        const isBotComment = (comment: (typeof reviewComments)[0]) =>
+          comment.user &&
+          (comment.user.login.includes("[bot]") ||
+            comment.user.login === "github-actions");
+
+        // Comments from other reviewers (for context)
         const existingComments: ExistingReviewComment[] = reviewComments
-          .filter(
-            (comment) =>
-              comment.user &&
-              !comment.user.login.includes("[bot]") &&
-              comment.user.login !== "github-actions",
-          )
+          .filter((comment) => comment.user && !isBotComment(comment))
           .map((comment) => ({
             id: comment.id,
             author: comment.user?.login || "unknown",
@@ -357,21 +393,108 @@ async function run(): Promise<void> {
             createdAt: comment.created_at,
           }));
 
+        // Bot's own previous comments (for deduplication)
+        const botComments: BotComment[] = reviewComments
+          .filter((comment) => isBotComment(comment))
+          .map((comment) => ({
+            id: comment.id,
+            path: comment.path,
+            line: comment.line ?? null,
+            originalLine: comment.original_line ?? null,
+            body: comment.body,
+            diffHunk: comment.diff_hunk,
+            createdAt: comment.created_at,
+          }));
+
         writeFileSync(
           existingCommentsFile,
           JSON.stringify(existingComments, null, 2),
         );
+        writeFileSync(botCommentsFile, JSON.stringify(botComments, null, 2));
+
         core.info(
-          `Found ${existingComments.length} existing review comments from other reviewers`,
+          `Found ${existingComments.length} review comments from other reviewers`,
         );
+        if (botComments.length > 0) {
+          core.info(
+            `Found ${botComments.length} of your own previous comments for deduplication`,
+          );
+        }
       } catch (commentError) {
         core.warning(
           `Failed to fetch existing comments (continuing without them): ${commentError}`,
         );
         writeFileSync(existingCommentsFile, "[]");
+        writeFileSync(botCommentsFile, "[]");
+      }
+
+      // Determine trigger context for re-review behavior
+      const triggerEvent = getTriggerEvent(context, {
+        runOnPrOpened,
+        runOnPrReopened,
+        runOnReviewRequested,
+        runOnCommentTrigger,
+        commentTriggerPhrase,
+      });
+
+      // Fetch the bot's previous review state
+      let previousReviewState: TriggerContext["previousReviewState"] = null;
+      let previousReviewCommitSha: string | null = null;
+
+      try {
+        const { data: reviews } = await octokit.rest.pulls.listReviews({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: prNumber,
+        });
+
+        // Find the most recent review from the bot
+        const botReviews = reviews
+          .filter(
+            (review) =>
+              review.user?.login === "github-actions[bot]" ||
+              review.user?.type === "Bot",
+          )
+          .sort(
+            (a, b) =>
+              new Date(b.submitted_at || 0).getTime() -
+              new Date(a.submitted_at || 0).getTime(),
+          );
+
+        if (botReviews.length > 0) {
+          const lastBotReview = botReviews[0];
+          previousReviewState = lastBotReview.state as TriggerContext["previousReviewState"];
+          previousReviewCommitSha = lastBotReview.commit_id || null;
+          core.info(
+            `Found previous bot review: ${previousReviewState} at commit ${previousReviewCommitSha?.substring(0, 7)}`,
+          );
+        }
+      } catch (reviewError) {
+        core.warning(
+          `Failed to fetch previous reviews (continuing without them): ${reviewError}`,
+        );
+      }
+
+      // Determine if this is a re-review based on whether the bot has previously
+      // submitted a formal review on this PR (not based on trigger event type)
+      const isReReview = previousReviewState !== null;
+
+      // Set trigger context environment variables
+      process.env.TRIGGER_EVENT = triggerEvent;
+      process.env.IS_RE_REVIEW = isReReview.toString();
+      process.env.PREVIOUS_REVIEW_STATE = previousReviewState || "";
+      process.env.PREVIOUS_REVIEW_COMMIT_SHA = previousReviewCommitSha || "";
+
+      if (isReReview) {
+        core.info(`Re-review detected (trigger: ${triggerEvent})`);
+        if (previousReviewCommitSha && previousReviewCommitSha !== commitSha) {
+          core.info(
+            `Commits changed: ${previousReviewCommitSha.substring(0, 7)} → ${commitSha.substring(0, 7)}`,
+          );
+        }
       }
     } catch (error) {
-      core.setFailed(`Failed to fetch diff from GitHub API: ${error}`);
+      core.setFailed(`Failed to fetch PR info from GitHub API: ${error}`);
       return;
     }
 
@@ -379,17 +502,71 @@ async function run(): Promise<void> {
     process.env.PR_NUMBER = prNumber.toString();
     process.env.COMMIT_SHA = commitSha;
 
+    // Clone related repos if configured
+    const relatedRepos: RelatedRepo[] = [];
+    if (relatedReposInput.trim()) {
+      try {
+        // Parse YAML-like input (simple line-based parsing)
+        const lines = relatedReposInput.trim().split("\n");
+        let currentRepo: Partial<RelatedRepo> | null = null;
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("- repo:")) {
+            if (currentRepo && currentRepo.repo) {
+              relatedRepos.push(currentRepo as RelatedRepo);
+            }
+            currentRepo = { repo: trimmed.replace("- repo:", "").trim() };
+          } else if (trimmed.startsWith("repo:") && currentRepo === null) {
+            currentRepo = { repo: trimmed.replace("repo:", "").trim() };
+          } else if (trimmed.startsWith("ref:") && currentRepo) {
+            currentRepo.ref = trimmed.replace("ref:", "").trim();
+          } else if (trimmed.startsWith("description:") && currentRepo) {
+            currentRepo.description = trimmed.replace("description:", "").trim();
+          }
+        }
+        if (currentRepo && currentRepo.repo) {
+          relatedRepos.push(currentRepo as RelatedRepo);
+        }
+
+        // Clone each related repo
+        if (relatedRepos.length > 0) {
+          const tempDir = mkdtempSync(join(tmpdir(), "codepress-related-"));
+          core.info(`Cloning ${relatedRepos.length} related repo(s) to ${tempDir}`);
+
+          for (const relatedRepo of relatedRepos) {
+            const repoName = relatedRepo.repo.split("/").pop() || relatedRepo.repo;
+            const localPath = join(tempDir, repoName);
+            const ref = relatedRepo.ref || "main";
+
+            try {
+              const cloneUrl = `https://x-access-token:${relatedReposToken}@github.com/${relatedRepo.repo}.git`;
+              execSync(
+                `git clone --depth 1 --branch ${ref} "${cloneUrl}" "${localPath}"`,
+                { stdio: "pipe" },
+              );
+              relatedRepo.localPath = localPath;
+              core.info(`  Cloned ${relatedRepo.repo}@${ref} → ${localPath}`);
+            } catch (cloneError) {
+              core.warning(`Failed to clone ${relatedRepo.repo}: ${cloneError}`);
+            }
+          }
+        }
+      } catch (parseError) {
+        core.warning(`Failed to parse related_repos config: ${parseError}`);
+      }
+    }
+
+    // Set related repos paths as environment variable for the agent
+    const clonedRepos = relatedRepos.filter((r) => r.localPath);
+    if (clonedRepos.length > 0) {
+      process.env.RELATED_REPOS = JSON.stringify(clonedRepos);
+    }
+
     // Run the AI review script
     try {
       // Set up process arguments for the ai-review script
-      process.argv = [
-        process.argv[0],
-        process.argv[1],
-        "--diff",
-        diffFile,
-        "--pr",
-        prNumber.toString(),
-      ];
+      process.argv = [process.argv[0], process.argv[1], "--pr", prNumber.toString()];
 
       const { main } = await import("./ai-review");
       await main();

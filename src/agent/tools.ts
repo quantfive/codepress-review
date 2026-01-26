@@ -3,7 +3,9 @@ import { rgPath as vscodeRipgrepPath } from "@vscode/ripgrep";
 import { execSync, spawnSync } from "child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import ignore from "ignore";
+import { JSDOM } from "jsdom";
 import { dirname, extname, join, relative, resolve } from "path";
+import TurndownService from "turndown";
 import { z } from "zod";
 import { DEFAULT_IGNORE_PATTERNS } from "../constants";
 
@@ -1020,10 +1022,11 @@ export const todoTool = tool({
   description: `Manage your task list during the review. Use this to:
 - Add tasks you need to complete (e.g., "Update PR description - it was blank")
 - Add multiple tasks at once using the 'tasks' array parameter
-- Mark tasks as done when completed
+- Mark tasks as done when completed (single or multiple at once)
 - View remaining tasks to ensure nothing is forgotten
 
-This helps you stay organized and not forget important steps.`,
+This helps you stay organized and not forget important steps.
+Use the 'tasks' array to add OR mark done multiple tasks in one call - saves time!`,
   parameters: z.object({
     action: z
       .enum(["add", "done", "list"])
@@ -1031,12 +1034,12 @@ This helps you stay organized and not forget important steps.`,
     task: z
       .string()
       .optional()
-      .describe("Task description (for 'add' single task or 'done' actions)"),
+      .describe("Task description (for 'add' or 'done' single task)"),
     tasks: z
       .array(z.string())
       .optional()
       .describe(
-        "Array of task descriptions (for 'add' action to add multiple tasks at once)",
+        "Array of task descriptions (for 'add' or 'done' to handle multiple tasks at once)",
       ),
   }),
   execute: async ({ action, task, tasks }) => {
@@ -1057,7 +1060,35 @@ This helps you stay organized and not forget important steps.`,
       }
 
       case "done": {
-        if (!task) return "Error: task description required for 'done' action";
+        // Handle multiple tasks at once
+        if (tasks && tasks.length > 0) {
+          const marked: string[] = [];
+          const notFound: string[] = [];
+          for (const t of tasks) {
+            const found = agentTodoList.find(
+              (item) =>
+                item.task.toLowerCase().includes(t.toLowerCase()) && !item.done,
+            );
+            if (found) {
+              found.done = true;
+              marked.push(found.task);
+            } else {
+              notFound.push(t);
+            }
+          }
+          let result = "";
+          if (marked.length > 0) {
+            result += `✅ Marked ${marked.length} tasks done:\n${marked.map((t) => `  - "${t}"`).join("\n")}\n`;
+          }
+          if (notFound.length > 0) {
+            result += `⚠️ Not found: ${notFound.join(", ")}\n`;
+          }
+          result += `\nRemaining tasks:\n${formatTodoList()}`;
+          return result;
+        }
+        // Handle single task
+        if (!task)
+          return "Error: 'task' or 'tasks' required for 'done' action";
         const found = agentTodoList.find(
           (t) => t.task.toLowerCase().includes(task.toLowerCase()) && !t.done,
         );
@@ -1093,4 +1124,254 @@ export function resetTodoList(): void {
   agentTodoList.length = 0;
 }
 
-export const allTools = [bashTool, depGraphTool, todoTool];
+// Initialize Turndown service for HTML to Markdown conversion
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
+});
+
+/**
+ * Tool to fetch content from a URL and convert it to readable markdown.
+ * Useful for fetching documentation, READMEs, API references, etc.
+ */
+export const webFetchTool = tool({
+  name: "web_fetch",
+  description: `Fetch content from a URL and convert to readable markdown. Use for:
+- Package documentation (npm, PyPI, crates.io, docs.rs)
+- GitHub READMEs and wikis
+- API references and specifications
+- Technical blog posts and tutorials
+- Library changelogs
+
+Returns the page content as clean markdown, with scripts/styles/navigation removed.
+Content is truncated at 50KB if too large.`,
+  parameters: z.object({
+    url: z.string().url().describe("The URL to fetch"),
+  }),
+  execute: async ({ url }) => {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "CodePress-Review-Bot/1.0",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(15000), // 15 second timeout
+      });
+
+      if (!response.ok) {
+        return `Error: Failed to fetch URL (HTTP ${response.status}: ${response.statusText})`;
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const html = await response.text();
+
+      // If it's not HTML, return as-is (truncated)
+      if (
+        !contentType.includes("text/html") &&
+        !contentType.includes("application/xhtml")
+      ) {
+        if (html.length > 50000) {
+          return html.slice(0, 50000) + "\n\n[Content truncated at 50KB...]";
+        }
+        return html;
+      }
+
+      const dom = new JSDOM(html);
+      const doc = dom.window.document;
+
+      // Remove scripts, styles, nav, footer, ads, and other non-content elements
+      const removeSelectors = [
+        "script",
+        "style",
+        "nav",
+        "footer",
+        "aside",
+        "header",
+        ".ads",
+        ".advertisement",
+        ".sidebar",
+        ".navigation",
+        ".menu",
+        ".cookie-banner",
+        ".popup",
+        "[role='navigation']",
+        "[role='banner']",
+        "[role='complementary']",
+      ];
+
+      for (const selector of removeSelectors) {
+        try {
+          doc.querySelectorAll(selector).forEach((el) => el.remove());
+        } catch {
+          // Skip invalid selectors
+        }
+      }
+
+      // Try to find main content area
+      const mainContent =
+        doc.querySelector(
+          "main, article, .content, #content, .markdown-body, .documentation, .doc-content, [role='main']",
+        ) || doc.body;
+
+      const markdown = turndown.turndown(mainContent.innerHTML);
+
+      // Truncate if too large (50KB)
+      if (markdown.length > 50000) {
+        return markdown.slice(0, 50000) + "\n\n[Content truncated at 50KB...]";
+      }
+
+      return markdown;
+    } catch (error: unknown) {
+      const err = error as { name?: string; message?: string };
+      if (err.name === "AbortError") {
+        return "Error: Request timed out after 15 seconds";
+      }
+      return `Error fetching URL: ${err.message || "Unknown error"}`;
+    }
+  },
+});
+
+/**
+ * Helper function to parse DuckDuckGo HTML search results
+ */
+function parseDuckDuckGoResults(
+  html: string,
+  maxResults: number,
+): Array<{ title: string; url: string; snippet: string }> {
+  const results: Array<{ title: string; url: string; snippet: string }> = [];
+
+  try {
+    const dom = new JSDOM(html);
+    const doc = dom.window.document;
+
+    // DuckDuckGo HTML results are in .result elements
+    const resultElements = doc.querySelectorAll(".result, .web-result");
+
+    for (const el of resultElements) {
+      if (results.length >= maxResults) break;
+
+      const linkEl = el.querySelector(
+        "a.result__a, a.result-link, a[href]",
+      ) as HTMLAnchorElement | null;
+      const snippetEl = el.querySelector(
+        ".result__snippet, .result-snippet, .snippet",
+      );
+
+      if (linkEl) {
+        const href = linkEl.href;
+        // Filter out DuckDuckGo internal links
+        if (href && !href.includes("duckduckgo.com")) {
+          results.push({
+            title: linkEl.textContent?.trim() || href,
+            url: href,
+            snippet: snippetEl?.textContent?.trim() || "",
+          });
+        }
+      }
+    }
+  } catch {
+    // Return empty results on parse error
+  }
+
+  return results;
+}
+
+/**
+ * Tool to search the web for technical information using DuckDuckGo.
+ */
+export const webSearchTool = tool({
+  name: "web_search",
+  description: `Search the web for technical information. Use for:
+- Package documentation and API references
+- Error messages and debugging help
+- Best practices and design patterns
+- Library comparisons and alternatives
+- Security vulnerability information
+
+Be specific in your queries for better results.`,
+  parameters: z.object({
+    query: z
+      .string()
+      .describe(
+        "Search query - be specific for better results (e.g., 'React useEffect cleanup function' instead of 'React hooks')",
+      ),
+    maxResults: z
+      .number()
+      .int()
+      .min(1)
+      .max(10)
+      .default(5)
+      .describe("Maximum number of results to return (default: 5)"),
+  }),
+  execute: async ({ query, maxResults = 5 }) => {
+    try {
+      // Use DuckDuckGo HTML search
+      const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+      const response = await fetch(ddgUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(15000), // 15 second timeout
+      });
+
+      if (!response.ok) {
+        return `Error: Search failed (HTTP ${response.status})`;
+      }
+
+      const html = await response.text();
+      const results = parseDuckDuckGoResults(html, maxResults);
+
+      if (results.length === 0) {
+        return `No results found for "${query}"`;
+      }
+
+      // Format results
+      const lines: string[] = [`**Search Results for "${query}":**\n`];
+      for (const result of results) {
+        lines.push(`### ${result.title}`);
+        lines.push(`URL: ${result.url}`);
+        if (result.snippet) {
+          lines.push(result.snippet);
+        }
+        lines.push("");
+      }
+
+      return lines.join("\n");
+    } catch (error: unknown) {
+      const err = error as { name?: string; message?: string };
+      if (err.name === "AbortError") {
+        return "Error: Search timed out";
+      }
+      return `Error performing search: ${err.message || "Unknown error"}`;
+    }
+  },
+});
+
+// Base tools always included
+const baseTools = [
+  bashTool,
+  depGraphTool,
+  todoTool,
+  fetchFilesTool,
+  fetchSnippetTool,
+  searchRepoTool,
+];
+
+// Web tools (enabled by default, can be disabled via ENABLE_WEB_SEARCH=false)
+const webTools = [webFetchTool, webSearchTool];
+
+/**
+ * Returns all tools for the agent.
+ * Web search tools are enabled by default but can be disabled via ENABLE_WEB_SEARCH=false.
+ */
+export function getAllTools() {
+  const enableWebSearch = process.env.ENABLE_WEB_SEARCH?.toLowerCase() !== "false";
+  return enableWebSearch ? [...baseTools, ...webTools] : baseTools;
+}
+
+// For backward compatibility - static export (always includes all tools)
+export const allTools = [...baseTools, ...webTools];

@@ -24,46 +24,18 @@ describe("Configuration", () => {
   });
 
   describe("parseArgs", () => {
-    it("should parse diff and pr arguments correctly", () => {
-      process.argv = [
-        "node",
-        "script.js",
-        "--diff",
-        "test.diff",
-        "--pr",
-        "123",
-      ];
+    it("should parse pr argument correctly", () => {
+      process.argv = ["node", "script.js", "--pr", "123"];
 
       const result = parseArgs();
 
       expect(result).toEqual({
-        diff: "test.diff",
         pr: 123,
       });
     });
 
-    it("should exit with error if diff is missing", () => {
-      process.argv = ["node", "script.js", "--pr", "123"];
-
-      const consoleSpy = jest
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
-      const exitSpy = jest.spyOn(process, "exit").mockImplementation(() => {
-        throw new Error("process.exit");
-      });
-
-      expect(() => parseArgs()).toThrow("process.exit");
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Usage: ts-node scripts/ai-review.ts --diff <diff-file> --pr <pr-number>",
-      );
-      expect(exitSpy).toHaveBeenCalledWith(1);
-
-      consoleSpy.mockRestore();
-      exitSpy.mockRestore();
-    });
-
     it("should exit with error if pr is missing", () => {
-      process.argv = ["node", "script.js", "--diff", "test.diff"];
+      process.argv = ["node", "script.js"];
 
       const consoleSpy = jest
         .spyOn(console, "error")
@@ -74,7 +46,7 @@ describe("Configuration", () => {
 
       expect(() => parseArgs()).toThrow("process.exit");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Usage: ts-node scripts/ai-review.ts --diff <diff-file> --pr <pr-number>",
+        "Usage: ts-node scripts/ai-review.ts --pr <pr-number>",
       );
       expect(exitSpy).toHaveBeenCalledWith(1);
 
@@ -367,14 +339,7 @@ describe("Configuration", () => {
   describe("getReviewConfig", () => {
     beforeEach(() => {
       // Set up minimal required environment
-      process.argv = [
-        "node",
-        "script.js",
-        "--diff",
-        "test.diff",
-        "--pr",
-        "123",
-      ];
+      process.argv = ["node", "script.js", "--pr", "123"];
       process.env.MODEL_PROVIDER = "openai";
       process.env.MODEL_NAME = "gpt-4o";
       process.env.OPENAI_API_KEY = "test-key";
@@ -387,7 +352,6 @@ describe("Configuration", () => {
       const result = getReviewConfig();
 
       expect(result).toEqual({
-        diff: "test.diff",
         pr: 123,
         provider: "openai",
         modelName: "gpt-4o",
@@ -439,28 +403,25 @@ describe("Configuration", () => {
       expect(result.debug).toBe(true);
     });
 
-    it("should throw error if MAX_TURNS is invalid", () => {
+    it("should treat invalid MAX_TURNS as unlimited (0)", () => {
       process.env.MAX_TURNS = "invalid";
 
-      expect(() => getReviewConfig()).toThrow(
-        "MAX_TURNS must be a positive number",
-      );
+      const result = getReviewConfig();
+      expect(result.maxTurns).toBe(0);
     });
 
-    it("should throw error if MAX_TURNS is zero", () => {
+    it("should treat zero MAX_TURNS as unlimited (0)", () => {
       process.env.MAX_TURNS = "0";
 
-      expect(() => getReviewConfig()).toThrow(
-        "MAX_TURNS must be a positive number",
-      );
+      const result = getReviewConfig();
+      expect(result.maxTurns).toBe(0);
     });
 
-    it("should throw error if MAX_TURNS is negative", () => {
+    it("should treat negative MAX_TURNS as unlimited (0)", () => {
       process.env.MAX_TURNS = "-5";
 
-      expect(() => getReviewConfig()).toThrow(
-        "MAX_TURNS must be a positive number",
-      );
+      const result = getReviewConfig();
+      expect(result.maxTurns).toBe(0);
     });
 
     it("should throw error if GITHUB_TOKEN is missing", () => {

@@ -23,8 +23,8 @@ describe("getInteractiveSystemPrompt", () => {
 
     const prompt = getInteractiveSystemPrompt(false, 75);
 
-    expect(prompt).toContain("automated code-reviewer");
-    expect(prompt).toContain("<coverageChecklist>");
+    expect(prompt).toContain("autonomous code-review agent");
+    expect(prompt).toContain("<reviewPrinciples>");
     expect(prompt).not.toContain("<projectRules>");
   });
 
@@ -40,7 +40,7 @@ describe("getInteractiveSystemPrompt", () => {
 
     expect(prompt).toContain("My Custom Guidelines");
     expect(prompt).toContain("Custom review rules here");
-    expect(prompt).not.toContain("<coverageChecklist>");
+    expect(prompt).not.toContain("<reviewPrinciples>");
   });
 
   it("should append rules when codepress-review-rules.md exists", () => {
@@ -55,7 +55,7 @@ describe("getInteractiveSystemPrompt", () => {
     const prompt = getInteractiveSystemPrompt(false, 75);
 
     // Should have both defaults AND additional rules
-    expect(prompt).toContain("<coverageChecklist>");
+    expect(prompt).toContain("<reviewPrinciples>");
     expect(prompt).toContain("<projectRules>");
     expect(prompt).toContain("All queries must be parameterized");
     expect(prompt).toContain(
@@ -82,7 +82,7 @@ describe("getInteractiveSystemPrompt", () => {
 
     // Should have custom prompt (not defaults) AND additional rules
     expect(prompt).toContain("Custom Base Guidelines");
-    expect(prompt).not.toContain("<coverageChecklist>");
+    expect(prompt).not.toContain("<reviewPrinciples>");
     expect(prompt).toContain("<projectRules>");
     expect(prompt).toContain("Must have tests");
   });
@@ -102,7 +102,7 @@ describe("getInteractiveSystemPrompt", () => {
     const prompt = getInteractiveSystemPrompt(false, 75);
 
     // Should fall back to defaults
-    expect(prompt).toContain("<coverageChecklist>");
+    expect(prompt).toContain("<reviewPrinciples>");
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("Failed to read custom prompt file"),
     );
@@ -125,7 +125,7 @@ describe("getInteractiveSystemPrompt", () => {
     const prompt = getInteractiveSystemPrompt(false, 75);
 
     // Should have defaults but no project rules section
-    expect(prompt).toContain("<coverageChecklist>");
+    expect(prompt).toContain("<reviewPrinciples>");
     expect(prompt).not.toContain("<projectRules>");
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("Failed to read additional rules file"),
