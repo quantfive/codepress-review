@@ -24,7 +24,7 @@ describe("Configuration", () => {
   });
 
   describe("parseArgs", () => {
-    it("should parse pr argument correctly", () => {
+    it("should parse pr argument correctly", async () => {
       process.argv = ["node", "script.js", "--pr", "123"];
 
       const result = parseArgs();
@@ -34,7 +34,7 @@ describe("Configuration", () => {
       });
     });
 
-    it("should exit with error if pr is missing", () => {
+    it("should exit with error if pr is missing", async () => {
       process.argv = ["node", "script.js"];
 
       const consoleSpy = jest
@@ -56,12 +56,12 @@ describe("Configuration", () => {
   });
 
   describe("getModelConfig", () => {
-    it("should get OpenAI model config correctly", () => {
+    it("should get OpenAI model config correctly", async () => {
       process.env.MODEL_PROVIDER = "openai";
       process.env.MODEL_NAME = "gpt-4o";
       process.env.OPENAI_API_KEY = "test-openai-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "openai",
@@ -70,12 +70,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Anthropic model config correctly", () => {
+    it("should get Anthropic model config correctly", async () => {
       process.env.MODEL_PROVIDER = "anthropic";
       process.env.MODEL_NAME = "claude-3-sonnet-20240229";
       process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "anthropic",
@@ -84,12 +84,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Gemini model config correctly", () => {
+    it("should get Gemini model config correctly", async () => {
       process.env.MODEL_PROVIDER = "gemini";
       process.env.MODEL_NAME = "gemini-1.5-pro";
       process.env.GEMINI_API_KEY = "test-gemini-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "gemini",
@@ -98,50 +98,50 @@ describe("Configuration", () => {
       });
     });
 
-    it("should throw error if MODEL_PROVIDER is missing", () => {
+    it("should throw error if MODEL_PROVIDER is missing", async () => {
       process.env.MODEL_NAME = "gpt-4o";
 
-      expect(() => getModelConfig()).toThrow(
+      await expect(getModelConfig()).rejects.toThrow(
         "MODEL_PROVIDER and MODEL_NAME are required",
       );
     });
 
-    it("should throw error if MODEL_NAME is missing", () => {
+    it("should throw error if MODEL_NAME is missing", async () => {
       process.env.MODEL_PROVIDER = "openai";
 
-      expect(() => getModelConfig()).toThrow(
+      await expect(getModelConfig()).rejects.toThrow(
         "MODEL_PROVIDER and MODEL_NAME are required",
       );
     });
 
-    it("should throw error if OPENAI_API_KEY is missing for OpenAI provider", () => {
+    it("should throw error if OPENAI_API_KEY is missing for OpenAI provider", async () => {
       process.env.MODEL_PROVIDER = "openai";
       process.env.MODEL_NAME = "gpt-4o";
 
-      expect(() => getModelConfig()).toThrow("OPENAI_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("OPENAI_API_KEY is required");
     });
 
-    it("should throw error if ANTHROPIC_API_KEY is missing for Anthropic provider", () => {
+    it("should throw error if ANTHROPIC_API_KEY is missing for Anthropic provider", async () => {
       process.env.MODEL_PROVIDER = "anthropic";
       process.env.MODEL_NAME = "claude-3-sonnet-20240229";
 
-      expect(() => getModelConfig()).toThrow("ANTHROPIC_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("ANTHROPIC_API_KEY is required");
     });
 
-    it("should throw error if GEMINI_API_KEY is missing for Gemini provider", () => {
+    it("should throw error if GEMINI_API_KEY is missing for Gemini provider", async () => {
       process.env.MODEL_PROVIDER = "gemini";
       process.env.MODEL_NAME = "gemini-1.5-pro";
 
-      expect(() => getModelConfig()).toThrow("GEMINI_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("GEMINI_API_KEY is required");
     });
 
     // Tests for all new providers
-    it("should get Cohere config correctly", () => {
+    it("should get Cohere config correctly", async () => {
       process.env.MODEL_PROVIDER = "cohere";
       process.env.MODEL_NAME = "command-r-plus";
       process.env.COHERE_API_KEY = "test-cohere-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "cohere",
@@ -150,12 +150,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Mistral config correctly", () => {
+    it("should get Mistral config correctly", async () => {
       process.env.MODEL_PROVIDER = "mistral";
       process.env.MODEL_NAME = "mistral-large-latest";
       process.env.MISTRAL_API_KEY = "test-mistral-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "mistral",
@@ -164,12 +164,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Perplexity config correctly", () => {
+    it("should get Perplexity config correctly", async () => {
       process.env.MODEL_PROVIDER = "perplexity";
       process.env.MODEL_NAME = "llama-3.1-sonar-large-128k-online";
       process.env.PERPLEXITY_API_KEY = "test-perplexity-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "perplexity",
@@ -178,12 +178,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Fireworks config correctly", () => {
+    it("should get Fireworks config correctly", async () => {
       process.env.MODEL_PROVIDER = "fireworks";
       process.env.MODEL_NAME = "accounts/fireworks/models/llama-v3p1-70b-instruct";
       process.env.FIREWORKS_API_KEY = "test-fireworks-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "fireworks",
@@ -192,12 +192,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Groq config correctly", () => {
+    it("should get Groq config correctly", async () => {
       process.env.MODEL_PROVIDER = "groq";
       process.env.MODEL_NAME = "llama-3.1-70b-versatile";
       process.env.GROQ_API_KEY = "test-groq-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "groq",
@@ -206,12 +206,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get xAI config correctly", () => {
+    it("should get xAI config correctly", async () => {
       process.env.MODEL_PROVIDER = "xai";
       process.env.MODEL_NAME = "grok-beta";
       process.env.XAI_API_KEY = "test-xai-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "xai",
@@ -220,12 +220,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get DeepSeek config correctly", () => {
+    it("should get DeepSeek config correctly", async () => {
       process.env.MODEL_PROVIDER = "deepseek";
       process.env.MODEL_NAME = "deepseek-chat";
       process.env.DEEPSEEK_API_KEY = "test-deepseek-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "deepseek",
@@ -234,12 +234,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get OpenAI-compatible config correctly", () => {
+    it("should get OpenAI-compatible config correctly", async () => {
       process.env.MODEL_PROVIDER = "openai-compatible";
       process.env.MODEL_NAME = "llama-3.1-70b-instruct";
       process.env.OPENAI_COMPATIBLE_API_KEY = "test-compatible-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "openai-compatible",
@@ -248,12 +248,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should get Ollama config correctly", () => {
+    it("should get Ollama config correctly", async () => {
       process.env.MODEL_PROVIDER = "ollama";
       process.env.MODEL_NAME = "llama3.1:70b";
       process.env.OLLAMA_API_KEY = "test-ollama-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "ollama",
@@ -262,12 +262,12 @@ describe("Configuration", () => {
       });
     });
 
-    it("should handle google as alias for gemini", () => {
+    it("should handle google as alias for gemini", async () => {
       process.env.MODEL_PROVIDER = "google";
       process.env.MODEL_NAME = "gemini-1.5-pro";
       process.env.GEMINI_API_KEY = "test-gemini-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "google",
@@ -277,47 +277,47 @@ describe("Configuration", () => {
     });
 
     // Error tests for new providers
-    it("should throw error if COHERE_API_KEY is missing", () => {
+    it("should throw error if COHERE_API_KEY is missing", async () => {
       process.env.MODEL_PROVIDER = "cohere";
       process.env.MODEL_NAME = "command-r-plus";
 
-      expect(() => getModelConfig()).toThrow("COHERE_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("COHERE_API_KEY is required");
     });
 
-    it("should throw error if MISTRAL_API_KEY is missing", () => {
+    it("should throw error if MISTRAL_API_KEY is missing", async () => {
       process.env.MODEL_PROVIDER = "mistral";
       process.env.MODEL_NAME = "mistral-large-latest";
 
-      expect(() => getModelConfig()).toThrow("MISTRAL_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("MISTRAL_API_KEY is required");
     });
 
-    it("should throw error if GROQ_API_KEY is missing", () => {
+    it("should throw error if GROQ_API_KEY is missing", async () => {
       process.env.MODEL_PROVIDER = "groq";
       process.env.MODEL_NAME = "llama-3.1-70b-versatile";
 
-      expect(() => getModelConfig()).toThrow("GROQ_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("GROQ_API_KEY is required");
     });
 
-    it("should throw error if DEEPSEEK_API_KEY is missing", () => {
+    it("should throw error if DEEPSEEK_API_KEY is missing", async () => {
       process.env.MODEL_PROVIDER = "deepseek";
       process.env.MODEL_NAME = "deepseek-chat";
 
-      expect(() => getModelConfig()).toThrow("DEEPSEEK_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("DEEPSEEK_API_KEY is required");
     });
 
-    it("should throw error if OPENAI_COMPATIBLE_API_KEY is missing", () => {
+    it("should throw error if OPENAI_COMPATIBLE_API_KEY is missing", async () => {
       process.env.MODEL_PROVIDER = "openai-compatible";
       process.env.MODEL_NAME = "llama-3.1-70b-instruct";
 
-      expect(() => getModelConfig()).toThrow("OPENAI_COMPATIBLE_API_KEY is required");
+      await expect(getModelConfig()).rejects.toThrow("OPENAI_COMPATIBLE_API_KEY is required");
     });
 
-    it("should handle unknown provider with fallback pattern", () => {
+    it("should handle unknown provider with fallback pattern", async () => {
       process.env.MODEL_PROVIDER = "newprovider";
       process.env.MODEL_NAME = "some-model";
       process.env.NEWPROVIDER_API_KEY = "test-key";
 
-      const result = getModelConfig();
+      const result = await getModelConfig();
 
       expect(result).toEqual({
         provider: "newprovider",
@@ -326,11 +326,11 @@ describe("Configuration", () => {
       });
     });
 
-    it("should throw error for unsupported provider", () => {
+    it("should throw error for unsupported provider", async () => {
       process.env.MODEL_PROVIDER = "unsupported";
       process.env.MODEL_NAME = "some-model";
 
-      expect(() => getModelConfig()).toThrow(
+      await expect(getModelConfig()).rejects.toThrow(
         "Unknown provider \"unsupported\"",
       );
     });
@@ -348,8 +348,8 @@ describe("Configuration", () => {
       process.env.MAX_TURNS = "10";
     });
 
-    it("should create complete review config with debug disabled by default", () => {
-      const result = getReviewConfig();
+    it("should create complete review config with debug disabled by default", async () => {
+      const result = await getReviewConfig();
 
       expect(result).toEqual({
         pr: 123,
@@ -363,79 +363,79 @@ describe("Configuration", () => {
       });
     });
 
-    it("should parse debug mode as true when DEBUG=true", () => {
+    it("should parse debug mode as true when DEBUG=true", async () => {
       process.env.DEBUG = "true";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
 
       expect(result.debug).toBe(true);
     });
 
-    it("should parse debug mode as false when DEBUG=false", () => {
+    it("should parse debug mode as false when DEBUG=false", async () => {
       process.env.DEBUG = "false";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
 
       expect(result.debug).toBe(false);
     });
 
-    it("should parse debug mode as false when DEBUG is not set", () => {
+    it("should parse debug mode as false when DEBUG is not set", async () => {
       // DEBUG not set in environment
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
 
       expect(result.debug).toBe(false);
     });
 
-    it("should parse debug mode as false for invalid DEBUG values", () => {
+    it("should parse debug mode as false for invalid DEBUG values", async () => {
       process.env.DEBUG = "invalid";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
 
       expect(result.debug).toBe(false);
     });
 
-    it("should parse debug mode case-insensitively", () => {
+    it("should parse debug mode case-insensitively", async () => {
       process.env.DEBUG = "TRUE";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
 
       expect(result.debug).toBe(true);
     });
 
-    it("should treat invalid MAX_TURNS as unlimited (0)", () => {
+    it("should treat invalid MAX_TURNS as unlimited (0)", async () => {
       process.env.MAX_TURNS = "invalid";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
       expect(result.maxTurns).toBe(0);
     });
 
-    it("should treat zero MAX_TURNS as unlimited (0)", () => {
+    it("should treat zero MAX_TURNS as unlimited (0)", async () => {
       process.env.MAX_TURNS = "0";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
       expect(result.maxTurns).toBe(0);
     });
 
-    it("should treat negative MAX_TURNS as unlimited (0)", () => {
+    it("should treat negative MAX_TURNS as unlimited (0)", async () => {
       process.env.MAX_TURNS = "-5";
 
-      const result = getReviewConfig();
+      const result = await getReviewConfig();
       expect(result.maxTurns).toBe(0);
     });
 
-    it("should throw error if GITHUB_TOKEN is missing", () => {
+    it("should throw error if GITHUB_TOKEN is missing", async () => {
       delete process.env.GITHUB_TOKEN;
 
-      expect(() => getReviewConfig()).toThrow(
+      await expect(getReviewConfig()).rejects.toThrow(
         "GITHUB_TOKEN environment variable is required",
       );
     });
 
-    it("should throw error if GITHUB_REPOSITORY is missing", () => {
+    it("should throw error if GITHUB_REPOSITORY is missing", async () => {
       delete process.env.GITHUB_REPOSITORY;
 
-      expect(() => getReviewConfig()).toThrow(
+      await expect(getReviewConfig()).rejects.toThrow(
         "GITHUB_REPOSITORY environment variable is required",
       );
     });

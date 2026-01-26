@@ -124,30 +124,33 @@ Add these to your repository's **Settings → Secrets and variables → Actions*
 
 Instead of specifying exact model versions, you can use aliases to always get the latest model:
 
-| Alias | Provider | Resolves To | Auto-updates? |
-| ----- | -------- | ----------- | ------------- |
-| `latest` | OpenAI | `gpt-4o` | ❌ Manual |
-| `gpt-latest` | OpenAI | `gpt-4o` | ❌ Manual |
-| `gpt-mini-latest` | OpenAI | `gpt-4o-mini` | ❌ Manual |
-| `latest` | Anthropic | `claude-sonnet-4-5` | ✅ Provider alias |
-| `sonnet-latest` | Anthropic | `claude-sonnet-4-5` | ✅ Provider alias |
-| `opus-latest` | Anthropic | `claude-opus-4-5` | ✅ Provider alias |
-| `haiku-latest` | Anthropic | `claude-haiku-3-5` | ✅ Provider alias |
-| `latest` | Google/Gemini | `gemini-2.0-flash` | ❌ Manual |
-| `gemini-flash-latest` | Google/Gemini | `gemini-2.0-flash` | ❌ Manual |
-| `latest` | xAI | `grok-2` | ❌ Manual |
-| `latest` | DeepSeek | `deepseek-chat` | ❌ Manual |
+| Alias | Provider | Example Resolution |
+| ----- | -------- | ------------------ |
+| `latest` | OpenAI | Latest GPT model |
+| `gpt-latest` | OpenAI | Latest GPT model |
+| `gpt-mini-latest` | OpenAI | Latest GPT mini model |
+| `latest` | Anthropic | Latest Claude Sonnet |
+| `sonnet-latest` | Anthropic | Latest Claude Sonnet |
+| `opus-latest` | Anthropic | Latest Claude Opus |
+| `haiku-latest` | Anthropic | Latest Claude Haiku |
+| `latest` | Google/Gemini | Latest Gemini model |
+| `gemini-flash-latest` | Google/Gemini | Latest Gemini Flash |
 
-> **Note:** Anthropic aliases like `claude-sonnet-4-5` are provider-native and auto-update to the latest snapshot. Other providers require manual updates to the mapping table in `src/config.ts`.
+**How it works:**
+- For OpenAI and Anthropic, aliases are resolved **dynamically at runtime** by querying the provider's model list API
+- The action finds all models matching the family (e.g., "sonnet") and picks the highest version
+- If the API call fails, falls back to a static mapping
 
 **Example usage:**
 ```yaml
 - uses: quantfive/codepress-review@v4
   with:
     model_provider: "anthropic"
-    model_name: "sonnet-latest"  # Uses claude-sonnet-4-5 (auto-updates)
+    model_name: "sonnet-latest"  # Dynamically resolves to latest Sonnet
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
+
+When Anthropic releases `claude-sonnet-4-7`, `sonnet-latest` will automatically use it without any config changes.
 
 ## Triggering Reviews
 

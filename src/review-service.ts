@@ -175,7 +175,7 @@ export class ReviewService {
     // Run the autonomous agent review
     debugLog("🚀 Starting agentic PR review...");
     debugLog(`📂 Repository files available: ${this.repoFilePaths.length}`);
-    const modelConfig = getModelConfig();
+    const modelConfig = await getModelConfig();
 
     // Determine maxTurns - use null for unlimited if 0 or not set
     const maxTurns = this.config.maxTurns > 0 ? this.config.maxTurns : null;

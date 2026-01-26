@@ -1,84 +1,185 @@
 import { ReviewConfig, ParsedArgs, ModelConfig } from "./types";
 
 /**
- * Mapping of "latest" model aliases to actual model names.
- * Users can specify these instead of exact model versions.
- *
- * Where possible, we use provider-native aliases that auto-update:
- * - Anthropic: claude-sonnet-4-5, claude-opus-4-5 (auto-update to latest snapshot)
- * - OpenAI: gpt-4o, o3, o4-mini (may need manual updates for major versions)
- * - Google: gemini-2.0-flash, etc. (may need manual updates)
- *
- * Last updated: 2025-01-26
- * To update: Check provider docs for current flagship models.
+ * Fallback model aliases used when dynamic resolution fails or is not available.
+ * These are updated periodically but may lag behind actual releases.
  */
-const LATEST_MODEL_ALIASES: Record<string, Record<string, string>> = {
-  // OpenAI - https://platform.openai.com/docs/models
+const FALLBACK_MODEL_ALIASES: Record<string, Record<string, string>> = {
   openai: {
-    latest: "gpt-4o",              // Current flagship multimodal
+    latest: "gpt-4o",
     "gpt-latest": "gpt-4o",
     "gpt-mini-latest": "gpt-4o-mini",
-    "o3-latest": "o3",
-    "o4-mini-latest": "o4-mini",
   },
-  // Anthropic - https://docs.anthropic.com/en/docs/about-claude/models
-  // These aliases auto-update to latest snapshots
   anthropic: {
-    latest: "claude-sonnet-4-5",   // Auto-updates to latest snapshot
+    latest: "claude-sonnet-4-5",
     "sonnet-latest": "claude-sonnet-4-5",
     "opus-latest": "claude-opus-4-5",
     "haiku-latest": "claude-haiku-3-5",
   },
-  // Google/Gemini - https://ai.google.dev/gemini-api/docs/models
   gemini: {
-    latest: "gemini-2.0-flash",    // Current flagship
+    latest: "gemini-2.0-flash",
     "gemini-latest": "gemini-2.0-flash",
-    "gemini-pro-latest": "gemini-2.0-pro-exp",
     "gemini-flash-latest": "gemini-2.0-flash",
   },
   google: {
     latest: "gemini-2.0-flash",
     "gemini-latest": "gemini-2.0-flash",
-    "gemini-pro-latest": "gemini-2.0-pro-exp",
     "gemini-flash-latest": "gemini-2.0-flash",
-  },
-  // xAI - https://docs.x.ai/docs
-  xai: {
-    latest: "grok-2",
-    "grok-latest": "grok-2",
-  },
-  // DeepSeek - https://platform.deepseek.com/
-  deepseek: {
-    latest: "deepseek-chat",
-    "deepseek-latest": "deepseek-chat",
-    "deepseek-reasoner-latest": "deepseek-reasoner",
   },
 };
 
 /**
- * Resolves "latest" model aliases to actual model names.
- * Supports formats like:
- *   - "latest" → provider's flagship model
- *   - "gpt-latest" → latest GPT model
- *   - "sonnet-latest" → latest Claude Sonnet
- *   - "gpt latest" (with space) → normalized to "gpt-latest"
- *
- * @param provider The model provider (openai, anthropic, etc.)
- * @param modelName The model name (may be an alias like "latest" or "sonnet-latest")
- * @returns The resolved model name
+ * Model family patterns for dynamic resolution.
+ * Maps alias keywords to regex patterns that match model names.
+ */
+const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
+  anthropic: {
+    "sonnet-latest": /^claude-sonnet-(\d+)-(\d+)/,
+    "opus-latest": /^claude-opus-(\d+)-(\d+)/,
+    "haiku-latest": /^claude-haiku-(\d+)-(\d+)/,
+    latest: /^claude-sonnet-(\d+)-(\d+)/, // Default to sonnet
+  },
+  openai: {
+    "gpt-latest": /^gpt-(\d+)o?$/,
+    "gpt-mini-latest": /^gpt-(\d+)o?-mini$/,
+    latest: /^gpt-(\d+)o?$/, // Default to main GPT line
+  },
+};
+
+/**
+ * Extracts version numbers from a model name for sorting.
+ * Returns an array of numbers for comparison.
+ */
+function extractVersion(modelName: string): number[] {
+  const matches = modelName.match(/(\d+)/g);
+  return matches ? matches.map(Number) : [0];
+}
+
+/**
+ * Compares two version arrays. Returns positive if a > b, negative if a < b.
+ */
+function compareVersions(a: number[], b: number[]): number {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const aVal = a[i] || 0;
+    const bVal = b[i] || 0;
+    if (aVal !== bVal) return aVal - bVal;
+  }
+  return 0;
+}
+
+/**
+ * Dynamically resolves "latest" aliases by querying the provider's model list API.
+ * Falls back to static aliases if the API call fails.
+ */
+export async function resolveModelAliasDynamic(
+  provider: string,
+  modelName: string,
+  apiKey: string,
+): Promise<string> {
+  const normalizedProvider = provider.toLowerCase();
+  const normalizedModel = modelName.toLowerCase().replace(/\s+/g, "-").trim();
+
+  // Check if this is a "latest" alias that needs dynamic resolution
+  const familyPatterns = MODEL_FAMILY_PATTERNS[normalizedProvider];
+  const pattern = familyPatterns?.[normalizedModel];
+
+  if (!pattern) {
+    // Not a dynamic alias, check static fallbacks
+    const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
+    if (fallback) {
+      console.log(`Resolved model alias "${modelName}" → "${fallback}" (static fallback)`);
+      return fallback;
+    }
+    return modelName;
+  }
+
+  try {
+    const models = await fetchAvailableModels(normalizedProvider, apiKey);
+
+    // Filter models matching the family pattern
+    const matchingModels = models.filter((m) => pattern.test(m));
+
+    if (matchingModels.length === 0) {
+      console.warn(`No models found matching pattern for "${normalizedModel}", using fallback`);
+      const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
+      return fallback || modelName;
+    }
+
+    // Sort by version (descending) and pick the latest
+    matchingModels.sort((a, b) => {
+      const versionA = extractVersion(a);
+      const versionB = extractVersion(b);
+      return compareVersions(versionB, versionA); // Descending
+    });
+
+    const latest = matchingModels[0];
+    console.log(`Resolved model alias "${modelName}" → "${latest}" (dynamic from API)`);
+    return latest;
+  } catch (error) {
+    console.warn(`Failed to dynamically resolve model alias: ${error}`);
+    const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
+    if (fallback) {
+      console.log(`Using fallback: "${modelName}" → "${fallback}"`);
+      return fallback;
+    }
+    return modelName;
+  }
+}
+
+/**
+ * Fetches available models from a provider's API.
+ */
+async function fetchAvailableModels(provider: string, apiKey: string): Promise<string[]> {
+  let url: string;
+  let headers: Record<string, string>;
+
+  switch (provider) {
+    case "anthropic":
+      url = "https://api.anthropic.com/v1/models";
+      headers = {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      };
+      break;
+    case "openai":
+      url = "https://api.openai.com/v1/models";
+      headers = {
+        Authorization: `Bearer ${apiKey}`,
+      };
+      break;
+    default:
+      throw new Error(`Dynamic model resolution not supported for provider: ${provider}`);
+  }
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Both OpenAI and Anthropic return { data: [{ id: "model-name", ... }] }
+  if (data.data && Array.isArray(data.data)) {
+    return data.data.map((m: { id: string }) => m.id);
+  }
+
+  throw new Error("Unexpected response format from models API");
+}
+
+/**
+ * Synchronous fallback resolver for when async resolution isn't possible.
+ * Uses static fallback aliases only.
  */
 export function resolveModelAlias(provider: string, modelName: string): string {
   const normalizedProvider = provider.toLowerCase();
   const normalizedModel = modelName.toLowerCase().replace(/\s+/g, "-").trim();
 
-  const providerAliases = LATEST_MODEL_ALIASES[normalizedProvider];
-  if (providerAliases && providerAliases[normalizedModel]) {
-    const resolved = providerAliases[normalizedModel];
-    console.log(`Resolved model alias "${modelName}" → "${resolved}"`);
-    return resolved;
+  const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
+  if (fallback) {
+    console.log(`Resolved model alias "${modelName}" → "${fallback}"`);
+    return fallback;
   }
 
-  // No alias found, return original
   return modelName;
 }
 
@@ -117,7 +218,7 @@ const PROVIDER_API_KEY_MAP: Record<string, string> = {
   ollama: "OLLAMA_API_KEY", // Special case for Ollama (often no key needed)
 };
 
-export function getModelConfig(): ModelConfig {
+export async function getModelConfig(): Promise<ModelConfig> {
   const provider = process.env.MODEL_PROVIDER;
   const rawModelName = process.env.MODEL_NAME;
 
@@ -125,8 +226,37 @@ export function getModelConfig(): ModelConfig {
     throw new Error("MODEL_PROVIDER and MODEL_NAME are required");
   }
 
-  // Resolve "latest" aliases to actual model names
-  const modelName = resolveModelAlias(provider, rawModelName);
+  // Get the expected environment variable name for this provider
+  const envVarName = PROVIDER_API_KEY_MAP[provider.toLowerCase()];
+  let apiKey: string | undefined;
+
+  if (!envVarName) {
+    // For unknown providers, try the pattern PROVIDER_API_KEY
+    const fallbackEnvVar = `${provider.toUpperCase()}_API_KEY`;
+    apiKey = process.env[fallbackEnvVar];
+
+    if (!apiKey) {
+      const supportedProviders = Object.keys(PROVIDER_API_KEY_MAP).join(", ");
+      throw new Error(
+        `Unknown provider "${provider}". Supported providers: ${supportedProviders}. ` +
+          `For unknown providers, set ${fallbackEnvVar} environment variable.`,
+      );
+    }
+  } else {
+    // Use the mapped environment variable name
+    apiKey = process.env[envVarName];
+    if (!apiKey) {
+      throw new Error(`${envVarName} is required for provider "${provider}"`);
+    }
+  }
+
+  // Resolve "latest" aliases - try dynamic first, fall back to static
+  let modelName: string;
+  if (apiKey && rawModelName.toLowerCase().includes("latest")) {
+    modelName = await resolveModelAliasDynamic(provider, rawModelName, apiKey);
+  } else {
+    modelName = resolveModelAlias(provider, rawModelName);
+  }
 
   // Get reasoning/thinking configuration
   const reasoningEffort = process.env.REASONING_EFFORT as
@@ -150,38 +280,6 @@ export function getModelConfig(): ModelConfig {
     ? { type: "enabled" as const, budgetTokens: thinkingBudget }
     : undefined;
 
-  // Get the expected environment variable name for this provider
-  const envVarName = PROVIDER_API_KEY_MAP[provider.toLowerCase()];
-
-  if (!envVarName) {
-    // For unknown providers, try the pattern PROVIDER_API_KEY
-    const fallbackEnvVar = `${provider.toUpperCase()}_API_KEY`;
-    const apiKey = process.env[fallbackEnvVar];
-
-    if (!apiKey) {
-      const supportedProviders = Object.keys(PROVIDER_API_KEY_MAP).join(", ");
-      throw new Error(
-        `Unknown provider "${provider}". Supported providers: ${supportedProviders}. ` +
-          `For unknown providers, set ${fallbackEnvVar} environment variable.`,
-      );
-    }
-
-    return {
-      provider,
-      modelName,
-      apiKey,
-      reasoningEffort: reasoningEffort || undefined,
-      effort: anthropicEffort || undefined,
-      thinking,
-    };
-  }
-
-  // Use the mapped environment variable name
-  const apiKey = process.env[envVarName];
-  if (!apiKey) {
-    throw new Error(`${envVarName} is required for provider "${provider}"`);
-  }
-
   return {
     provider,
     modelName,
@@ -192,9 +290,9 @@ export function getModelConfig(): ModelConfig {
   };
 }
 
-export function getReviewConfig(): ReviewConfig {
+export async function getReviewConfig(): Promise<ReviewConfig> {
   const { pr } = parseArgs();
-  const { provider, modelName } = getModelConfig();
+  const { provider, modelName } = await getModelConfig();
 
   const githubToken = process.env.GITHUB_TOKEN;
   const githubRepository = process.env.GITHUB_REPOSITORY;

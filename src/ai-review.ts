@@ -5,7 +5,7 @@ import { setDebugMode } from "./debug";
 
 export async function main() {
   try {
-    const config = getReviewConfig();
+    const config = await getReviewConfig();
     setDebugMode(config.debug);
     const reviewService = new ReviewService(config);
     await reviewService.execute();
