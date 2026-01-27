@@ -15,10 +15,15 @@ on:
           - minor
           - major
       prerelease:
-        description: "Mark as pre-release"
+        description: "Mark as pre-release (beta)"
         required: false
         type: boolean
         default: false
+      branch:
+        description: "Branch to release from (for pre-releases)"
+        required: false
+        type: string
+        default: "main"
 
 permissions:
   contents: write
@@ -34,6 +39,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Need full history for tags and commit analysis
+          ref: ${{ github.event.inputs.branch || 'main' }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -114,6 +120,7 @@ jobs:
           MINOR=${{ steps.get_version.outputs.minor }}
           PATCH=${{ steps.get_version.outputs.patch }}
           BUMP_TYPE=${{ steps.version_type.outputs.bump_type }}
+          IS_PRERELEASE=${{ github.event.inputs.prerelease }}
 
           case $BUMP_TYPE in
             major)
@@ -130,30 +137,56 @@ jobs:
               ;;
           esac
 
-          NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
-          echo "New version: $NEW_VERSION"
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            # Find the highest existing beta number for this version
+            BASE_VERSION="v$MAJOR.$MINOR.$PATCH"
+            EXISTING_BETAS=$(git tag -l "${BASE_VERSION}-beta.*" | grep -oE 'beta\.[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1)
+
+            if [ -z "$EXISTING_BETAS" ]; then
+              BETA_NUMBER=1
+            else
+              BETA_NUMBER=$((EXISTING_BETAS + 1))
+            fi
+
+            NEW_VERSION="${BASE_VERSION}-beta.${BETA_NUMBER}"
+            echo "Creating beta version: $NEW_VERSION (auto-incremented)"
+          else
+            NEW_VERSION="v$MAJOR.$MINOR.$PATCH"
+            echo "Creating release version: $NEW_VERSION"
+          fi
+
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "major_version=v$MAJOR" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
 
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update package.json version
+      - name: Update package.json version (stable releases only)
+        if: steps.new_version.outputs.is_prerelease != 'true'
         run: |
           NEW_VERSION=${{ steps.new_version.outputs.new_version }}
           # Remove 'v' prefix for package.json
           VERSION_NUMBER=${NEW_VERSION#v}
           npm version $VERSION_NUMBER --no-git-tag-version
 
-      - name: Commit and push release changes
+      - name: Commit and push release changes (stable releases only)
+        if: steps.new_version.outputs.is_prerelease != 'true'
         run: |
           git add package.json
           git commit -m "Bump version to ${{ steps.new_version.outputs.new_version }}" || echo "No changes to commit"
           git push origin main
 
           # Now add dist/ for the tag (not pushed to main)
+          git add -f dist/
+          git commit -m "Build dist for ${{ steps.new_version.outputs.new_version }}" || echo "No changes to commit"
+
+      - name: Prepare prerelease build (beta releases only)
+        if: steps.new_version.outputs.is_prerelease == 'true'
+        run: |
+          # For prereleases, just add dist/ without pushing to main
           git add -f dist/
           git commit -m "Build dist for ${{ steps.new_version.outputs.new_version }}" || echo "No changes to commit"
 
@@ -167,7 +200,8 @@ jobs:
 
           echo "Tag $NEW_VERSION created and pushed"
 
-      - name: Update major version tag
+      - name: Update major version tag (stable releases only)
+        if: steps.new_version.outputs.is_prerelease != 'true'
         run: |
           MAJOR_VERSION=${{ steps.new_version.outputs.major_version }}
           echo "Updating major version tag $MAJOR_VERSION..."
@@ -210,10 +244,26 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Release Created!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Type:** ${{ steps.version_type.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Major Tag:** ${{ steps.new_version.outputs.major_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Users can now use \`quantfive/codepress-review@${{ steps.new_version.outputs.major_version }}\` or \`quantfive/codepress-review@${{ steps.new_version.outputs.new_version }}\`" >> $GITHUB_STEP_SUMMARY
+          IS_PRERELEASE=${{ steps.new_version.outputs.is_prerelease }}
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            echo "## 🧪 Beta Release Created!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Type:** ${{ steps.version_type.outputs.bump_type }} (prerelease)" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch:** ${{ github.event.inputs.branch || 'main' }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Testing this beta" >> $GITHUB_STEP_SUMMARY
+            echo "Use in your workflow:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+            echo "uses: quantfive/codepress-review@${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## 🚀 Release Created!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Version:** ${{ steps.new_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Type:** ${{ steps.version_type.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Major Tag:** ${{ steps.new_version.outputs.major_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Users can now use \`quantfive/codepress-review@${{ steps.new_version.outputs.major_version }}\` or \`quantfive/codepress-review@${{ steps.new_version.outputs.new_version }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
