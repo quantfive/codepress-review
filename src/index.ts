@@ -9,6 +9,7 @@ import { join } from "node:path";
 import type {
   BotComment,
   ExistingReviewComment,
+  InteractiveMentionContext,
   RelatedRepo,
   TriggerContext,
 } from "./types";
@@ -26,6 +27,35 @@ interface TriggerConfig {
   runOnReviewRequested: boolean;
   runOnCommentTrigger: boolean;
   commentTriggerPhrase: string;
+  interactiveMentionPhrase: string;
+}
+
+/**
+ * Extracts the user message from a comment body after the @codepress mention.
+ * Returns null if this is the full review trigger (@codepress/review).
+ */
+function extractInteractiveMention(
+  commentBody: string,
+  commentTriggerPhrase: string,
+  interactiveMentionPhrase: string,
+): string | null {
+  // If it's the full review trigger, return null (not an interactive mention)
+  if (commentBody.includes(commentTriggerPhrase)) {
+    return null;
+  }
+
+  // Check for @codepress mention (case-insensitive)
+  const mentionRegex = new RegExp(`${interactiveMentionPhrase}\\s*(.*)`, "is");
+  const match = commentBody.match(mentionRegex);
+
+  if (match) {
+    // Extract everything after @codepress
+    const userMessage = match[1].trim();
+    // Return the user's message, or a default if they just said @codepress
+    return userMessage || "Please help me with this PR.";
+  }
+
+  return null;
 }
 
 type TriggerEventType = TriggerContext["triggerEvent"];
@@ -49,14 +79,48 @@ function getTriggerEvent(
   if (eventName === "pull_request" && action === "review_requested") {
     return "review_requested";
   }
+
+  // Issue comment (PR conversation)
   if (eventName === "issue_comment" && action === "created") {
     const isPrComment = !!context.payload.issue?.pull_request;
     const commentBody = context.payload.comment?.body || "";
-    const containsTrigger = commentBody.includes(config.commentTriggerPhrase);
-    if (isPrComment && containsTrigger) {
-      return "comment_trigger";
+
+    if (isPrComment) {
+      // Check for full review trigger first (@codepress/review)
+      if (commentBody.includes(config.commentTriggerPhrase)) {
+        return "comment_trigger";
+      }
+      // Check for interactive mention (@codepress without /review)
+      const interactiveMessage = extractInteractiveMention(
+        commentBody,
+        config.commentTriggerPhrase,
+        config.interactiveMentionPhrase,
+      );
+      if (interactiveMessage !== null) {
+        return "interactive_mention";
+      }
     }
   }
+
+  // Pull request review comment (inline on code)
+  if (eventName === "pull_request_review_comment" && action === "created") {
+    const commentBody = context.payload.comment?.body || "";
+
+    // Check for full review trigger first
+    if (commentBody.includes(config.commentTriggerPhrase)) {
+      return "comment_trigger";
+    }
+    // Check for interactive mention
+    const interactiveMessage = extractInteractiveMention(
+      commentBody,
+      config.commentTriggerPhrase,
+      config.interactiveMentionPhrase,
+    );
+    if (interactiveMessage !== null) {
+      return "interactive_mention";
+    }
+  }
+
   return "workflow_dispatch";
 }
 
@@ -117,26 +181,74 @@ function shouldRunAction(
     };
   }
 
-  // Comment trigger
+  // Issue comment (PR conversation)
   if (eventName === "issue_comment" && action === "created") {
     const isPrComment = !!context.payload.issue?.pull_request;
     const commentBody = context.payload.comment?.body || "";
-    const containsTrigger = commentBody.includes(config.commentTriggerPhrase);
 
-    if (isPrComment && containsTrigger) {
-      return {
-        shouldRun: config.runOnCommentTrigger,
-        reason: config.runOnCommentTrigger
-          ? `Comment contains trigger phrase: ${config.commentTriggerPhrase}`
-          : "Comment trigger is disabled",
-      };
+    if (isPrComment) {
+      // Check for full review trigger first
+      if (commentBody.includes(config.commentTriggerPhrase)) {
+        return {
+          shouldRun: config.runOnCommentTrigger,
+          reason: config.runOnCommentTrigger
+            ? `Comment contains trigger phrase: ${config.commentTriggerPhrase}`
+            : "Comment trigger is disabled",
+        };
+      }
+
+      // Check for interactive mention
+      const interactiveMessage = extractInteractiveMention(
+        commentBody,
+        config.commentTriggerPhrase,
+        config.interactiveMentionPhrase,
+      );
+      if (interactiveMessage !== null) {
+        return {
+          shouldRun: true, // Always run on interactive mentions
+          reason: `Interactive mention: @codepress`,
+        };
+      }
     }
 
     return {
       shouldRun: false,
       reason: isPrComment
-        ? "Comment does not contain trigger phrase"
+        ? "Comment does not mention @codepress"
         : "Comment is not on a PR",
+    };
+  }
+
+  // Pull request review comment (inline on code)
+  if (eventName === "pull_request_review_comment" && action === "created") {
+    const commentBody = context.payload.comment?.body || "";
+
+    // Check for full review trigger first
+    if (commentBody.includes(config.commentTriggerPhrase)) {
+      return {
+        shouldRun: config.runOnCommentTrigger,
+        reason: config.runOnCommentTrigger
+          ? `Inline comment contains trigger phrase: ${config.commentTriggerPhrase}`
+          : "Comment trigger is disabled",
+      };
+    }
+
+    // Check for interactive mention
+    const interactiveMessage = extractInteractiveMention(
+      commentBody,
+      config.commentTriggerPhrase,
+      config.interactiveMentionPhrase,
+    );
+    if (interactiveMessage !== null) {
+      return {
+        shouldRun: true, // Always run on interactive mentions
+        reason: `Interactive mention on inline comment: @codepress`,
+      };
+    }
+
+    return {
+      shouldRun: false,
+      reason: "Inline comment does not mention @codepress",
     };
   }
 
@@ -216,6 +328,9 @@ async function run(): Promise<void> {
     const runOnCommentTrigger = core.getBooleanInput("run_on_comment_trigger");
     const commentTriggerPhrase = core.getInput("comment_trigger_phrase");
 
+    // Interactive mention phrase (just @codepress without /review)
+    const interactiveMentionPhrase = "@codepress";
+
     // Check if action should run based on trigger configuration
     const shouldRun = shouldRunAction(github.context, {
       runOnPrOpened,
@@ -223,6 +338,7 @@ async function run(): Promise<void> {
       runOnReviewRequested,
       runOnCommentTrigger,
       commentTriggerPhrase,
+      interactiveMentionPhrase,
     });
 
     if (!shouldRun.shouldRun) {
@@ -309,8 +425,10 @@ async function run(): Promise<void> {
     core.info(`Triggered by event: ${context.eventName}`);
 
     if (context.payload.pull_request) {
+      // pull_request and pull_request_review_comment events
       prNumber = context.payload.pull_request.number;
     } else if (context.payload.issue?.pull_request) {
+      // issue_comment event on a PR
       prNumber = context.payload.issue.number;
     } else if (context.eventName === "workflow_dispatch") {
       core.info("Workflow dispatched manually. Finding PR from branch...");
@@ -488,7 +606,41 @@ async function run(): Promise<void> {
         runOnReviewRequested,
         runOnCommentTrigger,
         commentTriggerPhrase,
+        interactiveMentionPhrase,
       });
+
+      // Parse interactive mention context if applicable
+      let interactiveMentionContext: InteractiveMentionContext | undefined;
+      if (triggerEvent === "interactive_mention") {
+        const comment = context.payload.comment;
+        const commentBody = comment?.body || "";
+        const userMessage = extractInteractiveMention(
+          commentBody,
+          commentTriggerPhrase,
+          interactiveMentionPhrase,
+        ) || "Please help me with this PR.";
+
+        // Determine if this is a review comment (inline on code) or issue comment (PR conversation)
+        const isReviewComment = context.eventName === "pull_request_review_comment";
+
+        interactiveMentionContext = {
+          userMessage,
+          commentId: comment?.id || 0,
+          commentAuthor: comment?.user?.login || "unknown",
+          commentBody,
+          isReviewComment,
+          // These fields are only available for review comments (inline on code)
+          filePath: isReviewComment ? comment?.path : undefined,
+          line: isReviewComment ? (comment?.line ?? comment?.original_line ?? undefined) : undefined,
+          diffHunk: isReviewComment ? comment?.diff_hunk : undefined,
+        };
+
+        core.info(`Interactive mention from @${interactiveMentionContext.commentAuthor}`);
+        core.info(`Message: ${userMessage.substring(0, 100)}${userMessage.length > 100 ? "..." : ""}`);
+        if (isReviewComment && interactiveMentionContext.filePath) {
+          core.info(`On file: ${interactiveMentionContext.filePath}:${interactiveMentionContext.line || "?"}`);
+        }
+      }
 
       // Fetch the bot's previous review state
       let previousReviewState: TriggerContext["previousReviewState"] = null;
@@ -538,6 +690,19 @@ async function run(): Promise<void> {
       process.env.PREVIOUS_REVIEW_STATE = previousReviewState || "";
       process.env.PREVIOUS_REVIEW_COMMIT_SHA = previousReviewCommitSha || "";
       process.env.FORCE_FULL_REVIEW = forceFullReview.toString();
+
+      // Write interactive mention context to file if applicable
+      const interactiveMentionFile = resolve("interactive-mention.json");
+      if (interactiveMentionContext) {
+        writeFileSync(
+          interactiveMentionFile,
+          JSON.stringify(interactiveMentionContext, null, 2),
+        );
+        process.env.INTERACTIVE_MENTION = "true";
+      } else {
+        writeFileSync(interactiveMentionFile, "null");
+        process.env.INTERACTIVE_MENTION = "false";
+      }
 
       if (isReReview) {
         core.info(`Re-review detected (trigger: ${triggerEvent})`);

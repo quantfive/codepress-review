@@ -8,6 +8,7 @@ import type { PRFile } from "./pr-files";
 import type {
   BotComment,
   ExistingReviewComment,
+  InteractiveMentionContext,
   RelatedRepo,
   ReviewConfig,
   TriggerContext,
@@ -73,12 +74,31 @@ export class ReviewService {
     const previousReviewCommitSha = process.env.PREVIOUS_REVIEW_COMMIT_SHA || null;
     const forceFullReview = process.env.FORCE_FULL_REVIEW === "true";
 
+    // Load interactive mention context if applicable
+    let interactiveMention: InteractiveMentionContext | undefined;
+    const interactiveMentionFile = resolve("interactive-mention.json");
+    if (existsSync(interactiveMentionFile)) {
+      try {
+        const data = readFileSync(interactiveMentionFile, "utf8");
+        if (data !== "null") {
+          interactiveMention = JSON.parse(data);
+          if (interactiveMention) {
+            debugLog(`💬 Interactive mention from @${interactiveMention.commentAuthor}`);
+            debugLog(`   Message: ${interactiveMention.userMessage.substring(0, 80)}${interactiveMention.userMessage.length > 80 ? "..." : ""}`);
+          }
+        }
+      } catch {
+        debugLog("⚠️ Failed to parse interactive mention file");
+      }
+    }
+
     const triggerContext: TriggerContext = {
       isReReview,
       triggerEvent,
       previousReviewState: previousReviewState || undefined,
       previousReviewCommitSha: previousReviewCommitSha || undefined,
       forceFullReview,
+      interactiveMention,
     };
 
     // Build PR context for the agent
