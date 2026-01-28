@@ -29,6 +29,28 @@ export interface ParsedArgs {
 }
 
 /**
+ * Context for an interactive @codepress mention in a PR comment.
+ */
+export interface InteractiveMentionContext {
+  /** The user's message after @codepress */
+  userMessage: string;
+  /** The GitHub comment ID */
+  commentId: number;
+  /** The GitHub username of the person who made the comment */
+  commentAuthor: string;
+  /** The full comment body */
+  commentBody: string;
+  /** Whether this is a review comment (inline on code) vs issue comment (general PR comment) */
+  isReviewComment: boolean;
+  /** File path if this is a review comment */
+  filePath?: string;
+  /** Line number if this is a review comment */
+  line?: number;
+  /** The diff hunk context if this is a review comment */
+  diffHunk?: string;
+}
+
+/**
  * Context about how the review was triggered.
  * Used to determine re-review behavior.
  */
@@ -36,13 +58,15 @@ export interface TriggerContext {
   /** Whether this is a re-review (new commits pushed or re-review requested) */
   isReReview: boolean;
   /** The event that triggered the review */
-  triggerEvent: "opened" | "reopened" | "synchronize" | "review_requested" | "comment_trigger" | "workflow_dispatch";
+  triggerEvent: "opened" | "reopened" | "synchronize" | "review_requested" | "comment_trigger" | "interactive_mention" | "workflow_dispatch";
   /** The bot's previous review state on this PR, if any */
   previousReviewState?: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING" | null;
   /** The commit SHA of the previous review, if any */
   previousReviewCommitSha?: string | null;
   /** Force a full review of all files, ignoring re-review optimizations */
   forceFullReview?: boolean;
+  /** Interactive mention context if triggered by @codepress */
+  interactiveMention?: InteractiveMentionContext;
 }
 
 /**

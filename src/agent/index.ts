@@ -11,7 +11,7 @@ import {
   ReviewState,
   TriggerContext,
 } from "../types";
-import { getInteractiveSystemPrompt } from "./agent-system-prompt";
+import { getSystemPrompt } from "./agent-system-prompt";
 import {
   analyzeToolOutput,
   generateInterventionBlock,
@@ -20,6 +20,8 @@ import {
 } from "./interventions";
 import { advanceTurn, createReviewState, recordToolCall } from "./review-state";
 import { getAllTools, resetTodoList } from "./tools";
+import { createSkillTool } from "./tools/skill-tool";
+import type { SkillContext } from "./skills/types";
 
 /**
  * Schema for the agent's final output.
@@ -196,6 +198,124 @@ ${args.modelData.instructions || ""}`;
 }
 
 /**
+ * Builds the initial message for the agent based on the context.
+ * For full reviews: provides PR files and tells agent to load review-full skill
+ * For interactive mentions: provides user message and tells agent to choose appropriate skill
+ */
+function buildInitialMessage(
+  prContext: PRContext,
+  skillContext: SkillContext,
+  fileList: string,
+  existingCommentsSection: string,
+  botCommentsSection: string,
+  relatedReposSection: string,
+  prFilesFormatted: string,
+): string {
+  const { repo, prNumber, commitSha, triggerContext } = prContext;
+  const interactiveMention = triggerContext?.interactiveMention;
+
+  // For interactive mentions, build a simpler message focused on the user's request
+  if (interactiveMention) {
+    let codeContext = "";
+    if (interactiveMention.isReviewComment && interactiveMention.filePath) {
+      codeContext = `
+## Code Context
+This mention is on an inline comment at:
+- **File:** \`${interactiveMention.filePath}\`
+${interactiveMention.line ? `- **Line:** ${interactiveMention.line}` : ""}
+${interactiveMention.diffHunk ? `
+**Diff hunk:**
+\`\`\`diff
+${interactiveMention.diffHunk}
+\`\`\`
+` : ""}
+`;
+    }
+
+    return `# Interactive Mention in PR #${prNumber}
+
+A user has mentioned you (@codepress) in repository ${repo}.
+
+## User's Message
+**Author:** @${interactiveMention.commentAuthor}
+**Message:** ${interactiveMention.userMessage}
+${codeContext}
+## PR Context
+- **Repository:** ${repo}
+- **PR Number:** ${prNumber}
+- **Commit SHA:** ${commitSha}
+
+<repositoryFiles>
+${fileList}
+</repositoryFiles>
+${botCommentsSection}${existingCommentsSection}${relatedReposSection}
+
+## Your Task
+
+Use the \`skill\` tool to load the appropriate skill for this task:
+- If the user is asking a **question** (what/why/how, ends with ?, asks for explanation): load \`answer-question\`
+- If the user is asking you to **review specific code** (check this, review that, look at): load \`review-targeted\`
+- If the user is requesting a **full review** (@codepress/review, "please review", etc.): load \`review-full\`
+
+Choose the skill that best matches the user's intent.`;
+  }
+
+  // For full reviews (PR opened, new commits, @codepress/review, etc.)
+  const isReReview = triggerContext?.isReReview ?? false;
+  const forceFullReview = triggerContext?.forceFullReview ?? false;
+
+  // Build re-review context section if applicable
+  let reReviewSection = "";
+  if (forceFullReview) {
+    reReviewSection = `
+<forceFullReview>
+  **FULL REVIEW MODE ENABLED** - Review ALL files in this PR.
+</forceFullReview>
+`;
+  } else if (isReReview) {
+    const prevState = triggerContext?.previousReviewState || "none";
+    const prevCommit = triggerContext?.previousReviewCommitSha || "unknown";
+    const trigger = triggerContext?.triggerEvent;
+
+    reReviewSection = `
+<reReviewContext>
+  **This is a RE-REVIEW.** You have previously reviewed this PR.
+
+  - Trigger: ${trigger === "synchronize" ? "New commits pushed" : trigger === "review_requested" ? "Re-review requested" : trigger === "comment_trigger" ? "Comment trigger" : trigger}
+  - Your previous review state: ${prevState}
+  - Previous review commit: ${prevCommit}
+  - Current commit: ${commitSha}
+</reReviewContext>
+`;
+  }
+
+  // Format PR files section
+  const prFilesSection = prFilesFormatted
+    ? `\n${prFilesFormatted}
+**IMPORTANT:** This file list is pre-filtered and authoritative. Lock files, build outputs, and generated files have been removed.
+`
+    : `\n<prFiles>
+Files will be fetched via: \`gh api repos/${repo}/pulls/${prNumber}/files\`
+</prFiles>\n`;
+
+  return `# PR Review: ${repo}#${prNumber}
+
+You are reviewing PR #${prNumber} in repository ${repo}.
+Commit SHA: ${commitSha}
+
+<repositoryFiles>
+${fileList}
+</repositoryFiles>
+${prFilesSection}${reReviewSection}${botCommentsSection}${existingCommentsSection}${relatedReposSection}
+
+## Your Task
+
+Use the \`skill\` tool to load the \`review-full\` skill for complete review instructions.
+
+\`skill({ name: "review-full" })\``;
+}
+
+/**
  * Reviews a PR using a single interactive agent with agentic diff exploration.
  * The agent has full autonomy to:
  * - Fetch the diff via gh CLI (on demand)
@@ -230,11 +350,34 @@ export async function reviewFullDiff(
   // Create the intervention filter
   const interventionFilter = createInterventionFilter(reviewState);
 
+  // Build the skill context
+  const skillContext: SkillContext = {
+    repo: prContext.repo,
+    prNumber: prContext.prNumber,
+    commitSha: prContext.commitSha,
+    repoFilePaths,
+    triggerContext: prContext.triggerContext,
+    interactiveMention: prContext.triggerContext?.interactiveMention,
+    blockingOnly,
+    maxTurns,
+    existingComments,
+    botPreviousComments,
+    relatedRepos,
+    prFilesFormatted,
+  };
+
+  // Create the skill tool with context
+  const skillTool = createSkillTool(skillContext);
+
+  // Get all base tools and add the skill tool
+  const baseTools = getAllTools();
+  const allToolsWithSkill = [...baseTools, skillTool];
+
   const agent = new Agent({
     model: aisdk(model),
     name: "CodePressReviewAgent",
-    instructions: getInteractiveSystemPrompt(blockingOnly, maxTurns),
-    tools: getAllTools(),
+    instructions: getSystemPrompt(),
+    tools: allToolsWithSkill,
     // Structured output type - the loop continues until this is produced
     // Using z.literal(true) for `completed` ensures the agent must explicitly
     // set completed: true to terminate. Text-only responses or completed: false
@@ -268,176 +411,16 @@ export async function reviewFullDiff(
     );
   }
 
-  // Build re-review context section if applicable
-  const triggerCtx = prContext.triggerContext;
-  let reReviewSection = "";
-  const isReReview = triggerCtx?.isReReview ?? false;
-  const forceFullReview = triggerCtx?.forceFullReview ?? false;
-
-  if (forceFullReview) {
-    // Force full review - treat as first-time review
-    reReviewSection = `
-<forceFullReview>
-  ⚠️ **FULL REVIEW MODE ENABLED** - Review ALL files in this PR.
-
-  Even though you may have reviewed this PR before, you have been asked to perform
-  a complete review of all files. Ignore any re-review optimizations and review
-  every file as if this were a first-time review.
-</forceFullReview>
-`;
-  } else if (isReReview) {
-    const prevState = triggerCtx?.previousReviewState || "none";
-    const prevCommit = triggerCtx?.previousReviewCommitSha || "unknown";
-    const trigger = triggerCtx?.triggerEvent;
-
-    reReviewSection = `
-<reReviewContext>
-  **This is a RE-REVIEW.** You have previously reviewed this PR.
-
-  - Trigger: ${trigger === "synchronize" ? "New commits pushed" : trigger === "review_requested" ? "Re-review requested" : trigger === "comment_trigger" ? "Comment trigger" : trigger}
-  - Your previous review state: ${prevState}
-  - Previous review commit: ${prevCommit}
-  - Current commit: ${prContext.commitSha}
-
-  **IMPORTANT Re-review instructions:**
-  1. First, check what changed since your last review:
-     ${prevCommit !== "unknown" ? `\`git diff ${prevCommit}..${prContext.commitSha}\`` : "Fetch the current diff and compare to your previous feedback"}
-
-  2. Focus on the NEW changes first before doing a full review
-
-  3. Only post a new review/comments if:
-     - Your assessment has changed (e.g., previous issues were fixed, so you can now approve)
-     - You found NEW issues in the new commits
-     - You need to re-iterate unaddressed feedback
-
-  4. **If your previous approval still stands and new changes don't introduce issues,
-     DO NOT post a new review. Just complete without calling \`gh pr review\`.**
-
-  5. If you have nothing new to add, you can complete without posting a new review.
-</reReviewContext>
-`;
-  }
-
-  // Format PR files section - use pre-filtered if available, otherwise agent will fetch
-  const prFilesSection = prFilesFormatted
-    ? `\n${prFilesFormatted}
-⚠️ **IMPORTANT:** This file list is pre-filtered and authoritative. Do NOT fetch the full file list again.
-Lock files, build outputs (dist/, build/), and generated files have already been removed.
-Only review the files listed above. Fetch individual patches as needed, not the full list.
-`
-    : `\n<prFiles>
-Files will be fetched via: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files\`
-Note: Lock files, build outputs, and generated files should be skipped.
-</prFiles>\n`;
-
-  const initialMessage = `
-You are reviewing PR #${prContext.prNumber} in repository ${prContext.repo}.
-Commit SHA: ${prContext.commitSha}
-
-<repositoryFiles>
-${fileList}
-</repositoryFiles>
-${prFilesSection}${reReviewSection}${botCommentsSection}${existingCommentsSection}${relatedReposSection}
-
-<instruction>
-Please review this pull request.
-
-**Your workflow:**
-
-1. **Get PR context:**
-   - Run \`gh pr view ${prContext.prNumber} --json title,body\` to get PR info
-   - Check if body is empty/blank
-   - **If body is empty/blank, you MUST update it immediately:**
-     \`gh pr edit ${prContext.prNumber} --body $'## Summary\\n\\n<describe what this PR does>\\n\\n## Changes\\n\\n- <list key changes>'\`
-     (Note: Use \`$'...'\` with \\n for newlines, NOT regular quotes which treat \\n as literal text)
-   - **Review previous comments (already provided above in context if they exist):**
-     - \`<yourPreviousComments>\` = your previous feedback on this PR
-     - \`<existingReviewComments>\` = other reviewers' feedback
-     - Use \`rg\` to search for context about issues raised in these comments
-
-   - **Determine your review scope (see \`<reReviewContext>\` if present):**
-     - **First-time review:** Create todos for all files in \`<prFiles>\`
-     - **Re-review:** Create todos ONLY for files changed since your last review
-       (diff from previous review SHA to current SHA - see \`<reReviewContext>\`)
-     - **Re-review (requested changes):** Also include files where you left feedback
-
-   ⚠️ **The \`<prFiles>\` list is pre-filtered** (lock files, build outputs removed).
-   But for re-reviews, you may only need to review a SUBSET - check \`<reReviewContext>\`.
-
-   **Fetching patches (if not in \`<patches>\` above):**
-   **ALWAYS use --jq to filter** - this keeps lock files and build outputs out of your context.
-
-   • Single file: \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files --jq '.[] | select(.filename=="src/index.ts")'\`
-   • Multiple files: \`gh api ... --jq '[.[] | select(.filename=="src/a.ts" or .filename=="src/b.ts")]'\`
-   • By pattern: \`gh api ... --jq '[.[] | select(.filename | startswith("src/"))]'\`
-
-   ❌ **NEVER** run without --jq: \`gh api .../files\` dumps ALL files (including lock files) into context
-
-2. **Review each file in your todo list (one at a time):**
-   For EACH file you added to your todos:
-   a. **Get the patch** (if not in \`<patches>\` above):
-      \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/files --jq '.[] | select(.filename=="<filepath>")'\`
-   b. **Read the FULL file for context:** \`cat <filepath>\` - Don't just look at the patch!
-      The diff only shows changed lines. Read the entire file to understand:
-      • How the changed code fits into the broader context
-      • What functions/variables are defined elsewhere in the file
-      • The overall structure and patterns used
-   c. **Check dependencies if needed:** Use \`dep_graph\` or \`rg\` to see what calls this code
-   d. **Look up documentation if needed:** Use \`web_fetch\` or \`web_search\` for unfamiliar libraries/patterns
-   e. **Review the changes WITH full file context:** Look for:
-      • Logic errors and edge cases the diff introduces
-      • Error handling gaps in the new code
-      • Inconsistencies with patterns in the rest of the file/codebase
-      • Breaking changes to function signatures that affect callers
-      • DRY violations - does similar code exist elsewhere?
-   f. **Post comments IMMEDIATELY** when you find issues - don't wait until later:
-      \`gh api repos/${prContext.repo}/pulls/${prContext.prNumber}/comments -f body="Your comment" -f path="file/path.ts" -f line=42 -f commit_id="${prContext.commitSha}"\`
-   g. **Mark the file as reviewed** in your todo list before moving to the next file
-
-   **IMPORTANT:**
-   - Complete ALL files in your todo list before finishing.
-   - Use \`rg\` to search for additional context (usages, callers, related code) when needed.
-   - You have memory across files! If file B relates to file A, you can go back and comment on file A.
-   - Always read the FULL file, not just the diff - context matters!
-
-3. **Before submitting review, verify:**
-   - PR description is not blank (if it was, you should have updated it in step 1)
-   - **ALL files have been reviewed** (check your todo list - every file should be marked done)
-   - Complete any other items in your todo list
-
-4. **${isReReview ? "Submit review ONLY IF NEEDED" : "REQUIRED - Submit formal review"}:**
-   - Approve: \`gh pr review ${prContext.prNumber} --approve --body "Your summary"\`
-   - Request changes: \`gh pr review ${prContext.prNumber} --request-changes --body "Your summary"\`
-   - Comment: \`gh pr review ${prContext.prNumber} --comment --body "Your summary"\`
-${isReReview ? `
-   **⚠️ RE-REVIEW: Do NOT submit a new review if:**
-   - You previously APPROVED and the new changes don't introduce any issues
-   - You have no new feedback to give
-   In this case, simply complete your task without calling \`gh pr review\`.
-` : ""}
-   **Review summary should be concise:**
-   - Brief description of what the PR does (1-2 sentences)
-   - Key findings or concerns (if any)
-   - Your decision rationale
-   - **DO NOT list all the files you reviewed** - that's redundant since you review everything
-
-**CRITICAL: Only comment on code IN THE DIFF.**
-- Use context (full file, dependencies) to UNDERSTAND the code
-- But ONLY comment on lines that are actually changed in this PR
-- Never comment on pre-existing code outside the diff
-
-**Comment guidelines:**
-${blockingOnly ? "- BLOCKING-ONLY MODE: Only comment on critical issues that MUST be fixed (security, bugs, breaking changes)" : "- Focus on substantive issues: bugs, security problems, logic errors, significant design concerns\n- Skip minor style nits unless they indicate a real problem"}
-- Be constructive and explain WHY something is an issue
-- Include code suggestions when helpful
-
-**Line numbers:**
-- Use the line number in the NEW version of the file (right side of diff)
-- For lines starting with \`+\`, count from the @@ hunk header
-- Always use commit_id="${prContext.commitSha}"
-${isReReview ? "" : `
-**Remember: You MUST submit a formal review at the end using \`gh pr review\`.`}
-</instruction>`;
+  // Build the initial message based on context
+  const initialMessage = buildInitialMessage(
+    prContext,
+    skillContext,
+    fileList,
+    existingCommentsSection,
+    botCommentsSection,
+    relatedReposSection,
+    prFilesFormatted,
+  );
 
   // Create a runner with custom workflow name for tracing
   const runner = new Runner({
@@ -456,7 +439,10 @@ ${isReReview ? "" : `
   });
 
   try {
-    debugLog(`Starting agentic PR review`);
+    const triggerType = prContext.triggerContext?.interactiveMention
+      ? "interactive mention"
+      : "full review";
+    debugLog(`Starting agentic PR review (${triggerType})`);
     debugLog(`Max turns: ${maxTurns === null ? "unlimited" : maxTurns}`);
     debugLog(`PR: ${prContext.repo}#${prContext.prNumber}`);
     debugLog(`Repository files available: ${repoFilePaths.length}`);
