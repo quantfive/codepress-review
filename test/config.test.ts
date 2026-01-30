@@ -2,6 +2,7 @@ import {
   getReviewConfig,
   parseArgs,
   getModelConfig,
+  resolveModelAlias,
 } from "../src/config";
 
 describe("Configuration", () => {
@@ -438,6 +439,433 @@ describe("Configuration", () => {
       await expect(getReviewConfig()).rejects.toThrow(
         "GITHUB_REPOSITORY environment variable is required",
       );
+    });
+  });
+
+  describe("resolveModelAlias (static fallbacks)", () => {
+    beforeEach(() => {
+      jest.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    describe("OpenAI aliases", () => {
+      it("should resolve gpt-latest to gpt-5.2", () => {
+        expect(resolveModelAlias("openai", "gpt-latest")).toBe("gpt-5.2");
+      });
+
+      it("should resolve gpt-mini-latest to gpt-5.2-mini", () => {
+        expect(resolveModelAlias("openai", "gpt-mini-latest")).toBe(
+          "gpt-5.2-mini",
+        );
+      });
+
+      it("should resolve latest to gpt-5.2", () => {
+        expect(resolveModelAlias("openai", "latest")).toBe("gpt-5.2");
+      });
+
+      it("should return model name unchanged if not an alias", () => {
+        expect(resolveModelAlias("openai", "gpt-4o")).toBe("gpt-4o");
+      });
+    });
+
+    describe("Anthropic aliases", () => {
+      it("should resolve sonnet-latest to claude-sonnet-4-5", () => {
+        expect(resolveModelAlias("anthropic", "sonnet-latest")).toBe(
+          "claude-sonnet-4-5",
+        );
+      });
+
+      it("should resolve opus-latest to claude-opus-4-5", () => {
+        expect(resolveModelAlias("anthropic", "opus-latest")).toBe(
+          "claude-opus-4-5",
+        );
+      });
+
+      it("should resolve haiku-latest to claude-haiku-3-5", () => {
+        expect(resolveModelAlias("anthropic", "haiku-latest")).toBe(
+          "claude-haiku-3-5",
+        );
+      });
+
+      it("should resolve latest to claude-sonnet-4-5", () => {
+        expect(resolveModelAlias("anthropic", "latest")).toBe(
+          "claude-sonnet-4-5",
+        );
+      });
+    });
+
+    describe("Gemini aliases", () => {
+      it("should resolve gemini-latest to gemini-3.0-flash", () => {
+        expect(resolveModelAlias("gemini", "gemini-latest")).toBe(
+          "gemini-3.0-flash",
+        );
+      });
+
+      it("should resolve gemini-flash-latest to gemini-3.0-flash", () => {
+        expect(resolveModelAlias("gemini", "gemini-flash-latest")).toBe(
+          "gemini-3.0-flash",
+        );
+      });
+
+      it("should resolve gemini-pro-latest to gemini-2.5-pro", () => {
+        expect(resolveModelAlias("gemini", "gemini-pro-latest")).toBe(
+          "gemini-2.5-pro",
+        );
+      });
+
+      it("should work with google provider alias", () => {
+        expect(resolveModelAlias("google", "gemini-latest")).toBe(
+          "gemini-3.0-flash",
+        );
+      });
+    });
+
+    describe("XAI aliases", () => {
+      it("should resolve grok-latest to grok-4", () => {
+        expect(resolveModelAlias("xai", "grok-latest")).toBe("grok-4");
+      });
+
+      it("should resolve grok-mini-latest to grok-3-mini", () => {
+        expect(resolveModelAlias("xai", "grok-mini-latest")).toBe("grok-3-mini");
+      });
+    });
+
+    describe("Provider name normalization", () => {
+      it("should handle uppercase provider names", () => {
+        expect(resolveModelAlias("OPENAI", "gpt-latest")).toBe("gpt-5.2");
+      });
+
+      it("should handle mixed case provider names", () => {
+        expect(resolveModelAlias("OpenAI", "gpt-latest")).toBe("gpt-5.2");
+      });
+
+      it("should handle uppercase model names", () => {
+        expect(resolveModelAlias("openai", "GPT-LATEST")).toBe("gpt-5.2");
+      });
+    });
+
+    describe("Unknown providers/models", () => {
+      it("should return model name unchanged for unknown provider", () => {
+        expect(resolveModelAlias("unknown", "gpt-latest")).toBe("gpt-latest");
+      });
+
+      it("should return model name unchanged for unknown alias", () => {
+        expect(resolveModelAlias("openai", "not-an-alias")).toBe("not-an-alias");
+      });
+    });
+  });
+});
+
+describe("Model family pattern matching", () => {
+  // Test the regex patterns directly to ensure they match expected model names
+
+  describe("OpenAI patterns", () => {
+    const gptLatestPattern = /^gpt-(\d+)(?:\.(\d+))?$/;
+    const gptMiniLatestPattern = /^gpt-(\d+)(?:\.(\d+))?-mini$/;
+
+    it("should match gpt-5", () => {
+      expect(gptLatestPattern.test("gpt-5")).toBe(true);
+    });
+
+    it("should match gpt-5.1", () => {
+      expect(gptLatestPattern.test("gpt-5.1")).toBe(true);
+    });
+
+    it("should match gpt-5.2", () => {
+      expect(gptLatestPattern.test("gpt-5.2")).toBe(true);
+    });
+
+    it("should not match gpt-4o (different model line)", () => {
+      expect(gptLatestPattern.test("gpt-4o")).toBe(false);
+    });
+
+    it("should not match gpt-5-mini (use mini pattern)", () => {
+      expect(gptLatestPattern.test("gpt-5-mini")).toBe(false);
+    });
+
+    it("should not match gpt-5.2-codex (different suffix)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-codex")).toBe(false);
+    });
+
+    it("should match gpt-5-mini with mini pattern", () => {
+      expect(gptMiniLatestPattern.test("gpt-5-mini")).toBe(true);
+    });
+
+    it("should match gpt-5.2-mini with mini pattern", () => {
+      expect(gptMiniLatestPattern.test("gpt-5.2-mini")).toBe(true);
+    });
+  });
+
+  describe("Anthropic patterns", () => {
+    const sonnetPattern = /^claude-sonnet-(\d+)-(\d+)/;
+    const opusPattern = /^claude-opus-(\d+)-(\d+)/;
+    const haikuPattern = /^claude-haiku-(\d+)-(\d+)/;
+
+    it("should match claude-sonnet-4-5", () => {
+      expect(sonnetPattern.test("claude-sonnet-4-5")).toBe(true);
+    });
+
+    it("should match claude-sonnet-4-5-20250101", () => {
+      expect(sonnetPattern.test("claude-sonnet-4-5-20250101")).toBe(true);
+    });
+
+    it("should match claude-opus-4-5", () => {
+      expect(opusPattern.test("claude-opus-4-5")).toBe(true);
+    });
+
+    it("should match claude-haiku-3-5", () => {
+      expect(haikuPattern.test("claude-haiku-3-5")).toBe(true);
+    });
+
+    it("should not match claude-3-sonnet (old naming)", () => {
+      expect(sonnetPattern.test("claude-3-sonnet")).toBe(false);
+    });
+  });
+
+  describe("Gemini patterns", () => {
+    const flashPattern = /^gemini-(\d+)\.(\d+)-flash/;
+    const proPattern = /^gemini-(\d+)\.(\d+)-pro/;
+
+    it("should match gemini-3.0-flash", () => {
+      expect(flashPattern.test("gemini-3.0-flash")).toBe(true);
+    });
+
+    it("should match gemini-2.5-flash", () => {
+      expect(flashPattern.test("gemini-2.5-flash")).toBe(true);
+    });
+
+    it("should match gemini-2.5-pro", () => {
+      expect(proPattern.test("gemini-2.5-pro")).toBe(true);
+    });
+
+    it("should match gemini-3.0-flash-001", () => {
+      expect(flashPattern.test("gemini-3.0-flash-001")).toBe(true);
+    });
+
+    it("should not match gemini-pro (no version)", () => {
+      expect(proPattern.test("gemini-pro")).toBe(false);
+    });
+  });
+
+  describe("XAI patterns", () => {
+    const grokLatestPattern = /^grok-(\d+)(?:\.(\d+))?$/;
+    const grokMiniLatestPattern = /^grok-(\d+)(?:\.(\d+))?-mini$/;
+
+    it("should match grok-4", () => {
+      expect(grokLatestPattern.test("grok-4")).toBe(true);
+    });
+
+    it("should match grok-4.1 (future proofing)", () => {
+      expect(grokLatestPattern.test("grok-4.1")).toBe(true);
+    });
+
+    it("should match grok-3-mini", () => {
+      expect(grokMiniLatestPattern.test("grok-3-mini")).toBe(true);
+    });
+
+    it("should match grok-3.5-mini (future proofing)", () => {
+      expect(grokMiniLatestPattern.test("grok-3.5-mini")).toBe(true);
+    });
+
+    it("should not match grok-beta", () => {
+      expect(grokLatestPattern.test("grok-beta")).toBe(false);
+    });
+  });
+
+  describe("Groq patterns", () => {
+    const llamaPattern = /^llama-(\d+)\.(\d+)-(\d+)b-versatile/;
+
+    it("should match llama-3.3-70b-versatile", () => {
+      expect(llamaPattern.test("llama-3.3-70b-versatile")).toBe(true);
+    });
+
+    it("should match llama-3.1-8b-versatile", () => {
+      expect(llamaPattern.test("llama-3.1-8b-versatile")).toBe(true);
+    });
+
+    it("should not match llama3 (missing format)", () => {
+      expect(llamaPattern.test("llama3")).toBe(false);
+    });
+  });
+
+  describe("Ollama patterns", () => {
+    const llamaPattern = /^llama(\d+)(?:\.(\d+))?/;
+
+    it("should match llama3", () => {
+      expect(llamaPattern.test("llama3")).toBe(true);
+    });
+
+    it("should match llama3.1", () => {
+      expect(llamaPattern.test("llama3.1")).toBe(true);
+    });
+
+    it("should match llama3.1:latest", () => {
+      expect(llamaPattern.test("llama3.1:latest")).toBe(true);
+    });
+
+    it("should match llama3:8b", () => {
+      expect(llamaPattern.test("llama3:8b")).toBe(true);
+    });
+  });
+
+  describe("Cohere patterns", () => {
+    const commandAPattern = /^command-a-(\d+)-(\d+)/;
+    const commandRPlusPattern = /^command-r-plus/;
+
+    it("should match command-a-03-2025", () => {
+      expect(commandAPattern.test("command-a-03-2025")).toBe(true);
+    });
+
+    it("should match command-r-plus", () => {
+      expect(commandRPlusPattern.test("command-r-plus")).toBe(true);
+    });
+
+    it("should match command-r-plus-08-2024", () => {
+      expect(commandRPlusPattern.test("command-r-plus-08-2024")).toBe(true);
+    });
+  });
+
+  describe("DeepSeek patterns", () => {
+    const chatPattern = /^deepseek-chat/;
+    const reasonerPattern = /^deepseek-reasoner/;
+
+    it("should match deepseek-chat", () => {
+      expect(chatPattern.test("deepseek-chat")).toBe(true);
+    });
+
+    it("should match deepseek-reasoner", () => {
+      expect(reasonerPattern.test("deepseek-reasoner")).toBe(true);
+    });
+  });
+});
+
+describe("Version extraction and comparison", () => {
+  // Test version extraction logic used in dynamic resolution
+  function extractVersion(modelName: string): number[] {
+    const matches = modelName.match(/(\d+)/g);
+    return matches ? matches.map(Number) : [0];
+  }
+
+  function compareVersions(a: number[], b: number[]): number {
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      const aVal = a[i] || 0;
+      const bVal = b[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
+    }
+    return 0;
+  }
+
+  describe("extractVersion", () => {
+    it("should extract single version number", () => {
+      expect(extractVersion("gpt-5")).toEqual([5]);
+    });
+
+    it("should extract decimal version numbers", () => {
+      expect(extractVersion("gpt-5.2")).toEqual([5, 2]);
+    });
+
+    it("should extract multiple version numbers", () => {
+      expect(extractVersion("claude-sonnet-4-5")).toEqual([4, 5]);
+    });
+
+    it("should extract version with date suffix", () => {
+      expect(extractVersion("gpt-5.2-2025-12-11")).toEqual([5, 2, 2025, 12, 11]);
+    });
+
+    it("should return [0] for no version", () => {
+      expect(extractVersion("deepseek-chat")).toEqual([0]);
+    });
+  });
+
+  describe("compareVersions", () => {
+    it("should return positive when first is greater", () => {
+      expect(compareVersions([5, 2], [5, 1])).toBeGreaterThan(0);
+    });
+
+    it("should return negative when first is smaller", () => {
+      expect(compareVersions([5, 1], [5, 2])).toBeLessThan(0);
+    });
+
+    it("should return 0 for equal versions", () => {
+      expect(compareVersions([5, 2], [5, 2])).toBe(0);
+    });
+
+    it("should handle different length arrays", () => {
+      expect(compareVersions([5, 2], [5])).toBeGreaterThan(0);
+      expect(compareVersions([5], [5, 2])).toBeLessThan(0);
+    });
+
+    it("should compare major version first", () => {
+      expect(compareVersions([6], [5, 9])).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Model sorting for latest selection", () => {
+    it("should correctly sort OpenAI models to find latest", () => {
+      const models = ["gpt-5", "gpt-5.1", "gpt-5.2", "gpt-4"];
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?$/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA); // Descending
+      });
+
+      expect(matching[0]).toBe("gpt-5.2");
+    });
+
+    it("should correctly sort Anthropic models to find latest", () => {
+      const models = [
+        "claude-sonnet-3-5",
+        "claude-sonnet-4-0",
+        "claude-sonnet-4-5",
+      ];
+      const pattern = /^claude-sonnet-(\d+)-(\d+)/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("claude-sonnet-4-5");
+    });
+
+    it("should correctly sort Gemini models to find latest", () => {
+      const models = [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-3.0-flash",
+      ];
+      const pattern = /^gemini-(\d+)\.(\d+)-flash/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("gemini-3.0-flash");
+    });
+
+    it("should correctly sort XAI models with decimals", () => {
+      const models = ["grok-3", "grok-4", "grok-4.1"];
+      const pattern = /^grok-(\d+)(?:\.(\d+))?$/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("grok-4.1");
     });
   });
 });

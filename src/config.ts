@@ -80,9 +80,9 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     latest: /^claude-sonnet-(\d+)-(\d+)/, // Default to sonnet
   },
   openai: {
-    "gpt-latest": /^gpt-(\d+)o?$/,
-    "gpt-mini-latest": /^gpt-(\d+)o?-mini$/,
-    latest: /^gpt-(\d+)o?$/, // Default to main GPT line
+    "gpt-latest": /^gpt-(\d+)(?:\.(\d+))?$/,
+    "gpt-mini-latest": /^gpt-(\d+)(?:\.(\d+))?-mini$/,
+    latest: /^gpt-(\d+)(?:\.(\d+))?$/, // Default to main GPT line
   },
   gemini: {
     "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
@@ -113,14 +113,14 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     latest: /^deepseek-chat/, // Default to chat model
   },
   xai: {
-    "grok-latest": /^grok-(\d+)$/,
-    "grok-mini-latest": /^grok-(\d+)-mini$/,
-    latest: /^grok-(\d+)$/, // Default to main grok line
+    "grok-latest": /^grok-(\d+)(?:\.(\d+))?$/,
+    "grok-mini-latest": /^grok-(\d+)(?:\.(\d+))?-mini$/,
+    latest: /^grok-(\d+)(?:\.(\d+))?$/, // Default to main grok line
   },
   ollama: {
-    // Ollama models use name:tag format, match the base name
-    "llama-latest": /^llama(\d+)/,
-    latest: /^llama(\d+)/,
+    // Ollama models use name:tag format, match the base name (e.g., llama3.1:latest)
+    "llama-latest": /^llama(\d+)(?:\.(\d+))?/,
+    latest: /^llama(\d+)(?:\.(\d+))?/,
   },
   // Note: perplexity and fireworks don't have list models APIs that work well
   // for dynamic resolution, so they use static fallbacks only
