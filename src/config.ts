@@ -80,9 +80,9 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     latest: /^claude-sonnet-(\d+)-(\d+)/, // Default to sonnet
   },
   openai: {
-    "gpt-latest": /^gpt-(\d+)(?:\.(\d+))?$/,
-    "gpt-mini-latest": /^gpt-(\d+)(?:\.(\d+))?-mini$/,
-    latest: /^gpt-(\d+)(?:\.(\d+))?$/, // Default to main GPT line
+    "gpt-latest": /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/,
+    "gpt-mini-latest": /^gpt-(\d+)(?:\.(\d+))?-mini/,
+    latest: /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/, // Default to main GPT line
   },
   gemini: {
     "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
@@ -113,9 +113,9 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     latest: /^deepseek-chat/, // Default to chat model
   },
   xai: {
-    "grok-latest": /^grok-(\d+)(?:\.(\d+))?$/,
-    "grok-mini-latest": /^grok-(\d+)(?:\.(\d+))?-mini$/,
-    latest: /^grok-(\d+)(?:\.(\d+))?$/, // Default to main grok line
+    "grok-latest": /^grok-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/,
+    "grok-mini-latest": /^grok-(\d+)(?:\.(\d+))?-mini/,
+    latest: /^grok-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/, // Default to main grok line
   },
   ollama: {
     // Ollama models use name:tag format, match the base name (e.g., llama3.1:latest)
@@ -167,7 +167,9 @@ export async function resolveModelAliasDynamic(
     // Not a dynamic alias, check static fallbacks
     const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
     if (fallback) {
-      console.log(`Resolved model alias "${modelName}" → "${fallback}" (static fallback)`);
+      if (process.env.DEBUG === "true") {
+        console.log(`Resolved model alias "${modelName}" → "${fallback}" (static fallback)`);
+      }
       return fallback;
     }
     return modelName;
@@ -193,13 +195,17 @@ export async function resolveModelAliasDynamic(
     });
 
     const latest = matchingModels[0];
-    console.log(`Resolved model alias "${modelName}" → "${latest}" (dynamic from API)`);
+    if (process.env.DEBUG === "true") {
+      console.log(`Resolved model alias "${modelName}" → "${latest}" (dynamic from API)`);
+    }
     return latest;
   } catch (error) {
     console.warn(`Failed to dynamically resolve model alias: ${error}`);
     const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
     if (fallback) {
-      console.log(`Using fallback: "${modelName}" → "${fallback}"`);
+      if (process.env.DEBUG === "true") {
+        console.log(`Using fallback: "${modelName}" → "${fallback}"`);
+      }
       return fallback;
     }
     return modelName;
@@ -314,7 +320,9 @@ export function resolveModelAlias(provider: string, modelName: string): string {
 
   const fallback = FALLBACK_MODEL_ALIASES[normalizedProvider]?.[normalizedModel];
   if (fallback) {
-    console.log(`Resolved model alias "${modelName}" → "${fallback}"`);
+    if (process.env.DEBUG === "true") {
+      console.log(`Resolved model alias "${modelName}" → "${fallback}"`);
+    }
     return fallback;
   }
 

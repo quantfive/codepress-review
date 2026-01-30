@@ -563,8 +563,9 @@ describe("Model family pattern matching", () => {
   // Test the regex patterns directly to ensure they match expected model names
 
   describe("OpenAI patterns", () => {
-    const gptLatestPattern = /^gpt-(\d+)(?:\.(\d+))?$/;
-    const gptMiniLatestPattern = /^gpt-(\d+)(?:\.(\d+))?-mini$/;
+    // Patterns: match version followed by end-of-string or hyphen (excluding -mini)
+    const gptLatestPattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+    const gptMiniLatestPattern = /^gpt-(\d+)(?:\.(\d+))?-mini/;
 
     it("should match gpt-5", () => {
       expect(gptLatestPattern.test("gpt-5")).toBe(true);
@@ -578,6 +579,14 @@ describe("Model family pattern matching", () => {
       expect(gptLatestPattern.test("gpt-5.2")).toBe(true);
     });
 
+    it("should match gpt-5.2-preview (model with suffix)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-preview")).toBe(true);
+    });
+
+    it("should match gpt-5.2-2025-01-15 (model with date suffix)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-2025-01-15")).toBe(true);
+    });
+
     it("should not match gpt-4o (different model line)", () => {
       expect(gptLatestPattern.test("gpt-4o")).toBe(false);
     });
@@ -586,8 +595,8 @@ describe("Model family pattern matching", () => {
       expect(gptLatestPattern.test("gpt-5-mini")).toBe(false);
     });
 
-    it("should not match gpt-5.2-codex (different suffix)", () => {
-      expect(gptLatestPattern.test("gpt-5.2-codex")).toBe(false);
+    it("should not match gpt-5.2-mini (use mini pattern)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-mini")).toBe(false);
     });
 
     it("should match gpt-5-mini with mini pattern", () => {
@@ -651,11 +660,16 @@ describe("Model family pattern matching", () => {
   });
 
   describe("XAI patterns", () => {
-    const grokLatestPattern = /^grok-(\d+)(?:\.(\d+))?$/;
-    const grokMiniLatestPattern = /^grok-(\d+)(?:\.(\d+))?-mini$/;
+    // Patterns: match version followed by end-of-string or hyphen (excluding -mini)
+    const grokLatestPattern = /^grok-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+    const grokMiniLatestPattern = /^grok-(\d+)(?:\.(\d+))?-mini/;
 
     it("should match grok-4", () => {
       expect(grokLatestPattern.test("grok-4")).toBe(true);
+    });
+
+    it("should match grok-4-preview (model with suffix)", () => {
+      expect(grokLatestPattern.test("grok-4-preview")).toBe(true);
     });
 
     it("should match grok-4.1 (future proofing)", () => {
@@ -806,7 +820,7 @@ describe("Version extraction and comparison", () => {
   describe("Model sorting for latest selection", () => {
     it("should correctly sort OpenAI models to find latest", () => {
       const models = ["gpt-5", "gpt-5.1", "gpt-5.2", "gpt-4"];
-      const pattern = /^gpt-(\d+)(?:\.(\d+))?$/;
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
       const matching = models.filter((m) => pattern.test(m));
 
       matching.sort((a, b) => {
@@ -816,6 +830,38 @@ describe("Version extraction and comparison", () => {
       });
 
       expect(matching[0]).toBe("gpt-5.2");
+    });
+
+    it("should correctly sort OpenAI models with suffixes to find latest", () => {
+      // Simulates what the OpenAI API might return - models with date/preview suffixes
+      const models = ["gpt-5", "gpt-5.2-preview", "gpt-5.1-2025-01-01", "gpt-4"];
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA); // Descending
+      });
+
+      // gpt-5.2-preview should be selected over gpt-5 because 5.2 > 5
+      expect(matching[0]).toBe("gpt-5.2-preview");
+    });
+
+    it("should exclude mini models when sorting for gpt-latest", () => {
+      const models = ["gpt-5", "gpt-5.2-mini", "gpt-5.1"];
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // gpt-5.2-mini should be excluded, so gpt-5.1 is the latest
+      expect(matching[0]).toBe("gpt-5.1");
+      expect(matching).not.toContain("gpt-5.2-mini");
     });
 
     it("should correctly sort Anthropic models to find latest", () => {
