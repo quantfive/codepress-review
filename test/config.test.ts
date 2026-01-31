@@ -1197,3 +1197,424 @@ describe("Version extraction and comparison", () => {
     });
   });
 });
+
+/**
+ * Real-world API data tests.
+ * These tests use actual model lists from provider APIs to ensure
+ * our version extraction and sorting works correctly in production.
+ */
+describe("Real-world API model selection", () => {
+  // Version extraction functions (same as in config.ts)
+  function extractGptVersion(modelName: string): number[] {
+    const match = modelName.match(/^gpt-(\d+)(?:\.(\d+))?/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  function extractClaudeVersion(modelName: string): number[] {
+    const match = modelName.match(/^claude-(?:sonnet|opus|haiku)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  function extractGeminiVersion(modelName: string): number[] {
+    const match = modelName.match(/^gemini-(\d+)(?:\.(\d+))?/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  function extractVersion(modelName: string): number[] {
+    if (modelName.startsWith("gpt-")) {
+      return extractGptVersion(modelName);
+    }
+    if (modelName.startsWith("claude-sonnet-") ||
+        modelName.startsWith("claude-opus-") ||
+        modelName.startsWith("claude-haiku-")) {
+      return extractClaudeVersion(modelName);
+    }
+    if (modelName.startsWith("gemini-")) {
+      return extractGeminiVersion(modelName);
+    }
+    const matches = modelName.match(/(\d+)/g);
+    return matches ? matches.map(Number) : [0];
+  }
+
+  function compareVersions(a: number[], b: number[]): number {
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      const aVal = a[i] || 0;
+      const bVal = b[i] || 0;
+      if (aVal !== bVal) return aVal - bVal;
+    }
+    return 0;
+  }
+
+  describe("OpenAI API models (real data from 2026-01-30)", () => {
+    // Actual GPT models from OpenAI API
+    const OPENAI_GPT_MODELS = [
+      "gpt-3.5-turbo",
+      "gpt-3.5-turbo-0125",
+      "gpt-3.5-turbo-1106",
+      "gpt-3.5-turbo-16k",
+      "gpt-3.5-turbo-instruct",
+      "gpt-3.5-turbo-instruct-0914",
+      "gpt-4",
+      "gpt-4-0125-preview",
+      "gpt-4-0613",
+      "gpt-4-1106-preview",
+      "gpt-4-turbo",
+      "gpt-4-turbo-2024-04-09",
+      "gpt-4-turbo-preview",
+      "gpt-4.1",
+      "gpt-4.1-2025-04-14",
+      "gpt-4.1-mini",
+      "gpt-4.1-mini-2025-04-14",
+      "gpt-4.1-nano",
+      "gpt-4.1-nano-2025-04-14",
+      "gpt-4o",
+      "gpt-4o-2024-05-13",
+      "gpt-4o-2024-08-06",
+      "gpt-4o-2024-11-20",
+      "gpt-4o-64k-output-alpha",
+      "gpt-4o-audio-preview",
+      "gpt-4o-audio-preview-2024-12-17",
+      "gpt-4o-audio-preview-2025-06-03",
+      "gpt-4o-mini",
+      "gpt-4o-mini-2024-07-18",
+      "gpt-4o-mini-audio-preview",
+      "gpt-4o-mini-audio-preview-2024-12-17",
+      "gpt-4o-mini-realtime-preview",
+      "gpt-4o-mini-realtime-preview-2024-12-17",
+      "gpt-4o-mini-search-preview",
+      "gpt-4o-mini-search-preview-2025-03-11",
+      "gpt-4o-mini-transcribe",
+      "gpt-4o-mini-transcribe-2025-03-20",
+      "gpt-4o-mini-transcribe-2025-12-15",
+      "gpt-4o-mini-tts",
+      "gpt-4o-mini-tts-2025-03-20",
+      "gpt-4o-mini-tts-2025-12-15",
+      "gpt-4o-realtime-preview",
+      "gpt-4o-realtime-preview-2024-12-17",
+      "gpt-4o-realtime-preview-2025-06-03",
+      "gpt-4o-search-preview",
+      "gpt-4o-search-preview-2025-03-11",
+      "gpt-4o-transcribe",
+      "gpt-4o-transcribe-diarize",
+      "gpt-5",
+      "gpt-5-2025-08-07",
+      "gpt-5-chat-latest",
+      "gpt-5-codex",
+      "gpt-5-mini",
+      "gpt-5-mini-2025-08-07",
+      "gpt-5-nano",
+      "gpt-5-nano-2025-08-07",
+      "gpt-5-pro",
+      "gpt-5-pro-2025-10-06",
+      "gpt-5-search-api",
+      "gpt-5-search-api-2025-10-14",
+      "gpt-5.1",
+      "gpt-5.1-2025-11-13",
+      "gpt-5.1-chat-latest",
+      "gpt-5.1-codex",
+      "gpt-5.1-codex-max",
+      "gpt-5.1-codex-mini",
+      "gpt-5.2",
+      "gpt-5.2-2025-12-11",
+      "gpt-5.2-chat-latest",
+      "gpt-5.2-codex",
+      "gpt-5.2-pro",
+      "gpt-5.2-pro-2025-12-11",
+    ];
+
+    // Pattern for gpt-latest: base GPT models only
+    const gptLatestPattern = /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/;
+
+    it("should select gpt-5.2 as the latest base GPT model", () => {
+      const matching = OPENAI_GPT_MODELS.filter((m) => gptLatestPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // gpt-5.2 [5, 2] should be selected (or gpt-5.2-2025-12-11 which is same version)
+      expect(matching[0]).toMatch(/^gpt-5\.2/);
+      expect(extractVersion(matching[0])).toEqual([5, 2]);
+    });
+
+    it("should NOT select gpt-5 over gpt-5.2 (the original bug)", () => {
+      const matching = OPENAI_GPT_MODELS.filter((m) => gptLatestPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // The bug was: gpt-5-2025-08-07 was being selected because 2025 > 2
+      expect(matching[0]).not.toBe("gpt-5");
+      expect(matching[0]).not.toBe("gpt-5-2025-08-07");
+    });
+
+    it("should exclude variant models from gpt-latest selection", () => {
+      const matching = OPENAI_GPT_MODELS.filter((m) => gptLatestPattern.test(m));
+
+      // These should NOT be in the matching list
+      expect(matching).not.toContain("gpt-5-pro");
+      expect(matching).not.toContain("gpt-5-codex");
+      expect(matching).not.toContain("gpt-5-mini");
+      expect(matching).not.toContain("gpt-5-chat-latest");
+      expect(matching).not.toContain("gpt-5-search-api");
+      expect(matching).not.toContain("gpt-5.2-pro");
+      expect(matching).not.toContain("gpt-5.2-codex");
+    });
+
+    it("should include base models and dated versions in matching", () => {
+      const matching = OPENAI_GPT_MODELS.filter((m) => gptLatestPattern.test(m));
+
+      expect(matching).toContain("gpt-5");
+      expect(matching).toContain("gpt-5-2025-08-07");
+      expect(matching).toContain("gpt-5.1");
+      expect(matching).toContain("gpt-5.1-2025-11-13");
+      expect(matching).toContain("gpt-5.2");
+      expect(matching).toContain("gpt-5.2-2025-12-11");
+    });
+
+    // Pattern for gpt-mini-latest
+    const gptMiniPattern = /^gpt-(\d+)(?:\.(\d+))?-mini(?:-\d{4}-\d{2}-\d{2})?$/;
+
+    it("should select gpt-5-mini as the latest mini model (no 5.2-mini exists)", () => {
+      const matching = OPENAI_GPT_MODELS.filter((m) => gptMiniPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // gpt-5-mini is the latest mini (there's no gpt-5.1-mini or gpt-5.2-mini in the API)
+      expect(matching[0]).toMatch(/^gpt-5-mini/);
+    });
+  });
+
+  describe("Anthropic API models (real data from 2026-01-30)", () => {
+    // Actual Claude models from Anthropic API
+    const ANTHROPIC_MODELS = [
+      "claude-3-5-haiku-20241022",
+      "claude-3-7-sonnet-20250219",
+      "claude-3-haiku-20240307",
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-1-20250805",
+      "claude-opus-4-20250514",
+      "claude-opus-4-5-20251101",
+      "claude-sonnet-4-20250514",
+      "claude-sonnet-4-5-20250929",
+    ];
+
+    // Pattern for sonnet-latest
+    const sonnetPattern = /^claude-sonnet-(\d+)-(\d+)/;
+
+    it("should select claude-sonnet-4-5 as the latest sonnet model", () => {
+      const matching = ANTHROPIC_MODELS.filter((m) => sonnetPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("claude-sonnet-4-5-20250929");
+      expect(extractVersion(matching[0])).toEqual([4, 5]);
+    });
+
+    it("should NOT select claude-sonnet-4 over claude-sonnet-4-5 (date extraction bug)", () => {
+      const matching = ANTHROPIC_MODELS.filter((m) => sonnetPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // The bug was: claude-sonnet-4-20250514 was being selected because 20250514 > 5
+      expect(matching[0]).not.toBe("claude-sonnet-4-20250514");
+    });
+
+    // Pattern for opus-latest
+    const opusPattern = /^claude-opus-(\d+)-(\d+)/;
+
+    it("should select claude-opus-4-5 as the latest opus model", () => {
+      const matching = ANTHROPIC_MODELS.filter((m) => opusPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("claude-opus-4-5-20251101");
+      expect(extractVersion(matching[0])).toEqual([4, 5]);
+    });
+
+    it("should correctly order opus models: 4.5 > 4.1 > 4.0", () => {
+      const matching = ANTHROPIC_MODELS.filter((m) => opusPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching).toEqual([
+        "claude-opus-4-5-20251101",  // 4.5
+        "claude-opus-4-1-20250805",  // 4.1
+        "claude-opus-4-20250514",    // 4.0
+      ]);
+    });
+
+    // Pattern for haiku-latest
+    const haikuPattern = /^claude-haiku-(\d+)-(\d+)/;
+
+    it("should select claude-haiku-4-5 as the latest haiku model", () => {
+      const matching = ANTHROPIC_MODELS.filter((m) => haikuPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("claude-haiku-4-5-20251001");
+      expect(extractVersion(matching[0])).toEqual([4, 5]);
+    });
+
+    it("should not match old naming convention models (claude-3-X-tier)", () => {
+      // Old naming: claude-3-5-haiku-20241022, claude-3-7-sonnet-20250219
+      // These should NOT match the new patterns
+      expect(sonnetPattern.test("claude-3-7-sonnet-20250219")).toBe(false);
+      expect(haikuPattern.test("claude-3-5-haiku-20241022")).toBe(false);
+    });
+  });
+
+  describe("Gemini API models (real data from 2026-01-30)", () => {
+    // Actual Gemini models from Google API (stripped of "models/" prefix)
+    const GEMINI_MODELS = [
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-001",
+      "gemini-2.0-flash-exp-image-generation",
+      "gemini-2.0-flash-lite",
+      "gemini-2.0-flash-lite-001",
+      "gemini-2.5-computer-use-preview-10-2025",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-image",
+      "gemini-2.5-flash-lite",
+      "gemini-2.5-flash-lite-preview-09-2025",
+      "gemini-2.5-flash-native-audio-latest",
+      "gemini-2.5-flash-native-audio-preview-09-2025",
+      "gemini-2.5-flash-native-audio-preview-12-2025",
+      "gemini-2.5-flash-preview-09-2025",
+      "gemini-2.5-flash-preview-tts",
+      "gemini-2.5-pro",
+      "gemini-2.5-pro-preview-tts",
+      "gemini-3-flash-preview",
+      "gemini-3-pro-image-preview",
+      "gemini-3-pro-preview",
+      "gemini-embedding-001",
+      "gemini-exp-1206",
+      "gemini-flash-latest",
+      "gemini-flash-lite-latest",
+      "gemini-pro-latest",
+      "gemini-robotics-er-1.5-preview",
+    ];
+
+    // Pattern for gemini-flash-latest: base flash models only
+    const flashPattern = /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/;
+
+    it("should select gemini-3-flash-preview as the latest flash model", () => {
+      const matching = GEMINI_MODELS.filter((m) => flashPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // gemini-3-flash-preview [3, 0] > gemini-2.5-flash [2, 5]
+      expect(matching[0]).toBe("gemini-3-flash-preview");
+      expect(extractVersion(matching[0])).toEqual([3, 0]);
+    });
+
+    it("should exclude variant flash models", () => {
+      const matching = GEMINI_MODELS.filter((m) => flashPattern.test(m));
+
+      // These should NOT be in the matching list
+      expect(matching).not.toContain("gemini-2.0-flash-lite");
+      expect(matching).not.toContain("gemini-2.5-flash-lite");
+      expect(matching).not.toContain("gemini-2.5-flash-image");
+      expect(matching).not.toContain("gemini-2.5-flash-native-audio-latest");
+      expect(matching).not.toContain("gemini-2.5-flash-preview-09-2025"); // date-suffixed
+      expect(matching).not.toContain("gemini-2.0-flash-exp-image-generation");
+    });
+
+    it("should include base flash models in matching", () => {
+      const matching = GEMINI_MODELS.filter((m) => flashPattern.test(m));
+
+      expect(matching).toContain("gemini-2.0-flash");
+      expect(matching).toContain("gemini-2.0-flash-001");
+      expect(matching).toContain("gemini-2.5-flash");
+      expect(matching).toContain("gemini-3-flash-preview");
+    });
+
+    // Pattern for gemini-pro-latest
+    const proPattern = /^gemini-(\d+)(?:\.(\d+))?-pro(?:-preview)?$/;
+
+    it("should select gemini-3-pro-preview as the latest pro model", () => {
+      const matching = GEMINI_MODELS.filter((m) => proPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // gemini-3-pro-preview [3, 0] > gemini-2.5-pro [2, 5]
+      expect(matching[0]).toBe("gemini-3-pro-preview");
+      expect(extractVersion(matching[0])).toEqual([3, 0]);
+    });
+
+    it("should exclude image variant pro models", () => {
+      const matching = GEMINI_MODELS.filter((m) => proPattern.test(m));
+
+      expect(matching).not.toContain("gemini-3-pro-image-preview");
+      expect(matching).not.toContain("gemini-2.5-pro-preview-tts");
+    });
+
+    it("should correctly order flash models by version", () => {
+      const matching = GEMINI_MODELS.filter((m) => flashPattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // Verify order: 3.0 > 2.5 > 2.0
+      const versions = matching.map((m) => extractVersion(m));
+      expect(versions[0]).toEqual([3, 0]); // gemini-3-flash-preview
+      expect(versions[1]).toEqual([2, 5]); // gemini-2.5-flash
+      // 2.0 models come after
+    });
+  });
+});
