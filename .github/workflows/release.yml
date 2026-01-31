@@ -1,9 +1,13 @@
 name: Release
 
 on:
-  pull_request:
+  push:
     branches: [main]
-    types: [closed]
+    paths:
+      # Only trigger release on source code changes, not docs/config
+      - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
   workflow_dispatch:
     inputs:
       version_type:
@@ -32,8 +36,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Only run if PR was merged (not just closed) or if manually triggered
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    # Run on: push to main, manual trigger, or merged PR
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -65,6 +69,10 @@ jobs:
             # Manual trigger - use provided input
             echo "bump_type=${{ github.event.inputs.version_type }}" >> $GITHUB_OUTPUT
             echo "Using manual version type: ${{ github.event.inputs.version_type }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # Push to main - always patch
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+            echo "Push to main detected, auto-releasing as patch"
           else
             # Check PR labels for version type
             LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
