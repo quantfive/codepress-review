@@ -7,10 +7,6 @@ on:
     types: [created]
   workflow_dispatch:
     inputs:
-      pr_number:
-        description: "PR number to review"
-        required: true
-        type: number
       force_full_review:
         description: "Force full review of all files (ignore previous review state)"
         required: false
@@ -31,10 +27,9 @@ jobs:
         with:
           fetch-depth: 0
           # Handle different trigger types:
-          # - workflow_dispatch: use provided PR number
           # - issue_comment: use PR from comment context
-          # - pull_request: use default ref
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/pull/{0}/head', github.event.inputs.pr_number) || (github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || github.ref) }}
+          # - pull_request/workflow_dispatch: use default ref (branch)
+          ref: ${{ github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || github.ref }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -66,8 +61,6 @@ jobs:
           blocking_only: false
           # Force full review when manually triggered (default true for workflow_dispatch)
           force_full_review: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_full_review || 'false' }}
-          # Pass PR number for workflow_dispatch
-          pr_number: ${{ github.event.inputs.pr_number || '' }}
           # All trigger configurations use sensible defaults:
           # - run_on_pr_opened: true
           # - run_on_pr_reopened: true
