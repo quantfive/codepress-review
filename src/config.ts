@@ -17,15 +17,15 @@ const FALLBACK_MODEL_ALIASES: Record<string, Record<string, string>> = {
     "haiku-latest": "claude-haiku-3-5",
   },
   gemini: {
-    latest: "gemini-3.0-flash",
-    "gemini-latest": "gemini-3.0-flash",
-    "gemini-flash-latest": "gemini-3.0-flash",
+    latest: "gemini-2.5-flash",
+    "gemini-latest": "gemini-2.5-flash",
+    "gemini-flash-latest": "gemini-2.5-flash",
     "gemini-pro-latest": "gemini-2.5-pro",
   },
   google: {
-    latest: "gemini-3.0-flash",
-    "gemini-latest": "gemini-3.0-flash",
-    "gemini-flash-latest": "gemini-3.0-flash",
+    latest: "gemini-2.5-flash",
+    "gemini-latest": "gemini-2.5-flash",
+    "gemini-flash-latest": "gemini-2.5-flash",
     "gemini-pro-latest": "gemini-2.5-pro",
   },
   mistral: {
@@ -87,16 +87,18 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     latest: /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/, // Default to main GPT line
   },
   gemini: {
-    "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
-    "gemini-flash-latest": /^gemini-(\d+)\.(\d+)-flash/,
-    "gemini-pro-latest": /^gemini-(\d+)\.(\d+)-pro/,
-    latest: /^gemini-(\d+)\.(\d+)-flash/, // Default to flash (fast + capable)
+    // Match base gemini flash/pro models: gemini-X.Y-flash, gemini-X-flash-preview
+    // Excludes -lite, -image, -audio, -tts variants and date-suffixed previews
+    "gemini-latest": /^gemini-(\d+)(?:\.(\d+))?-pro(?:-preview)?$/,
+    "gemini-flash-latest": /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/,
+    "gemini-pro-latest": /^gemini-(\d+)(?:\.(\d+))?-pro(?:-preview)?$/,
+    latest: /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/, // Default to flash
   },
   google: {
-    "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
-    "gemini-flash-latest": /^gemini-(\d+)\.(\d+)-flash/,
-    "gemini-pro-latest": /^gemini-(\d+)\.(\d+)-pro/,
-    latest: /^gemini-(\d+)\.(\d+)-flash/,
+    "gemini-latest": /^gemini-(\d+)(?:\.(\d+))?-pro(?:-preview)?$/,
+    "gemini-flash-latest": /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/,
+    "gemini-pro-latest": /^gemini-(\d+)(?:\.(\d+))?-pro(?:-preview)?$/,
+    latest: /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/,
   },
   // Note: Mistral maintains their own -latest aliases (e.g., mistral-large-latest)
   // so we just pass those through via static fallback - no need for dynamic resolution
@@ -144,6 +146,39 @@ function extractGptVersion(modelName: string): number[] {
 }
 
 /**
+ * Extracts semantic version from Claude model names.
+ * Handles claude-{tier}-{major}-{minor} format (e.g., claude-sonnet-4-5 -> [4, 5]).
+ * Ignores date suffixes like -20250929.
+ */
+function extractClaudeVersion(modelName: string): number[] {
+  // Match claude-{tier}-{major}-{minor} where tier is sonnet/opus/haiku
+  // Minor version is 1-2 digits (e.g., 5, 12) to avoid matching dates (8 digits)
+  const match = modelName.match(/^claude-(?:sonnet|opus|haiku)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
+  if (match) {
+    const major = parseInt(match[1], 10);
+    const minor = match[2] ? parseInt(match[2], 10) : 0;
+    return [major, minor];
+  }
+  return [0, 0];
+}
+
+/**
+ * Extracts semantic version from Gemini model names.
+ * Handles gemini-X.Y-tier or gemini-X-tier format (e.g., gemini-2.5-flash -> [2, 5]).
+ * Ignores preview suffixes and dates.
+ */
+function extractGeminiVersion(modelName: string): number[] {
+  // Match gemini-{major}.{minor} or gemini-{major}
+  const match = modelName.match(/^gemini-(\d+)(?:\.(\d+))?/);
+  if (match) {
+    const major = parseInt(match[1], 10);
+    const minor = match[2] ? parseInt(match[2], 10) : 0;
+    return [major, minor];
+  }
+  return [0, 0];
+}
+
+/**
  * Extracts version numbers from a model name for sorting.
  * Returns an array of numbers for comparison.
  */
@@ -151,6 +186,16 @@ function extractVersion(modelName: string): number[] {
   // For GPT models, use semantic versioning (gpt-X.Y) not all numbers
   if (modelName.startsWith("gpt-")) {
     return extractGptVersion(modelName);
+  }
+  // For Claude models, extract tier-major-minor version
+  if (modelName.startsWith("claude-sonnet-") ||
+      modelName.startsWith("claude-opus-") ||
+      modelName.startsWith("claude-haiku-")) {
+    return extractClaudeVersion(modelName);
+  }
+  // For Gemini models, extract major.minor version
+  if (modelName.startsWith("gemini-")) {
+    return extractGeminiVersion(modelName);
   }
   // For other providers, extract all numbers
   const matches = modelName.match(/(\d+)/g);

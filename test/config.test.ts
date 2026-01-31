@@ -498,15 +498,15 @@ describe("Configuration", () => {
     });
 
     describe("Gemini aliases", () => {
-      it("should resolve gemini-latest to gemini-3.0-flash", () => {
+      it("should resolve gemini-latest to gemini-2.5-flash", () => {
         expect(resolveModelAlias("gemini", "gemini-latest")).toBe(
-          "gemini-3.0-flash",
+          "gemini-2.5-flash",
         );
       });
 
-      it("should resolve gemini-flash-latest to gemini-3.0-flash", () => {
+      it("should resolve gemini-flash-latest to gemini-2.5-flash", () => {
         expect(resolveModelAlias("gemini", "gemini-flash-latest")).toBe(
-          "gemini-3.0-flash",
+          "gemini-2.5-flash",
         );
       });
 
@@ -518,7 +518,7 @@ describe("Configuration", () => {
 
       it("should work with google provider alias", () => {
         expect(resolveModelAlias("google", "gemini-latest")).toBe(
-          "gemini-3.0-flash",
+          "gemini-2.5-flash",
         );
       });
     });
@@ -660,27 +660,48 @@ describe("Model family pattern matching", () => {
   });
 
   describe("Gemini patterns", () => {
-    const flashPattern = /^gemini-(\d+)\.(\d+)-flash/;
-    const proPattern = /^gemini-(\d+)\.(\d+)-pro/;
-
-    it("should match gemini-3.0-flash", () => {
-      expect(flashPattern.test("gemini-3.0-flash")).toBe(true);
-    });
+    // Match base flash/pro models with optional -001 or -preview suffix
+    const flashPattern = /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/;
+    const proPattern = /^gemini-(\d+)(?:\.(\d+))?-pro(?:-preview)?$/;
 
     it("should match gemini-2.5-flash", () => {
       expect(flashPattern.test("gemini-2.5-flash")).toBe(true);
+    });
+
+    it("should match gemini-2.0-flash-001", () => {
+      expect(flashPattern.test("gemini-2.0-flash-001")).toBe(true);
+    });
+
+    it("should match gemini-3-flash-preview (new format without decimal)", () => {
+      expect(flashPattern.test("gemini-3-flash-preview")).toBe(true);
     });
 
     it("should match gemini-2.5-pro", () => {
       expect(proPattern.test("gemini-2.5-pro")).toBe(true);
     });
 
-    it("should match gemini-3.0-flash-001", () => {
-      expect(flashPattern.test("gemini-3.0-flash-001")).toBe(true);
+    it("should match gemini-3-pro-preview", () => {
+      expect(proPattern.test("gemini-3-pro-preview")).toBe(true);
+    });
+
+    it("should not match gemini-2.5-flash-lite (lite variant)", () => {
+      expect(flashPattern.test("gemini-2.5-flash-lite")).toBe(false);
+    });
+
+    it("should not match gemini-2.5-flash-image (image variant)", () => {
+      expect(flashPattern.test("gemini-2.5-flash-image")).toBe(false);
+    });
+
+    it("should not match gemini-2.5-flash-preview-09-2025 (date-suffixed preview)", () => {
+      expect(flashPattern.test("gemini-2.5-flash-preview-09-2025")).toBe(false);
     });
 
     it("should not match gemini-pro (no version)", () => {
       expect(proPattern.test("gemini-pro")).toBe(false);
+    });
+
+    it("should not match gemini-3-pro-image-preview (image variant)", () => {
+      expect(proPattern.test("gemini-3-pro-image-preview")).toBe(false);
     });
   });
 
@@ -799,10 +820,41 @@ describe("Version extraction and comparison", () => {
     return matches ? matches.map(Number) : [0];
   }
 
+  // Claude version extraction
+  function extractClaudeVersionInner(modelName: string): number[] {
+    // Minor version is 1-2 digits to avoid matching dates (8 digits)
+    const match = modelName.match(/^claude-(?:sonnet|opus|haiku)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  // Gemini version extraction
+  function extractGeminiVersionInner(modelName: string): number[] {
+    const match = modelName.match(/^gemini-(\d+)(?:\.(\d+))?/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
   // Unified version extraction
   function extractVersion(modelName: string): number[] {
     if (modelName.startsWith("gpt-")) {
       return extractGptVersion(modelName);
+    }
+    if (modelName.startsWith("claude-sonnet-") ||
+        modelName.startsWith("claude-opus-") ||
+        modelName.startsWith("claude-haiku-")) {
+      return extractClaudeVersionInner(modelName);
+    }
+    if (modelName.startsWith("gemini-")) {
+      return extractGeminiVersionInner(modelName);
     }
     return extractVersionGeneric(modelName);
   }
@@ -842,6 +894,78 @@ describe("Version extraction and comparison", () => {
     });
   });
 
+  // Claude version extraction
+  function extractClaudeVersion(modelName: string): number[] {
+    // Minor version is 1-2 digits to avoid matching dates (8 digits)
+    const match = modelName.match(/^claude-(?:sonnet|opus|haiku)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  describe("extractClaudeVersion", () => {
+    it("should extract claude-sonnet-4-5 as [4, 5]", () => {
+      expect(extractClaudeVersion("claude-sonnet-4-5")).toEqual([4, 5]);
+    });
+
+    it("should extract claude-sonnet-4-5-20250929 as [4, 5] (ignoring date)", () => {
+      expect(extractClaudeVersion("claude-sonnet-4-5-20250929")).toEqual([4, 5]);
+    });
+
+    it("should extract claude-sonnet-4-20250514 as [4, 0] (single version)", () => {
+      expect(extractClaudeVersion("claude-sonnet-4-20250514")).toEqual([4, 0]);
+    });
+
+    it("should extract claude-opus-4-5-20251101 as [4, 5]", () => {
+      expect(extractClaudeVersion("claude-opus-4-5-20251101")).toEqual([4, 5]);
+    });
+
+    it("should extract claude-haiku-4-5-20251001 as [4, 5]", () => {
+      expect(extractClaudeVersion("claude-haiku-4-5-20251001")).toEqual([4, 5]);
+    });
+
+    it("should return [0, 0] for old naming convention", () => {
+      // Old naming: claude-3-5-haiku-20241022 doesn't match new pattern
+      expect(extractClaudeVersion("claude-3-5-haiku-20241022")).toEqual([0, 0]);
+    });
+  });
+
+  // Gemini version extraction
+  function extractGeminiVersion(modelName: string): number[] {
+    const match = modelName.match(/^gemini-(\d+)(?:\.(\d+))?/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  describe("extractGeminiVersion", () => {
+    it("should extract gemini-2.5-flash as [2, 5]", () => {
+      expect(extractGeminiVersion("gemini-2.5-flash")).toEqual([2, 5]);
+    });
+
+    it("should extract gemini-3-flash-preview as [3, 0]", () => {
+      expect(extractGeminiVersion("gemini-3-flash-preview")).toEqual([3, 0]);
+    });
+
+    it("should extract gemini-2.5-flash-001 as [2, 5]", () => {
+      expect(extractGeminiVersion("gemini-2.5-flash-001")).toEqual([2, 5]);
+    });
+
+    it("should extract gemini-2.5-flash-preview-09-2025 as [2, 5] (ignoring date)", () => {
+      expect(extractGeminiVersion("gemini-2.5-flash-preview-09-2025")).toEqual([2, 5]);
+    });
+
+    it("should return [0, 0] for non-Gemini models", () => {
+      expect(extractGeminiVersion("gpt-5")).toEqual([0, 0]);
+    });
+  });
+
   describe("extractVersion (unified)", () => {
     it("should use GPT extraction for gpt-5", () => {
       expect(extractVersion("gpt-5")).toEqual([5, 0]);
@@ -855,12 +979,24 @@ describe("Version extraction and comparison", () => {
       expect(extractVersion("gpt-5-2025-08-07")).toEqual([5, 0]);
     });
 
-    it("should use generic extraction for claude models", () => {
+    it("should use Claude extraction for claude-sonnet-4-5", () => {
       expect(extractVersion("claude-sonnet-4-5")).toEqual([4, 5]);
     });
 
-    it("should use generic extraction for gemini models", () => {
-      expect(extractVersion("gemini-3.0-flash")).toEqual([3, 0]);
+    it("should use Claude extraction for claude-sonnet-4-5-20250929 (ignoring date)", () => {
+      expect(extractVersion("claude-sonnet-4-5-20250929")).toEqual([4, 5]);
+    });
+
+    it("should use Claude extraction for claude-sonnet-4-20250514", () => {
+      expect(extractVersion("claude-sonnet-4-20250514")).toEqual([4, 0]);
+    });
+
+    it("should use Gemini extraction for gemini-2.5-flash", () => {
+      expect(extractVersion("gemini-2.5-flash")).toEqual([2, 5]);
+    });
+
+    it("should use Gemini extraction for gemini-3-flash-preview", () => {
+      expect(extractVersion("gemini-3-flash-preview")).toEqual([3, 0]);
     });
 
     it("should return [0] for no version", () => {
@@ -989,13 +1125,14 @@ describe("Version extraction and comparison", () => {
       expect(matching[0]).toBe("claude-sonnet-4-5");
     });
 
-    it("should correctly sort Gemini models to find latest", () => {
+    it("should correctly select claude-sonnet-4-5 over claude-sonnet-4 with date suffix", () => {
+      // Real API scenario: claude-sonnet-4-5-20250929 vs claude-sonnet-4-20250514
+      // 4.5 should beat 4.0 even though 20250514 contains larger numbers
       const models = [
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-        "gemini-3.0-flash",
+        "claude-sonnet-4-20250514",
+        "claude-sonnet-4-5-20250929",
       ];
-      const pattern = /^gemini-(\d+)\.(\d+)-flash/;
+      const pattern = /^claude-sonnet-(\d+)-(\d+)/;
       const matching = models.filter((m) => pattern.test(m));
 
       matching.sort((a, b) => {
@@ -1004,7 +1141,45 @@ describe("Version extraction and comparison", () => {
         return compareVersions(versionB, versionA);
       });
 
-      expect(matching[0]).toBe("gemini-3.0-flash");
+      // Both match the pattern, and 4.5 > 4.0
+      expect(matching[0]).toBe("claude-sonnet-4-5-20250929");
+    });
+
+    it("should correctly sort Gemini models to find latest", () => {
+      const models = [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-3-flash-preview",
+      ];
+      const pattern = /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // gemini-3-flash-preview [3, 0] > gemini-2.5-flash [2, 5]
+      expect(matching[0]).toBe("gemini-3-flash-preview");
+    });
+
+    it("should correctly select gemini-2.5-flash over gemini-2.0-flash-001", () => {
+      const models = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+        "gemini-2.5-flash",
+      ];
+      const pattern = /^gemini-(\d+)(?:\.(\d+))?-flash(?:-\d{3}|-preview)?$/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      expect(matching[0]).toBe("gemini-2.5-flash");
     });
 
     it("should correctly sort XAI models with decimals", () => {
