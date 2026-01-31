@@ -200,6 +200,9 @@ async function run(): Promise<void> {
     // Handle force_full_review input
     const forceFullReview = core.getBooleanInput("force_full_review");
 
+    // Get PR number input (for workflow_dispatch)
+    const prNumberInput = core.getInput("pr_number");
+
     // Get web search configuration
     const enableWebSearch = core.getBooleanInput("enable_web_search");
 
@@ -313,34 +316,42 @@ async function run(): Promise<void> {
     } else if (context.payload.issue?.pull_request) {
       prNumber = context.payload.issue.number;
     } else if (context.eventName === "workflow_dispatch") {
-      core.info("Workflow dispatched manually. Finding PR from branch...");
-      const branchName = context.ref.replace("refs/heads/", "");
-      const octokit = github.getOctokit(githubToken);
+      // Check if PR number was provided as input
+      if (prNumberInput && !isNaN(parseInt(prNumberInput, 10))) {
+        prNumber = parseInt(prNumberInput, 10);
+        core.info(`Workflow dispatched manually with PR #${prNumber}`);
+      } else {
+        // Fall back to finding PR from branch
+        core.info("Workflow dispatched manually. Finding PR from branch...");
+        const branchName = context.ref.replace("refs/heads/", "");
+        const octokit = github.getOctokit(githubToken);
 
-      try {
-        const { data: prs } = await octokit.rest.pulls.list({
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          head: `${context.repo.owner}:${branchName}`,
-          state: "open",
-          sort: "updated",
-          direction: "desc",
-          per_page: 1,
-        });
+        try {
+          const { data: prs } = await octokit.rest.pulls.list({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            head: `${context.repo.owner}:${branchName}`,
+            state: "open",
+            sort: "updated",
+            direction: "desc",
+            per_page: 1,
+          });
 
-        if (prs.length > 0) {
-          prNumber = prs[0].number;
-        } else {
+          if (prs.length > 0) {
+            prNumber = prs[0].number;
+          } else {
+            core.setFailed(
+              `Could not find an open pull request for branch '${branchName}'. ` +
+              `Try providing the PR number explicitly via the pr_number input.`,
+            );
+            return;
+          }
+        } catch (e: unknown) {
           core.setFailed(
-            `Could not find an open pull request for branch '${branchName}'.`,
+            `Failed to find PR for branch '${branchName}'. Error: ${e instanceof Error ? e.message : "Unknown"}`,
           );
           return;
         }
-      } catch (e: unknown) {
-        core.setFailed(
-          `Failed to find PR for branch '${branchName}'. Error: ${e instanceof Error ? e.message : "Unknown"}`,
-        );
-        return;
       }
     } else {
       core.setFailed(

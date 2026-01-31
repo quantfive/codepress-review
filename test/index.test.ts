@@ -230,7 +230,8 @@ describe("GitHub Action main run function", () => {
     await run();
 
     expect(core.setFailed).toHaveBeenCalledWith(
-      "Could not find an open pull request for branch 'no-pr-branch'.",
+      "Could not find an open pull request for branch 'no-pr-branch'. " +
+      "Try providing the PR number explicitly via the pr_number input.",
     );
   });
 
