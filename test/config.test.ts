@@ -563,9 +563,10 @@ describe("Model family pattern matching", () => {
   // Test the regex patterns directly to ensure they match expected model names
 
   describe("OpenAI patterns", () => {
-    // Patterns: match version followed by end-of-string or hyphen (excluding -mini)
-    const gptLatestPattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
-    const gptMiniLatestPattern = /^gpt-(\d+)(?:\.(\d+))?-mini/;
+    // Patterns: match base GPT models only (gpt-X, gpt-X.Y, with optional date suffix)
+    // Excludes variants like -pro, -codex, -mini, -chat-latest, -search-api
+    const gptLatestPattern = /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/;
+    const gptMiniLatestPattern = /^gpt-(\d+)(?:\.(\d+))?-mini(?:-\d{4}-\d{2}-\d{2})?$/;
 
     it("should match gpt-5", () => {
       expect(gptLatestPattern.test("gpt-5")).toBe(true);
@@ -579,12 +580,32 @@ describe("Model family pattern matching", () => {
       expect(gptLatestPattern.test("gpt-5.2")).toBe(true);
     });
 
-    it("should match gpt-5.2-preview (model with suffix)", () => {
-      expect(gptLatestPattern.test("gpt-5.2-preview")).toBe(true);
+    it("should match gpt-5-2025-08-07 (model with date suffix)", () => {
+      expect(gptLatestPattern.test("gpt-5-2025-08-07")).toBe(true);
     });
 
-    it("should match gpt-5.2-2025-01-15 (model with date suffix)", () => {
-      expect(gptLatestPattern.test("gpt-5.2-2025-01-15")).toBe(true);
+    it("should match gpt-5.2-2025-12-11 (model with date suffix)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-2025-12-11")).toBe(true);
+    });
+
+    it("should not match gpt-5.2-preview (variant, not base model)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-preview")).toBe(false);
+    });
+
+    it("should not match gpt-5.2-pro (variant)", () => {
+      expect(gptLatestPattern.test("gpt-5.2-pro")).toBe(false);
+    });
+
+    it("should not match gpt-5-codex (variant)", () => {
+      expect(gptLatestPattern.test("gpt-5-codex")).toBe(false);
+    });
+
+    it("should not match gpt-5-chat-latest (variant)", () => {
+      expect(gptLatestPattern.test("gpt-5-chat-latest")).toBe(false);
+    });
+
+    it("should not match gpt-5-search-api (variant)", () => {
+      expect(gptLatestPattern.test("gpt-5-search-api")).toBe(false);
     });
 
     it("should not match gpt-4o (different model line)", () => {
@@ -605,6 +626,10 @@ describe("Model family pattern matching", () => {
 
     it("should match gpt-5.2-mini with mini pattern", () => {
       expect(gptMiniLatestPattern.test("gpt-5.2-mini")).toBe(true);
+    });
+
+    it("should match gpt-5-mini-2025-08-07 with mini pattern", () => {
+      expect(gptMiniLatestPattern.test("gpt-5-mini-2025-08-07")).toBe(true);
     });
   });
 
@@ -757,10 +782,29 @@ describe("Model family pattern matching", () => {
 });
 
 describe("Version extraction and comparison", () => {
-  // Test version extraction logic used in dynamic resolution
-  function extractVersion(modelName: string): number[] {
+  // GPT-aware version extraction (used for GPT models)
+  function extractGptVersion(modelName: string): number[] {
+    const match = modelName.match(/^gpt-(\d+)(?:\.(\d+))?/);
+    if (match) {
+      const major = parseInt(match[1], 10);
+      const minor = match[2] ? parseInt(match[2], 10) : 0;
+      return [major, minor];
+    }
+    return [0, 0];
+  }
+
+  // General version extraction (used for non-GPT models)
+  function extractVersionGeneric(modelName: string): number[] {
     const matches = modelName.match(/(\d+)/g);
     return matches ? matches.map(Number) : [0];
+  }
+
+  // Unified version extraction
+  function extractVersion(modelName: string): number[] {
+    if (modelName.startsWith("gpt-")) {
+      return extractGptVersion(modelName);
+    }
+    return extractVersionGeneric(modelName);
   }
 
   function compareVersions(a: number[], b: number[]): number {
@@ -772,21 +816,51 @@ describe("Version extraction and comparison", () => {
     return 0;
   }
 
-  describe("extractVersion", () => {
-    it("should extract single version number", () => {
-      expect(extractVersion("gpt-5")).toEqual([5]);
+  describe("extractGptVersion", () => {
+    it("should extract gpt-5 as [5, 0]", () => {
+      expect(extractGptVersion("gpt-5")).toEqual([5, 0]);
     });
 
-    it("should extract decimal version numbers", () => {
+    it("should extract gpt-5.2 as [5, 2]", () => {
+      expect(extractGptVersion("gpt-5.2")).toEqual([5, 2]);
+    });
+
+    it("should extract gpt-5-2025-08-07 as [5, 0] (ignoring date)", () => {
+      expect(extractGptVersion("gpt-5-2025-08-07")).toEqual([5, 0]);
+    });
+
+    it("should extract gpt-5.2-2025-12-11 as [5, 2] (ignoring date)", () => {
+      expect(extractGptVersion("gpt-5.2-2025-12-11")).toEqual([5, 2]);
+    });
+
+    it("should extract gpt-5.2-pro as [5, 2]", () => {
+      expect(extractGptVersion("gpt-5.2-pro")).toEqual([5, 2]);
+    });
+
+    it("should return [0, 0] for non-GPT models", () => {
+      expect(extractGptVersion("claude-sonnet-4-5")).toEqual([0, 0]);
+    });
+  });
+
+  describe("extractVersion (unified)", () => {
+    it("should use GPT extraction for gpt-5", () => {
+      expect(extractVersion("gpt-5")).toEqual([5, 0]);
+    });
+
+    it("should use GPT extraction for gpt-5.2", () => {
       expect(extractVersion("gpt-5.2")).toEqual([5, 2]);
     });
 
-    it("should extract multiple version numbers", () => {
+    it("should use GPT extraction for gpt-5-2025-08-07", () => {
+      expect(extractVersion("gpt-5-2025-08-07")).toEqual([5, 0]);
+    });
+
+    it("should use generic extraction for claude models", () => {
       expect(extractVersion("claude-sonnet-4-5")).toEqual([4, 5]);
     });
 
-    it("should extract version with date suffix", () => {
-      expect(extractVersion("gpt-5.2-2025-12-11")).toEqual([5, 2, 2025, 12, 11]);
+    it("should use generic extraction for gemini models", () => {
+      expect(extractVersion("gemini-3.0-flash")).toEqual([3, 0]);
     });
 
     it("should return [0] for no version", () => {
@@ -820,7 +894,7 @@ describe("Version extraction and comparison", () => {
   describe("Model sorting for latest selection", () => {
     it("should correctly sort OpenAI models to find latest", () => {
       const models = ["gpt-5", "gpt-5.1", "gpt-5.2", "gpt-4"];
-      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/;
       const matching = models.filter((m) => pattern.test(m));
 
       matching.sort((a, b) => {
@@ -832,10 +906,18 @@ describe("Version extraction and comparison", () => {
       expect(matching[0]).toBe("gpt-5.2");
     });
 
-    it("should correctly sort OpenAI models with suffixes to find latest", () => {
-      // Simulates what the OpenAI API might return - models with date/preview suffixes
-      const models = ["gpt-5", "gpt-5.2-preview", "gpt-5.1-2025-01-01", "gpt-4"];
-      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+    it("should correctly select gpt-5.2 over gpt-5-2025-08-07 (real API scenario)", () => {
+      // This is the key test: simulates the actual OpenAI API response
+      // gpt-5.2 (version 5.2) should beat gpt-5-2025-08-07 (version 5.0 with date)
+      const models = [
+        "gpt-5",
+        "gpt-5-2025-08-07",
+        "gpt-5.1",
+        "gpt-5.1-2025-11-13",
+        "gpt-5.2",
+        "gpt-5.2-2025-12-11",
+      ];
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/;
       const matching = models.filter((m) => pattern.test(m));
 
       matching.sort((a, b) => {
@@ -844,13 +926,38 @@ describe("Version extraction and comparison", () => {
         return compareVersions(versionB, versionA); // Descending
       });
 
-      // gpt-5.2-preview should be selected over gpt-5 because 5.2 > 5
-      expect(matching[0]).toBe("gpt-5.2-preview");
+      // gpt-5.2 and gpt-5.2-2025-12-11 both have version [5, 2]
+      // Either is acceptable as they're the same version
+      expect(matching[0]).toMatch(/^gpt-5\.2/);
+    });
+
+    it("should exclude variant models (pro, codex, etc) when sorting for gpt-latest", () => {
+      // These variants should be excluded by the pattern
+      const models = [
+        "gpt-5",
+        "gpt-5.2",
+        "gpt-5.2-pro",
+        "gpt-5-codex",
+        "gpt-5-chat-latest",
+        "gpt-5-search-api",
+      ];
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/;
+      const matching = models.filter((m) => pattern.test(m));
+
+      matching.sort((a, b) => {
+        const versionA = extractVersion(a);
+        const versionB = extractVersion(b);
+        return compareVersions(versionB, versionA);
+      });
+
+      // Only base models should match
+      expect(matching).toEqual(["gpt-5.2", "gpt-5"]);
+      expect(matching[0]).toBe("gpt-5.2");
     });
 
     it("should exclude mini models when sorting for gpt-latest", () => {
       const models = ["gpt-5", "gpt-5.2-mini", "gpt-5.1"];
-      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/;
+      const pattern = /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/;
       const matching = models.filter((m) => pattern.test(m));
 
       matching.sort((a, b) => {

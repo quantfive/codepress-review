@@ -80,9 +80,11 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
     latest: /^claude-sonnet-(\d+)-(\d+)/, // Default to sonnet
   },
   openai: {
-    "gpt-latest": /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/,
-    "gpt-mini-latest": /^gpt-(\d+)(?:\.(\d+))?-mini/,
-    latest: /^gpt-(\d+)(?:\.(\d+))?(?:-(?!mini)|$)/, // Default to main GPT line
+    // Match base GPT models: gpt-5, gpt-5.2, gpt-5-2025-08-07, gpt-5.2-2025-12-11
+    // Excludes variants like -pro, -codex, -mini, -chat-latest, -search-api
+    "gpt-latest": /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/,
+    "gpt-mini-latest": /^gpt-(\d+)(?:\.(\d+))?-mini(?:-\d{4}-\d{2}-\d{2})?$/,
+    latest: /^gpt-(\d+)(?:\.(\d+))?(?:-\d{4}-\d{2}-\d{2})?$/, // Default to main GPT line
   },
   gemini: {
     "gemini-latest": /^gemini-(\d+)\.(\d+)-pro/,
@@ -127,10 +129,30 @@ const MODEL_FAMILY_PATTERNS: Record<string, Record<string, RegExp>> = {
 };
 
 /**
+ * Extracts semantic version from GPT model names (e.g., gpt-5.2 -> [5, 2]).
+ * Handles the gpt-X or gpt-X.Y format, ignoring date suffixes like -2025-08-07.
+ */
+function extractGptVersion(modelName: string): number[] {
+  // Match gpt-{major} or gpt-{major}.{minor}
+  const match = modelName.match(/^gpt-(\d+)(?:\.(\d+))?/);
+  if (match) {
+    const major = parseInt(match[1], 10);
+    const minor = match[2] ? parseInt(match[2], 10) : 0;
+    return [major, minor];
+  }
+  return [0, 0];
+}
+
+/**
  * Extracts version numbers from a model name for sorting.
  * Returns an array of numbers for comparison.
  */
 function extractVersion(modelName: string): number[] {
+  // For GPT models, use semantic versioning (gpt-X.Y) not all numbers
+  if (modelName.startsWith("gpt-")) {
+    return extractGptVersion(modelName);
+  }
+  // For other providers, extract all numbers
   const matches = modelName.match(/(\d+)/g);
   return matches ? matches.map(Number) : [0];
 }
