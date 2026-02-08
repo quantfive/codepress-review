@@ -81,7 +81,7 @@ inputs:
   reasoning_effort:
     description: "OpenAI reasoning effort level (none, minimal, low, medium, high). 'none' is only for GPT-5.1 models."
     required: false
-    default: ""
+    default: "high"
 
   anthropic_effort:
     description: "Anthropic effort level (low, medium, high). Only for claude-opus-4-5. Affects thinking, text responses, and function calls."
